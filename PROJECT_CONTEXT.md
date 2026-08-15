@@ -1,20 +1,27 @@
 # Nifty Sector Dashboard — Project Context / Handoff
 
-Paste this into a new chat to resume work with full context. Written 2026-08-15.
+Paste this into a new chat to resume work with full context. Written 2026-08-15,
+updated 2026-08-16.
 
 ## What this is
 
 A FastAPI backend + two vanilla-JS frontends tracking NSE's F&O (futures &
-options) universe: sector heatmap, market breadth, movers, and several
-self-tracked intraday scanners + a technical screener. Two frontends share
-one API for side-by-side comparison:
-- `/` — the original/classic build (light theme) — **this is the one with
-  every feature**; all scanner/screener work has only been built here.
-- `/pro` — a restyled dark-theme pass, intentionally scoped down (no ORB/
-  Buy-Sell/Breakout/Screener/F&O-Stock-List panels).
+options) universe: sector heatmap, market breadth, movers, self-tracked
+intraday scanners, and a full-universe F&O stock table. Two frontends
+share one API for side-by-side comparison:
+- `/` — the original/classic build (light theme) — has the self-tracked
+  ORB/Buy-Sell/15-Min-Breakout scanners and the F&O Stock List screener
+  (F&O Screener existed here too, removed 2026-08-16 - see below).
+- `/pro` — a from-scratch redesign (2026-08-16, see below): a dark,
+  sidebar-nav "F&O Stock Dashboard" built to match a reference screenshot
+  the user supplied. Its centerpiece is a full-universe, searchable/
+  sortable/paginated **F&O Scanner** table - genuinely more feature-rich
+  than `/` in that one area. Also has its own "Scanners" sidebar page with
+  the same ORB/Buy-Sell/15-Min-Breakout scanners as `/`, ported 1:1.
 
 Repo: **https://github.com/Vishwanathp24/nifty-heatmap** (pushed, `main`
-branch, latest commit as of writing: `dd35967`).
+branch). Check `git log` for the current latest commit hash rather than
+trusting a hash written into this doc - it goes stale immediately.
 
 Local path: `/Users/vishwanathpujari/Documents/claude/nifty`
 
@@ -99,6 +106,121 @@ every few hours, no warm-up needed.
    ₹50 Cr, Up-from-52w-low < 200%). Collapsed by default, shows only
    qualifying stocks. One condition (ROCE vs 3yr avg) intentionally NOT
    applied — no accessible NSE data source for financial-statement ratios.
+
+## `/pro` — full redesign to match a reference screenshot (2026-08-16)
+
+The user supplied a screenshot of a "NSE F&O Stock Dashboard" mockup
+(sidebar nav, top index strip, a big searchable/sortable/paginated F&O
+table with quick filters, summary cards, bottom mini-panels) and asked for
+`/pro` to become that. Confirmed scope up front (3 scoping questions, all
+recommended options chosen):
+1. **Full sidebar redesign**, not just adding the table to the old layout.
+2. **No Open Interest column** — OI isn't fetched anywhere in this app and
+   NSE has no confirmed-accessible OI endpoint; adding it needs real
+   investigation first, not a placeholder. If OI is ever wanted, treat it
+   as new work — don't assume it's a trivial add.
+3. **Only the F&O Scanner page fully built** for this pass; the other 8
+   sidebar destinations either reuse existing data as their own view or
+   are explicit "coming soon" stubs (Watchlist, Settings — both need new
+   functionality, persistence and config respectively, that doesn't exist).
+
+**New backend**: `NSEClient.get_fo_scanner_list()` in `nse_client.py` —
+the full F&O universe (~208 symbols) in one call, real data only, straight
+from `_fo_quote_rows()` (no self-tracking): symbol, sector, ltp, pChange,
+change (₹), volume, valueCr (turnover), prevClose, yearHigh, yearLow,
+dayHigh, dayLow, marketCapCr (free-float, reuses the same `ffmc` field
+`get_fo_stock_list` already relies on), plus two derived flags -
+`highVolume` (symbol is in NSE's own Volume Gainers list, reusing
+`_volume_spurts()` rather than inventing a percentile) and `breakout`
+(LTP at/above the day's high AND up on the day - a simple proxy since
+`/pro` has no ORB/intraday-breakout tracking). Route: `GET /api/fo-scanner`.
+
+**`/pro` sidebar** (`frontend_pro/`, completely rewritten - `index.html`,
+`styles.css`, `app.js` are all new): Dashboard, **F&O Scanner** (default/
+landing view - matches what the reference screenshot showed), Market
+Breadth, Sector Heatmap, Top Movers, 52-Week High/Low, Volume Shockers,
+Watchlist (stub), Settings (stub), plus a Classic-view link and a
+dark/light theme toggle (persisted via `localStorage`). Top strip: NIFTY
+50 / BANK NIFTY / INDIA VIX (from `/api/market-overview`) + Adv/Dec (from
+`/api/advance-decline`) + a client-side ticking clock (IST).
+
+**F&O Scanner page**: quick-filter chips (All/Breakout/Price Up/Price
+Down/High Volume/52W High/52W Low - the last two computed client-side
+from `yearHigh`/`yearLow`, within 1% counted as "at" the level), a filter
+row (Segment/Exchange are fixed single-option dropdowns - this app only
+ever covers NSE F&O; Market Cap uses `marketCapCr` bands **₹20,000 Cr /
+₹5,000 Cr** cutoffs - a documented approximation, not SEBI's rank-based
+large/mid/small definition; Sector from `/api/sector-labels`; Price
+range) with Apply/Reset, 5 summary cards (Total/Advancers/Decliners/
+Unchanged/Total Volume - always computed from the full unfiltered
+universe, not the current filtered view), then the table itself: live
+search, per-column sort, a Columns show/hide dropdown, CSV export (client-
+side Blob download - this is the user's own locally-run app, not a
+published Artifact, so a plain `<a download>` is fine here), and
+client-side pagination (10/25/50/100/All rows per page). Below the table:
+Top Gainers / Top Losers / High Volume mini-lists and a compact Sectors
+Heatmap grid, all derived from the same `/api/fo-scanner` response (no
+extra requests).
+
+**Other sidebar pages** just reuse existing endpoints
+(`/api/heatmap`+drawer via `/api/sector`, `/api/advance-decline`,
+`/api/fo/gainers-losers`, `/api/most-active`, `/api/52-week`,
+`/api/volume-gainers`) rendered into their own dedicated view instead of
+being stacked cards on one page.
+
+**Incidentally fixed a pre-existing bug**: the OLD `/pro` app.js called a
+`/api/fo/volume` endpoint that doesn't exist in `main.py` (never did, as
+far as this history shows) - meaning the old Volume Leaders/Volume Spurts
+panels silently 404'd on every refresh. The rewrite calls the real
+`/api/most-active` and `/api/volume-gainers` routes instead.
+
+**Verified live** (preview browser, not just code review): every sidebar
+page switches and renders real data; search/sort/quick-filters/Apply-
+Reset/Columns-toggle/CSV-export all functionally tested via `javascript_exec`
+(not just visually) - e.g. "Price Up" quick filter returned exactly the
+same count as the Advancers summary card; the drawer opens real
+constituent-stock data for a clicked sector tile; dark/light theme toggle
+and mobile layout (sidebar collapses behind a burger button) both checked;
+`/` (classic) confirmed completely unaffected.
+
+**Follow-up refinements in the same batch** (all also verified live, all
+committed together):
+- Added a **"Scanners"** sidebar page — Opening Range Breakout, Buy/Sell
+  (Bullish/Bearish), 15-Min Breakout, ported 1:1 from the classic
+  dashboard (same routes, same rules, same auto-sync-direction-to-bias
+  behavior). Watch for ID/name collisions if extending this further -
+  porting classic's code here once already caused a real bug (`SCANNER_
+  COLUMNS`/`refreshScanner`/`#scanner-table` collided with the F&O
+  Scanner page's own identically-named things and would have thrown a
+  duplicate-`const` SyntaxError); the Buy/Sell scanner's identifiers are
+  now prefixed `BUYSELL_`/`buysell-*` specifically to avoid this.
+- Top index strip now includes a **Market Bias** card (label only -
+  "Bearish"/"Bullish"/"Neutral / Mixed", no score/count/action-hint text
+  alongside it - both were tried and explicitly reverted per user
+  feedback: a raw signed score like "-3 / 5" read as confusing, and a
+  derived "Buy Call"/"Buy Put" action hint was explicitly not wanted
+  either, "just market bias Bearish or bullish that is enough").
+- Dark/light theme toggle moved from the sidebar footer into the topbar
+  (next to Auto Refresh) as a plain single-click icon button (🌙/☀️, no
+  switch/slider) - explicitly requested to match the classic dashboard's
+  simpler toggle pattern and for easier mobile reach without opening the
+  sidebar.
+- Full Sector Heatmap page's tiles recolored to solid green/red-tinted
+  cards (matching the mini Sectors Heatmap panel's style) instead of dark
+  cards with just a bottom accent bar - explicit user request, screenshot-
+  driven.
+- Mini Sectors Heatmap panel (on the F&O Scanner page) now shows the
+  actual top 6 AND bottom 6 sectors by % change (previously just the
+  first 12 in descending order, which silently hid the real worst
+  decliners on a broadly red day) and its tiles are now clickable,
+  opening the same constituent-stock drawer as the full Heatmap page.
+- Added a **view-switch link both ways**, positioned beside the dark-mode
+  toggle on each: `/`'s header has a "Pro view" button right next to its
+  🌙/☀️ toggle; `/pro`'s topbar has a "Classic view" button right next to
+  its own toggle (moved there from the sidebar footer, which no longer
+  exists - it only ever held that one link).
+
+Committed and pushed to `main` - see Git/GitHub state below for the commit hash.
 
 ## F&O Screener — built, then removed (2026-08-15)
 

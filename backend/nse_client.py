@@ -1345,6 +1345,89 @@ class NSEClient:
             "stocks": rows,
         }
 
+    def get_fo_scanner_list(self) -> dict:
+        """The full F&O universe, one row per symbol, with everything the
+        `/pro` F&O Scanner table shows: LTP, change (%/₹), volume, turnover
+        value, sector, previous close, 52-week high/low - all real, no
+        self-tracking, straight from the same NIFTY 500 snapshot every
+        other panel uses (_fo_quote_rows). Deliberately does NOT include
+        Open Interest - NSE has no confirmed-accessible OI endpoint used
+        anywhere in this codebase; adding it would need real investigation
+        first, not a placeholder/fake number.
+
+        Two quick-filter flags are computed here rather than left to the
+        frontend:
+        - `highVolume`: symbol appears in NSE's own "Volume Gainers" list
+          (today's volume vs 1-week average) - reuses _volume_spurts(),
+          the same real data get_volume_gainers already exposes, rather
+          than inventing a percentile threshold.
+        - `breakout`: LTP is at/above the day's high AND up on the day - a
+          simple "still trading at today's fresh high" signal (this app
+          has no ORB/ intraday-breakout tracking in the /pro build).
+
+        `marketCapCr` reuses the same `ffmc` (free-float market cap) field
+        get_fo_stock_list already relies on - like that feature, it's
+        free-float, not total market cap, since that's what NSE's snapshot
+        provides; null when NSE doesn't have it for a symbol."""
+        fo_symbols = self._fo_universe()
+        high_volume_symbols = {r.get("symbol") for r in self._volume_spurts()}
+
+        stocks = []
+        advancers = decliners = unchanged = 0
+        total_volume = 0
+        for row in self._fo_quote_rows():
+            sym = row.get("symbol")
+            if sym not in fo_symbols:
+                continue
+            ltp = row.get("lastPrice")
+            p_change = row.get("pChange")
+            volume = row.get("totalTradedVolume")
+            day_high = row.get("dayHigh")
+            if ltp is None or p_change is None or volume is None:
+                continue
+
+            if p_change > 0:
+                advancers += 1
+            elif p_change < 0:
+                decliners += 1
+            else:
+                unchanged += 1
+            total_volume += volume
+
+            value = row.get("totalTradedValue")
+            ffmc = row.get("ffmc")
+            stocks.append(
+                {
+                    "symbol": sym,
+                    "sector": self._sector_for(sym),
+                    "ltp": ltp,
+                    "pChange": p_change,
+                    "change": row.get("change"),
+                    "volume": volume,
+                    "valueCr": round(value / 1e7, 2) if value is not None else None,
+                    "prevClose": row.get("previousClose"),
+                    "yearHigh": row.get("yearHigh"),
+                    "yearLow": row.get("yearLow"),
+                    "dayHigh": day_high,
+                    "dayLow": row.get("dayLow"),
+                    "marketCapCr": round(ffmc / 1e7, 1) if ffmc else None,
+                    "highVolume": sym in high_volume_symbols,
+                    "breakout": bool(day_high is not None and ltp >= day_high and p_change > 0),
+                }
+            )
+
+        stocks.sort(key=lambda r: -abs(r["pChange"]))
+        return {
+            "summary": {
+                "total": len(stocks),
+                "advancers": advancers,
+                "decliners": decliners,
+                "unchanged": unchanged,
+                "totalVolumeCr": round(total_volume / 1e7, 2),
+            },
+            "stocks": stocks,
+        }
+
     def get_market_overview(self) -> dict:
         """Top-of-dashboard index strip (NIFTY 50, NIFTY BANK, INDIA VIX)
         plus a same-session "Market Bias" reading built entirely from data

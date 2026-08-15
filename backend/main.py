@@ -97,6 +97,13 @@ def fo_stock_list():
     return _wrap(client.get_fo_stock_list)
 
 
+@app.get("/api/fo-scanner")
+def fo_scanner():
+    """Full F&O universe, one row per symbol - powers the /pro F&O Scanner
+    table. No Open Interest (not fetched anywhere in this app)."""
+    return _wrap(client.get_fo_scanner_list)
+
+
 @app.get("/api/sectors")
 def sectors_list():
     return {"sectors": HEATMAP_SECTOR_SYMBOLS}

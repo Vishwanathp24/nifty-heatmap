@@ -3,126 +3,405 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Nifty Terminal</title>
+  <title>NSE F&amp;O Stock Dashboard</title>
   <link rel="stylesheet" href="/pro/static/styles.css" />
 </head>
 <body>
-  <header class="topnav">
-    <div class="topnav-left">
-      <div class="brand-mark">N</div>
-      <div class="brand-text">
-        <span class="brand-name">Nifty Terminal</span>
-        <span class="brand-sub">Sectors &middot; Breadth &middot; F&amp;O Flow</span>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-mark">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20V10M10 20V4M17 20v-7"/></svg>
+        </div>
+        <span class="brand-name">NSE F&amp;O</span>
       </div>
-    </div>
-    <div class="topnav-right">
-      <span id="market-status" class="status-pill">&mdash;</span>
-      <span id="as-of" class="as-of">&mdash;</span>
-      <button id="refresh-btn" class="btn-ghost" title="Refresh now">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>
-        Refresh
-      </button>
-      <a href="/" class="btn-ghost btn-link">Classic view</a>
-    </div>
-  </header>
 
-  <div id="error-banner" class="error-banner hidden"></div>
+      <nav class="sidebar-nav" id="sidebar-nav">
+        <button class="nav-item" data-view="dashboard">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+          Dashboard
+        </button>
+        <button class="nav-item active" data-view="scanner">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>
+          F&amp;O Scanner
+        </button>
+        <button class="nav-item" data-view="scanners">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/></svg>
+          Scanners
+        </button>
+        <button class="nav-item" data-view="breadth">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9M13 17V5M8 17v-3"/></svg>
+          Market Breadth
+        </button>
+        <button class="nav-item" data-view="heatmap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg>
+          Sector Heatmap
+        </button>
+        <button class="nav-item" data-view="movers">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 6l-9.5 9.5-5-5L1 18"/><path d="M17 6h6v6"/></svg>
+          Top Movers
+        </button>
+        <button class="nav-item" data-view="fiftytwo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V10M18 20V4M6 20v-4"/></svg>
+          52W High / Low
+        </button>
+        <button class="nav-item" data-view="volume">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+          Volume Shockers
+        </button>
+        <button class="nav-item" data-view="watchlist">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17.3L18.2 21l-1.6-7.1L22 9.2l-7.2-.6L12 2 9.2 8.6 2 9.2l5.4 4.7L5.8 21z"/></svg>
+          Watchlist
+        </button>
+        <button class="nav-item" data-view="settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.6V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.6 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.6 1z"/></svg>
+          Settings
+        </button>
+      </nav>
+    </aside>
 
-  <main>
-    <section class="two-col">
-      <!-- Market Indices -->
-      <div class="card">
-        <div class="card-head">
-          <div>
-            <h2>Market Indices</h2>
-            <p class="card-sub">Nifty 50 &middot; Bank Nifty &middot; India VIX</p>
+    <div class="main-col">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="sidebar-burger" id="sidebar-burger" aria-label="Toggle menu">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+          </button>
+          <h1 id="page-title">F&amp;O Scanner</h1>
+          <span class="live-pill" id="market-status">&mdash;</span>
+        </div>
+        <div class="topbar-right">
+          <span id="as-of" class="as-of">&mdash;</span>
+          <button id="refresh-btn" class="btn-ghost" title="Refresh now">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>
+          </button>
+          <a href="/" id="classic-view-link" class="btn-ghost" title="Switch to classic view">Classic view</a>
+          <button id="theme-toggle" class="btn-ghost" title="Toggle dark mode">
+            <span id="theme-icon">🌙</span>
+          </button>
+          <label class="auto-refresh">
+            Auto Refresh
+            <span class="switch"><input type="checkbox" id="auto-refresh-checkbox" checked /><span class="knob"></span></span>
+          </label>
+        </div>
+      </header>
+
+      <div class="index-strip" id="index-strip">
+        <div class="skel-row"></div>
+      </div>
+
+      <div id="error-banner" class="error-banner hidden"></div>
+
+      <main class="view-area">
+        <!-- ============================== Dashboard ============================== -->
+        <section class="view" data-view="dashboard">
+          <div class="view-head">
+            <h2>Dashboard</h2>
+            <p class="view-sub">Same-session market overview &mdash; not a prediction.</p>
           </div>
-        </div>
-        <div id="index-cards" class="index-cards">
-          <div class="skel-row"></div>
-        </div>
-      </div>
-
-      <!-- Market Bias -->
-      <div class="card">
-        <div class="card-head">
-          <div>
-            <h2>Market Bias</h2>
-            <p class="card-sub">Same-session breadth read, not a forecast. Sensex &amp; global indices excluded (no reliable free source).</p>
+          <div class="two-col">
+            <div class="card">
+              <div class="card-head">
+                <div><h3>Market Bias</h3><p class="card-sub">Breadth-based read of the current session</p></div>
+                <span id="bias-value" class="bias-value">&mdash;</span>
+              </div>
+              <div id="bias-factors" class="bias-factors"></div>
+            </div>
+            <div class="card">
+              <div class="card-head"><div><h3>Nifty 50 Breadth</h3><p class="card-sub">Advance / decline vs today's open</p></div></div>
+              <div id="dash-ad-body" class="ad-body"><div class="skel-line"></div></div>
+            </div>
           </div>
-          <span id="bias-value" class="bias-value">&mdash;</span>
-        </div>
-        <div id="bias-factors" class="bias-factors"></div>
-      </div>
-    </section>
+          <div class="two-col">
+            <div class="card">
+              <div class="card-head"><h3><span class="dot-up"></span>F&amp;O Gainers</h3></div>
+              <div id="dash-gainers" class="data-table"><div class="skel-line"></div></div>
+            </div>
+            <div class="card">
+              <div class="card-head"><h3><span class="dot-down"></span>F&amp;O Losers</h3></div>
+              <div id="dash-losers" class="data-table"><div class="skel-line"></div></div>
+            </div>
+          </div>
+        </section>
 
-    <!-- Heatmap -->
-    <section class="card">
-      <div class="card-head">
-        <div>
-          <h2>Sectoral Heatmap</h2>
-          <p class="card-sub">Click a tile for its constituent stocks</p>
-        </div>
-        <span id="sector-count" class="count-chip">&mdash;</span>
-      </div>
-      <div id="heatmap-grid" class="heatmap-grid">
-        <div class="skel-grid"></div>
-      </div>
-    </section>
+        <!-- ============================== F&O Scanner ============================== -->
+        <section class="view active" data-view="scanner">
+          <div class="view-head">
+            <h2>F&amp;O Stock Scanner</h2>
+            <p class="view-sub">Live NSE F&amp;O stocks with key technical &amp; market data</p>
+          </div>
 
-    <!-- Advance / Decline -->
-    <section class="card">
-      <div class="card-head">
-        <div>
-          <h2>Nifty 50 Breadth</h2>
-          <p class="card-sub">Advance / decline vs today's open</p>
-        </div>
-      </div>
-      <div id="ad-body" class="ad-body">
-        <div class="skel-line"></div>
-      </div>
-    </section>
+          <div class="quick-filters">
+            <span class="qf-label">Quick Filters:</span>
+            <div class="qf-chips" id="qf-chips">
+              <button class="qf-chip active" data-filter="all">All</button>
+              <button class="qf-chip" data-filter="breakout">Breakout</button>
+              <button class="qf-chip" data-filter="priceUp">Price Up</button>
+              <button class="qf-chip" data-filter="priceDown">Price Down</button>
+              <button class="qf-chip" data-filter="highVolume">High Volume</button>
+              <button class="qf-chip" data-filter="high52w">52W High</button>
+              <button class="qf-chip" data-filter="low52w">52W Low</button>
+            </div>
+          </div>
 
-    <!-- Sector filter -->
-    <section class="filter-bar">
-      <span class="filter-label">Filter F&amp;O movers</span>
-      <select id="sector-filter" class="select">
-        <option value="ALL">All Sectors</option>
-      </select>
-      <span id="filter-hint" class="filter-hint"></span>
-    </section>
+          <div class="filter-row">
+            <div class="filter-field">
+              <label>Segment</label>
+              <select id="f-segment" disabled><option>F&amp;O</option></select>
+            </div>
+            <div class="filter-field">
+              <label>Exchange</label>
+              <select id="f-exchange" disabled><option>NSE</option></select>
+            </div>
+            <div class="filter-field">
+              <label>Market Cap</label>
+              <select id="f-mcap">
+                <option value="all">All</option>
+                <option value="large">Large Cap (&gt;₹20,000 Cr)</option>
+                <option value="mid">Mid Cap (₹5,000&ndash;20,000 Cr)</option>
+                <option value="small">Small Cap (&lt;₹5,000 Cr)</option>
+              </select>
+            </div>
+            <div class="filter-field">
+              <label>Sector</label>
+              <select id="f-sector"><option value="ALL">All</option></select>
+            </div>
+            <div class="filter-field">
+              <label>Price</label>
+              <select id="f-price">
+                <option value="all">All</option>
+                <option value="lt500">Under ₹500</option>
+                <option value="500-1000">₹500 &ndash; ₹1,000</option>
+                <option value="1000-2500">₹1,000 &ndash; ₹2,500</option>
+                <option value="gt2500">Above ₹2,500</option>
+              </select>
+            </div>
+            <button id="f-apply" class="btn-primary">Apply Filters</button>
+            <button id="f-reset" class="btn-ghost">Reset</button>
+          </div>
 
-    <!-- Gainers / Losers -->
-    <section class="two-col">
-      <div class="card">
-        <div class="card-head"><h2><span class="dot-up"></span>F&amp;O Gainers</h2></div>
-        <div id="fo-gainers" class="data-table"><div class="skel-line"></div></div>
-      </div>
-      <div class="card">
-        <div class="card-head"><h2><span class="dot-down"></span>F&amp;O Losers</h2></div>
-        <div id="fo-losers" class="data-table"><div class="skel-line"></div></div>
-      </div>
-    </section>
+          <div class="summary-cards" id="scanner-summary">
+            <div class="skel-row"></div>
+          </div>
 
-    <!-- Volume -->
-    <section class="card">
-      <div class="card-head">
-        <div>
-          <h2>F&amp;O Volume Leaders</h2>
-          <p class="card-sub">Ranked by today's traded volume</p>
-        </div>
-      </div>
-      <div id="fo-volume" class="data-table"><div class="skel-line"></div></div>
+          <div class="table-card">
+            <div class="table-toolbar">
+              <h3 id="table-title">F&amp;O Stocks (Live)</h3>
+              <div class="table-toolbar-right">
+                <div class="search-box">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+                  <input id="table-search" placeholder="Search stock..." />
+                </div>
+                <div class="dropdown" id="columns-dropdown">
+                  <button class="btn-ghost" id="columns-btn">Columns</button>
+                  <div class="dropdown-menu hidden" id="columns-menu"></div>
+                </div>
+                <button class="btn-ghost" id="export-csv-btn">Export CSV</button>
+              </div>
+            </div>
+            <div class="movers-table" id="scanner-table"><div class="skel-line"></div></div>
+            <div class="table-footer">
+              <span id="table-range-note" class="table-range-note"></span>
+              <div class="pagination" id="table-pagination"></div>
+              <div class="rows-per-page">
+                Rows per page
+                <select id="rows-per-page">
+                  <option value="10">10</option>
+                  <option value="25">25</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                  <option value="0">All</option>
+                </select>
+              </div>
+            </div>
+          </div>
 
-      <div class="card-head sub">
-        <div>
-          <h3>Volume Spurts</h3>
-          <p class="card-sub">NSE's list, vs 1-week avg volume</p>
-        </div>
-      </div>
-      <div id="fo-spurts" class="data-table"><div class="skel-line"></div></div>
-    </section>
-  </main>
+          <div class="bottom-grid">
+            <div class="mini-card">
+              <h4><span class="dot-up"></span>Top Gainers</h4>
+              <div id="mini-top-gainers" class="mini-list"></div>
+            </div>
+            <div class="mini-card">
+              <h4><span class="dot-down"></span>Top Losers</h4>
+              <div id="mini-top-losers" class="mini-list"></div>
+            </div>
+            <div class="mini-card">
+              <h4><span class="dot-vol"></span>High Volume</h4>
+              <div id="mini-high-volume" class="mini-list"></div>
+            </div>
+            <div class="mini-card wide">
+              <h4>Sectors Heatmap</h4>
+              <div id="mini-sectors" class="mini-sector-grid"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============================== Scanners (self-tracked) ============================== -->
+        <section class="view" data-view="scanners">
+          <div class="view-head">
+            <h2>Scanners <span class="muted">&mdash; F&amp;O stocks, self-tracked</span></h2>
+            <p class="view-sub">For technical research, not a trading recommendation.</p>
+          </div>
+
+          <div class="group-tabs" id="scanner-group-tabs">
+            <button class="group-tab active" data-group="orb">Opening Range Breakout</button>
+            <button class="group-tab" data-group="buysell">Buy / Sell (Bullish / Bearish)</button>
+            <button class="group-tab" data-group="breakout15">15-Min Breakout</button>
+          </div>
+
+          <div class="scanner-group active" data-group="orb">
+            <p class="view-sub">Range forms in the first N minutes after 09:15 IST; a later break above/below it is flagged here.</p>
+            <div id="orb-tabs" class="qf-chips">
+              <button class="qf-chip active" data-window="5">5 min</button>
+              <button class="qf-chip" data-window="15">15 min</button>
+              <button class="qf-chip" data-window="30">30 min</button>
+              <button class="qf-chip" data-window="45">45 min</button>
+              <button class="qf-chip" data-window="60">60 min</button>
+            </div>
+            <p id="orb-status-note" class="status-note"></p>
+            <div id="orb-table" class="data-table"><div class="skel-line"></div></div>
+          </div>
+
+          <div class="scanner-group" data-group="buysell">
+            <p class="view-sub">
+              Daily and intraday, each: Close vs SMA(20) &middot; Close vs each of the last 5 bars' High/Low &middot; RSI(14) vs 60 (buy) / 40 (sell).
+              Daily uses real NSE EOD history (ready now); intraday is self-tracked and persisted across days. A stock only "qualifies" once both timeframes pass.
+            </p>
+            <div id="buysell-tabs" class="qf-chips">
+              <button class="qf-chip active" data-direction="buy">Buy Scanner</button>
+              <button class="qf-chip" data-direction="sell">Sell Scanner</button>
+            </div>
+            <div id="buysell-timeframe-tabs" class="qf-chips">
+              <button class="qf-chip" data-timeframe="15">15 min</button>
+              <button class="qf-chip" data-timeframe="30">30 min</button>
+              <button class="qf-chip" data-timeframe="45">45 min</button>
+              <button class="qf-chip active" data-timeframe="60">60 min</button>
+            </div>
+            <p id="buysell-status-note" class="status-note"></p>
+            <div id="buysell-table" class="data-table"><div class="skel-line"></div></div>
+          </div>
+
+          <div class="scanner-group" data-group="breakout15">
+            <p class="view-sub">
+              Pure 15-min, independent of the scanner above: Close breaks above/below the prior bar's rolling 20-period Close high,
+              plus Volume vs its own 20-period SMA. The Sell version deliberately wants volume <em>below</em> average (not a spike) &mdash; that's the source rule, not a mistake.
+            </p>
+            <div id="breakout-tabs" class="qf-chips">
+              <button class="qf-chip active" data-direction="buy">15 Min Stock Breakouts</button>
+              <button class="qf-chip" data-direction="sell">15 Min Bearish Breakout</button>
+            </div>
+            <p id="breakout-status-note" class="status-note"></p>
+            <div id="breakout-table" class="data-table"><div class="skel-line"></div></div>
+          </div>
+        </section>
+
+        <!-- ============================== Market Breadth ============================== -->
+        <section class="view" data-view="breadth">
+          <div class="view-head">
+            <h2>Market Breadth</h2>
+            <p class="view-sub">Nifty 50 advance / decline vs today's open</p>
+          </div>
+          <div class="card">
+            <div id="breadth-body" class="ad-body"><div class="skel-line"></div></div>
+          </div>
+        </section>
+
+        <!-- ============================== Sector Heatmap ============================== -->
+        <section class="view" data-view="heatmap">
+          <div class="view-head">
+            <h2>Sector Heatmap</h2>
+            <p class="view-sub">All 23 NSE sectoral indices &mdash; click a tile for constituent stocks</p>
+          </div>
+          <div class="card">
+            <div class="card-head"><div></div><span id="sector-count" class="count-chip">&mdash;</span></div>
+            <div id="heatmap-grid" class="heatmap-grid"><div class="skel-grid"></div></div>
+          </div>
+        </section>
+
+        <!-- ============================== Top Movers ============================== -->
+        <section class="view" data-view="movers">
+          <div class="view-head">
+            <h2>Top Movers</h2>
+            <p class="view-sub">F&amp;O gainers and losers, and today's most active by volume/value</p>
+          </div>
+          <div class="two-col">
+            <div class="card">
+              <div class="card-head"><h3><span class="dot-up"></span>F&amp;O Gainers</h3></div>
+              <div id="movers-gainers" class="data-table"><div class="skel-line"></div></div>
+            </div>
+            <div class="card">
+              <div class="card-head"><h3><span class="dot-down"></span>F&amp;O Losers</h3></div>
+              <div id="movers-losers" class="data-table"><div class="skel-line"></div></div>
+            </div>
+          </div>
+          <div class="two-col">
+            <div class="card">
+              <div class="card-head"><h3>Most Active &mdash; By Volume</h3></div>
+              <div id="movers-active-volume" class="data-table"><div class="skel-line"></div></div>
+            </div>
+            <div class="card">
+              <div class="card-head"><h3>Most Active &mdash; By Value</h3></div>
+              <div id="movers-active-value" class="data-table"><div class="skel-line"></div></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============================== 52W High/Low ============================== -->
+        <section class="view" data-view="fiftytwo">
+          <div class="view-head">
+            <h2>52-Week High / Low</h2>
+            <p class="view-sub">F&amp;O stocks that just hit a fresh 52-week high or low</p>
+          </div>
+          <div class="two-col">
+            <div class="card">
+              <div class="card-head"><h3><span class="dot-up"></span>New 52-Week Highs</h3></div>
+              <div id="week52-high" class="data-table"><div class="skel-line"></div></div>
+            </div>
+            <div class="card">
+              <div class="card-head"><h3><span class="dot-down"></span>New 52-Week Lows</h3></div>
+              <div id="week52-low" class="data-table"><div class="skel-line"></div></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============================== Volume Shockers ============================== -->
+        <section class="view" data-view="volume">
+          <div class="view-head">
+            <h2>Volume Shockers</h2>
+            <p class="view-sub">F&amp;O stocks trading well above their 1-week average volume (NSE's own list)</p>
+          </div>
+          <div class="card">
+            <div id="volume-shockers" class="data-table"><div class="skel-line"></div></div>
+          </div>
+        </section>
+
+        <!-- ============================== Watchlist (stub) ============================== -->
+        <section class="view" data-view="watchlist">
+          <div class="view-head">
+            <h2>Watchlist</h2>
+            <p class="view-sub">Coming soon</p>
+          </div>
+          <div class="card stub-card">
+            <p>Watchlists aren't built yet &mdash; this needs a place to save your picks across visits, which this app doesn't have yet. Ask for it if you want it.</p>
+          </div>
+        </section>
+
+        <!-- ============================== Settings (stub) ============================== -->
+        <section class="view" data-view="settings">
+          <div class="view-head">
+            <h2>Settings</h2>
+            <p class="view-sub">Coming soon</p>
+          </div>
+          <div class="card stub-card">
+            <p>No configurable settings yet. Ask for what you'd want here (refresh interval, default filters, theme, etc.).</p>
+          </div>
+        </section>
+      </main>
+
+      <footer class="page-footer">
+        <span>Source: NSE India (F&amp;O) &middot; Data in real-time, no Open Interest yet</span>
+      </footer>
+    </div>
+  </div>
 
   <div id="drawer" class="drawer hidden">
     <div class="drawer-backdrop" id="drawer-backdrop"></div>
