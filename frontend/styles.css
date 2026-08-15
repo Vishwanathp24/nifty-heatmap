@@ -394,9 +394,9 @@ tr:last-child td { border-bottom: none; }
 .breakout-none { color: var(--muted); }
 
 /* Scanners mega-panel: one top-level group visible at a time (ORB / Buy-Sell
-   / 15-Min Breakout / Screener) - this is the main mobile-friendliness fix:
-   previously all four full sections rendered stacked and always-visible,
-   which made the page extremely long to scroll on a phone. */
+   / 15-Min Breakout) - this is the main mobile-friendliness fix: previously
+   all sections rendered stacked and always-visible, which made the page
+   extremely long to scroll on a phone. */
 .group-tabs {
   display: flex; gap: 4px; margin-top: 10px;
   overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 2px;
@@ -411,13 +411,3 @@ tr:last-child td { border-bottom: none; }
 .group-tab.active { color: var(--purple); border-bottom-color: var(--purple); }
 .scanner-group { display: none; margin-top: 14px; }
 .scanner-group.active { display: block; }
-
-/* F&O Screener condition chips */
-.checks-cell { max-width: 420px; }
-.check-chip {
-  display: inline-block; font-size: 11px; font-weight: 600;
-  padding: 2px 7px; border-radius: 999px; margin: 2px 3px 2px 0;
-  background: var(--neutral); white-space: nowrap;
-}
-.check-chip.up { color: var(--green-5); }
-.check-chip.down { color: var(--muted); }
