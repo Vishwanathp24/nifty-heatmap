@@ -25,6 +25,11 @@ comparison.
   for reference. One condition from the source screener (ROCE vs its 3-year
   average) is intentionally not applied — no accessible data source for
   financial-statement ratios.
+All of the below live together in one tabbed "Scanners" panel (Opening
+Range Breakout / Buy-Sell / 15-Min Breakout / Screener) so only one is
+rendered at a time — this keeps the page short on a phone instead of
+stacking four full sections:
+
 - **Opening Range Breakout (ORB) Scanner** — 5/15/30/45/60-min windows,
   self-tracked (see below).
 - **Buy/Sell Scanner (Bullish/Bearish Intraday)** — daily (SMA20/RSI14/5-day
@@ -33,6 +38,12 @@ comparison.
 - **15-Min Breakout Scanner** — an independent, pure 15-min scanner (close
   vs rolling 20-bar close-high, volume vs its own 20-bar SMA), replicated
   from two published screeners.
+- **F&O Screener** — 5 independent daily-technical screens (Bullish Trend
+  MA+ADX+MACD, Open=High/Low, Strong Uptrend, Volume Shockers, a price-range
+  scan), each replicated from a published Chartink scanner, all real (no
+  self-tracking - runs on ~65 real trading days of Bhavcopy history). A
+  second batch of published screens needing weekly/monthly bars and a
+  Camarilla pivot isn't built yet.
 
 ## Running it
 

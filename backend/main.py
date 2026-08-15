@@ -159,6 +159,27 @@ def breakout_scanner(
     return _wrap(client.get_breakout_scanner, direction)
 
 
+@app.get("/api/screener/list")
+def screener_list():
+    """The available F&O Screener screens (key/label/source) - phase 1 of
+    the published Chartink scanners shared for this feature; see
+    nse_client.SCREENER_SCREENS for what's covered and what isn't yet."""
+    return {"screens": _wrap(client.get_screener_list)}
+
+
+@app.get("/api/screener/status")
+def screener_status():
+    return _wrap(client.get_screener_status)
+
+
+@app.get("/api/screener")
+def screener(key: str = Query(..., description="one of the keys from /api/screener/list")):
+    valid_keys = {s["key"] for s in client.get_screener_list()}
+    if key not in valid_keys:
+        raise HTTPException(status_code=400, detail=f"key must be one of {sorted(valid_keys)}")
+    return _wrap(client.get_screener, key)
+
+
 # ---------------------------------------------------------------------------
 # Frontend (static single-page apps) - two frontends, same API, for side by
 # side comparison: "/" is the original build, "/pro" is a restyled pass.

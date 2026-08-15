@@ -141,13 +141,18 @@ main {
 
 .panel-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* minmax(0, 1fr), not bare 1fr - same fix as .heatmap-grid below: a wide
+     child (a movers-table forced to min-width: 640px for its own mobile
+     scroll behavior) was pushing each column past its track, so the whole
+     row (F&O Gainers/Losers, Most Active, 52-Week Highs/Lows) drifted wider
+     than every other panel and fell out of alignment with them. */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 18px;
 }
-.panel.half { margin: 0; }
+.panel.half { margin: 0; min-width: 0; }
 
 @media (max-width: 760px) {
-  .panel-row { grid-template-columns: 1fr; }
+  .panel-row { grid-template-columns: minmax(0, 1fr); }
 }
 
 .panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
@@ -167,12 +172,16 @@ main {
 /* Heatmap */
 .heatmap-grid {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  /* minmax(0, 1fr), not bare 1fr - a bare 1fr track still won't shrink
+     below its content's min-content width (long tile text, in this case),
+     which was overflowing the grid past the viewport on mobile instead of
+     wrapping/shrinking as intended. minmax(0, ...) removes that floor. */
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 8px;
   margin-top: 10px;
 }
-@media (max-width: 900px) { .heatmap-grid { grid-template-columns: repeat(3, 1fr); } }
-@media (max-width: 520px) { .heatmap-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 900px) { .heatmap-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 520px) { .heatmap-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 .tile {
   border-radius: 8px;
@@ -231,6 +240,18 @@ th { color: var(--muted); font-weight: 600; font-size: 11px; text-transform: upp
 th.sortable { cursor: pointer; user-select: none; }
 th.sortable:hover { color: var(--ink); }
 tr:last-child td { border-bottom: none; }
+
+/* Movers tables scroll horizontally within their own box instead of
+   letting a wide table (many columns) force the whole page to scroll
+   sideways on mobile - the table itself refuses to shrink below
+   min-width, so overflow-x kicks in on narrow viewports. */
+.movers-table { overflow-x: auto; }
+.movers-table table { min-width: 640px; }
+@media (max-width: 700px) {
+  .movers-table table { font-size: 12px; }
+  th, td { padding: 5px 6px; }
+  .mobile-hide { display: none; }
+}
 .sym-link {
   color: var(--ink);
   font-weight: 600;
@@ -355,11 +376,15 @@ tr:last-child td { border-bottom: none; }
 .bias-factor .f-detail { color: var(--muted); }
 
 /* ORB scanner */
-.orb-tabs { display: flex; gap: 6px; margin-top: 12px; }
+.orb-tabs {
+  display: flex; gap: 6px; margin-top: 12px;
+  overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 2px;
+}
 .orb-tab {
   font-size: 12.5px; font-weight: 600; color: var(--muted);
   background: var(--neutral); border: 1px solid var(--border);
   padding: 6px 16px; border-radius: 999px; cursor: pointer;
+  flex-shrink: 0;
 }
 .orb-tab:hover { background: #e3ddf0; }
 .orb-tab.active { background: var(--purple); color: white; border-color: var(--purple); }
@@ -367,3 +392,32 @@ tr:last-child td { border-bottom: none; }
 .breakout-up { color: var(--green-5); font-weight: 700; }
 .breakout-down { color: var(--red-5); font-weight: 700; }
 .breakout-none { color: var(--muted); }
+
+/* Scanners mega-panel: one top-level group visible at a time (ORB / Buy-Sell
+   / 15-Min Breakout / Screener) - this is the main mobile-friendliness fix:
+   previously all four full sections rendered stacked and always-visible,
+   which made the page extremely long to scroll on a phone. */
+.group-tabs {
+  display: flex; gap: 4px; margin-top: 10px;
+  overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 2px;
+  border-bottom: 1px solid var(--border);
+}
+.group-tab {
+  font-size: 13px; font-weight: 700; color: var(--muted);
+  background: none; border: none; border-bottom: 2px solid transparent;
+  padding: 8px 14px; cursor: pointer; white-space: nowrap; flex-shrink: 0;
+}
+.group-tab:hover { color: var(--ink); }
+.group-tab.active { color: var(--purple); border-bottom-color: var(--purple); }
+.scanner-group { display: none; margin-top: 14px; }
+.scanner-group.active { display: block; }
+
+/* F&O Screener condition chips */
+.checks-cell { max-width: 420px; }
+.check-chip {
+  display: inline-block; font-size: 11px; font-weight: 600;
+  padding: 2px 7px; border-radius: 999px; margin: 2px 3px 2px 0;
+  background: var(--neutral); white-space: nowrap;
+}
+.check-chip.up { color: var(--green-5); }
+.check-chip.down { color: var(--muted); }

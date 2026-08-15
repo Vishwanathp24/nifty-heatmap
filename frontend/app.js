@@ -480,7 +480,7 @@ const SCANNER_COLUMNS = [
   { header: "LTP", render: (r) => fmtNum(r.ltp) },
   { header: "Chg %", render: (r) => `<span class="${chgClass(r.pChange)}">${sign(r.pChange)}${fmtNum(r.pChange)}%</span>` },
   { header: "Daily RSI(14)", render: (r) => fmtNum(r.dailyRsi14) },
-  { header: "Daily vs SMA20", render: (r) => `${fmtNum(r.dailyClose)} / ${fmtNum(r.dailySma20)}` },
+  { header: "Daily vs SMA20", render: (r) => `${fmtNum(r.dailyClose)} / ${fmtNum(r.dailySma20)}`, cls: "mobile-hide" },
   {
     header: "Intraday RSI(14)",
     render: (r) => (r.intradayReady ? fmtNum(r.intradayRsi14) : `<span class="flat">pending</span>`),
@@ -489,6 +489,7 @@ const SCANNER_COLUMNS = [
     header: "Intraday vs SMA20",
     render: (r) =>
       r.intradayReady ? `${fmtNum(r.intradayClose)} / ${fmtNum(r.intradaySma20)}` : `<span class="flat">pending</span>`,
+    cls: "mobile-hide",
   },
   {
     header: "Status",
@@ -592,6 +593,76 @@ async function refreshBreakoutScanner() {
   }
 }
 
+// -- F&O Screener --------------------------------------------------------------
+
+let selectedScreen = null;
+
+function renderChecks(checks) {
+  if (!checks) return "--";
+  return Object.entries(checks)
+    .map(([label, ok]) => `<span class="check-chip ${ok ? "up" : "down"}">${ok ? "✓" : "✕"} ${label}</span>`)
+    .join(" ");
+}
+
+const SCREENER_COLUMNS = [
+  { header: "Symbol", render: (r) => symbolLink(r.symbol) },
+  { header: "Sector", render: (r) => sectorLabel(r.sector), cls: "cell-left" },
+  { header: "LTP", render: (r) => fmtNum(r.ltp), sortKey: "ltp" },
+  {
+    header: "Chg %",
+    render: (r) => `<span class="${chgClass(r.pChange)}">${sign(r.pChange)}${fmtNum(r.pChange)}%</span>`,
+    sortKey: "pChange",
+  },
+  { header: "Conditions", render: (r) => renderChecks(r.checks), cls: "cell-left checks-cell" },
+  {
+    header: "Status",
+    render: (r) => (r.qualifies ? `<span class="up">✓ Qualifies</span>` : `<span class="flat">—</span>`),
+  },
+];
+
+function escapeAttr(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+async function loadScreenerList() {
+  try {
+    const { screens } = await fetchJSON("/api/screener/list");
+    selectedScreen = screens[0]?.key || null;
+    $("#screener-tabs").innerHTML = screens
+      .map(
+        (s, i) =>
+          `<button class="orb-tab ${i === 0 ? "active" : ""}" data-key="${s.key}" title="${escapeAttr(s.source)}">${s.label}</button>`
+      )
+      .join("");
+  } catch {
+    // Screener tab list just won't populate - surfaces via the usual error banner on next refresh.
+  }
+}
+
+async function refreshScreener() {
+  if (!selectedScreen) return;
+  try {
+    const data = await fetchJSON(`/api/screener?key=${selectedScreen}`);
+    const note = $("#screener-status-note");
+    const status = data.status;
+    note.textContent = status.ready
+      ? `Ready (${status.barsAvailable} real trading days of history).`
+      : `Building (${status.barsAvailable}/${status.barsNeeded} real trading days) — MACD/ADX/SMA(50) need more warm-up than the Buy/Sell scanner's conditions do.`;
+
+    const qualifying = data.stocks.filter((s) => s.qualifies);
+    renderMoversTable($("#screener-table"), qualifying, {
+      emptyText: `No F&O stocks currently qualify on this screen (${data.symbolsWithHistory} of ${data.totalFOSymbols} F&O stocks have enough history to evaluate).`,
+      columns: SCREENER_COLUMNS,
+    });
+  } catch (err) {
+    $("#screener-table").innerHTML = `<div class="empty-note">Couldn't load screener data: ${err.message}</div>`;
+  }
+}
+
 // -- F&O Stock List (Volume & RSI) -------------------------------------------
 
 const FO_STOCK_LIST_COLUMNS = [
@@ -640,6 +711,7 @@ async function refreshAll() {
     refreshOrb(),
     refreshScanner(),
     refreshBreakoutScanner(),
+    refreshScreener(),
     refreshFoStockList(),
   ]);
 
@@ -717,7 +789,7 @@ function initTheme() {
   });
 }
 
-function init() {
+async function init() {
   initTheme();
   $("#modal-close").addEventListener("click", closeSectorModal);
   $("#modal-backdrop").addEventListener("click", closeSectorModal);
@@ -759,12 +831,29 @@ function init() {
     $("#breakout-tabs").querySelectorAll(".orb-tab").forEach((b) => b.classList.toggle("active", b === btn));
     refreshBreakoutScanner();
   });
+  $("#scanner-group-tabs").addEventListener("click", (e) => {
+    const btn = e.target.closest(".group-tab");
+    if (!btn) return;
+    const group = btn.dataset.group;
+    $("#scanner-group-tabs").querySelectorAll(".group-tab").forEach((b) => b.classList.toggle("active", b === btn));
+    document
+      .querySelectorAll("#panel-scanners .scanner-group")
+      .forEach((el) => el.classList.toggle("active", el.dataset.group === group));
+  });
+  $("#screener-tabs").addEventListener("click", (e) => {
+    const btn = e.target.closest(".orb-tab");
+    if (!btn) return;
+    selectedScreen = btn.dataset.key;
+    $("#screener-tabs").querySelectorAll(".orb-tab").forEach((b) => b.classList.toggle("active", b === btn));
+    refreshScreener();
+  });
   $("#fo-stock-list-toggle").addEventListener("click", () => {
     const expanded = $("#fo-stock-list-content").classList.toggle("hidden") === false;
     $("#fo-stock-list-toggle").textContent = expanded ? "Hide qualifying stocks" : "Show qualifying stocks";
   });
 
   loadSectorFilterOptions();
+  await loadScreenerList();
   refreshAll();
   setInterval(refreshAll, REFRESH_MS);
 }

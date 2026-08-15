@@ -274,6 +274,14 @@ DAILY_SMA_PERIOD = 20
 DAILY_RSI_PERIOD = 14
 DAILY_LOOKBACK_DAYS = 5  # "1 day ago" .. "5 days ago" high/low
 
+# How many real trading days of Bhavcopy history to build. 30 was enough for
+# RSI(14)/SMA(20) (the Buy/Sell scanner's needs); the F&O Screener below adds
+# SMA(50), MACD(26,12,9), and ADX(14), which want considerably more warm-up
+# to converge properly (Wilder's ADX and an EMA-based MACD are both biased
+# for a while after their seed value) - bumped to 65 so those have room.
+DAILY_HISTORY_TARGET_DAYS = 65
+DAILY_HISTORY_MAX_CHECKED = 100  # calendar days to scan looking for that many trading days
+
 INTRADAY_TIMEFRAMES = (15, 30, 45, 60)
 INTRADAY_SMA_PERIOD = 20
 INTRADAY_RSI_PERIOD = 14
@@ -311,6 +319,56 @@ FO_STOCK_LIST_MCAP_CR_MIN = 30000
 FO_STOCK_LIST_LIQUIDITY_MAX = 3000
 FO_STOCK_LIST_TURNOVER_MIN = 500_000_000
 FO_STOCK_LIST_UP_FROM_LOW_MAX = 200
+
+# ---------------------------------------------------------------------------
+# F&O Screener - independent daily-technical screens, each replicated from a
+# published Chartink scanner. All run on the same real Bhavcopy daily history
+# the Buy/Sell scanner uses (_get_daily_history) - no self-tracking involved,
+# so these are fully "real" as soon as DAILY_HISTORY_TARGET_DAYS worth of
+# history is built (see get_screener_status).
+#
+# This is phase 1: the screens below only need daily OHLCV (SMA/EMA/WMA,
+# RSI, MACD, ADX/+DI/-DI, N-days-ago Close/High/Low, volume). A second batch
+# of published screens (weekly/monthly Close-vs-Open trend scans, and one
+# needing a Camarilla H3 pivot) is NOT implemented yet - those need weekly/
+# monthly bars built from the daily series, which doesn't exist yet. Left
+# for a follow-up.
+SCREENER_ADX_PERIOD = 14
+SCREENER_RSI_PERIOD = 14
+SCREENER_MACD_FAST, SCREENER_MACD_SLOW, SCREENER_MACD_SIGNAL = 12, 26, 9
+# Bars needed for the most demanding screen (SMA(50) + a bit of margin) -
+# used only to report readiness; each screen's own function returns None
+# (silently excluding that symbol from results) if IT doesn't have enough
+# history, regardless of this headline number.
+SCREENER_MIN_BARS_NEEDED = 55
+
+SCREENER_SCREENS: list[dict] = [
+    {
+        "key": "bullish_trend",
+        "label": "Bullish Trend (MA + ADX + MACD)",
+        "source": '"FNO Stocks Bullish Trend Scanner (Moving Average + ADX + MACD)" - Prabhu',
+    },
+    {
+        "key": "open_high_low",
+        "label": "Open = High / Low",
+        "source": '"Open High Or Low - F&O" - Chandrashekhar',
+    },
+    {
+        "key": "strong_uptrend",
+        "label": "Strong Uptrend (Price > 180, RSI)",
+        "source": '"Strong Uptrend F&O Stocks (Price > 180 RSI)" - Prabhu',
+    },
+    {
+        "key": "volume_shockers",
+        "label": "Volume Shockers (5x SMA)",
+        "source": '"Volume Shockers F&O" - parthpvtltd',
+    },
+    {
+        "key": "price_range",
+        "label": "F&O Stocks (₹110-750)",
+        "source": '"F&O Stocks" - BG',
+    },
+]
 
 
 class NSEFetchError(RuntimeError):
@@ -632,6 +690,265 @@ class NSEClient:
         rs = avg_gain / avg_loss
         return 100 - (100 / (1 + rs))
 
+    # -- Shared indicator math (F&O Screener) --------------------------------
+
+    @staticmethod
+    def _sma(values: list[float], period: int) -> float | None:
+        if len(values) < period:
+            return None
+        return sum(values[-period:]) / period
+
+    @staticmethod
+    def _wma(values: list[float], period: int) -> float | None:
+        if len(values) < period:
+            return None
+        window = values[-period:]
+        weights = range(1, period + 1)
+        return sum(v * w for v, w in zip(window, weights)) / sum(weights)
+
+    @staticmethod
+    def _ema_series(values: list[float], period: int) -> list[float | None]:
+        """Full EMA series, same length as `values` - the first `period - 1`
+        entries are None (not enough history yet). Seeded with the SMA of
+        the first `period` values, the standard convention when there's no
+        earlier history to seed from."""
+        if len(values) < period:
+            return [None] * len(values)
+        k = 2 / (period + 1)
+        out: list[float | None] = [None] * (period - 1)
+        seed = sum(values[:period]) / period
+        out.append(seed)
+        prev = seed
+        for v in values[period:]:
+            prev = v * k + prev * (1 - k)
+            out.append(prev)
+        return out
+
+    @staticmethod
+    def _ema_latest(values: list[float], period: int) -> float | None:
+        series = NSEClient._ema_series(values, period)
+        return series[-1] if series else None
+
+    @staticmethod
+    def _macd(
+        closes: list[float], fast: int, slow: int, signal: int
+    ) -> tuple[float | None, float | None]:
+        """Returns (macd_line, signal_line) at the latest bar, or (None,
+        None)/(value, None) if there isn't enough history for one or both."""
+        if len(closes) < slow:
+            return None, None
+        ema_fast = NSEClient._ema_series(closes, fast)
+        ema_slow = NSEClient._ema_series(closes, slow)
+        macd_series = [
+            (f - s) if (f is not None and s is not None) else None
+            for f, s in zip(ema_fast, ema_slow)
+        ]
+        valid_macd = [m for m in macd_series if m is not None]
+        if not valid_macd:
+            return None, None
+        if len(valid_macd) < signal:
+            return valid_macd[-1], None
+        signal_series = NSEClient._ema_series(valid_macd, signal)
+        return valid_macd[-1], signal_series[-1]
+
+    @staticmethod
+    def _adx(candles: list[dict], period: int) -> tuple[float | None, float | None, float | None]:
+        """Wilder's ADX/+DI/-DI from daily High/Low/Close. Needs roughly
+        2x `period` bars of True Range/Directional Movement before the
+        Wilder-smoothed ADX itself has enough values to average - returns
+        (None, None, None) until then."""
+        if len(candles) < period * 2 + 1:
+            return None, None, None
+        highs = [c["high"] for c in candles]
+        lows = [c["low"] for c in candles]
+        closes = [c["close"] for c in candles]
+
+        trs, plus_dms, minus_dms = [], [], []
+        for i in range(1, len(candles)):
+            up_move = highs[i] - highs[i - 1]
+            down_move = lows[i - 1] - lows[i]
+            plus_dm = up_move if (up_move > down_move and up_move > 0) else 0.0
+            minus_dm = down_move if (down_move > up_move and down_move > 0) else 0.0
+            tr = max(
+                highs[i] - lows[i],
+                abs(highs[i] - closes[i - 1]),
+                abs(lows[i] - closes[i - 1]),
+            )
+            trs.append(tr)
+            plus_dms.append(plus_dm)
+            minus_dms.append(minus_dm)
+
+        if len(trs) < period * 2:
+            return None, None, None
+
+        def wilder_smooth(vals: list[float]) -> list[float]:
+            smoothed = [sum(vals[:period])]
+            for v in vals[period:]:
+                smoothed.append(smoothed[-1] - smoothed[-1] / period + v)
+            return smoothed
+
+        tr_s = wilder_smooth(trs)
+        plus_dm_s = wilder_smooth(plus_dms)
+        minus_dm_s = wilder_smooth(minus_dms)
+
+        plus_dis = [100 * (pdm / tr) if tr else 0.0 for pdm, tr in zip(plus_dm_s, tr_s)]
+        minus_dis = [100 * (mdm / tr) if tr else 0.0 for mdm, tr in zip(minus_dm_s, tr_s)]
+        dxs = [
+            100 * abs(p - m) / (p + m) if (p + m) else 0.0
+            for p, m in zip(plus_dis, minus_dis)
+        ]
+        if len(dxs) < period:
+            return None, None, None
+        adx = sum(dxs[:period]) / period
+        for dx in dxs[period:]:
+            adx = (adx * (period - 1) + dx) / period
+        return adx, plus_dis[-1], minus_dis[-1]
+
+    # -- F&O Screener: one function per published screen ---------------------
+
+    @staticmethod
+    def _screen_bullish_trend(candles: list[dict]) -> dict | None:
+        """'FNO Stocks Bullish Trend Scanner (Moving Average + ADX + MACD)'."""
+        if len(candles) < 51:
+            return None
+        closes = [c["close"] for c in candles]
+        volume = candles[-1]["volume"]
+        ema5 = NSEClient._ema_latest(closes, 5)
+        wma10 = NSEClient._wma(closes, 10)
+        sma20 = NSEClient._sma(closes, 20)
+        sma40 = NSEClient._sma(closes, 40)
+        sma50 = NSEClient._sma(closes, 50)
+        adx, plus_di, minus_di = NSEClient._adx(candles, SCREENER_ADX_PERIOD)
+        macd_line, macd_signal = NSEClient._macd(
+            closes, SCREENER_MACD_FAST, SCREENER_MACD_SLOW, SCREENER_MACD_SIGNAL
+        )
+        rsi = NSEClient._rsi(closes, SCREENER_RSI_PERIOD)
+        if None in (ema5, wma10, sma20, sma40, sma50, adx, plus_di, minus_di, macd_line, macd_signal, rsi):
+            return None
+        close = closes[-1]
+        checks = {
+            "EMA(5)>SMA(20)": ema5 > sma20,
+            "WMA(10)>SMA(20)": wma10 > sma20,
+            "+DI>20": plus_di > 20,
+            "ADX>20": adx > 20,
+            "Volume>1L": volume > 100_000,
+            "MACD>0": macd_line > 0,
+            "Close>PrevClose": close > closes[-2],
+            "Close>SMA(50)": close > sma50,
+            "Close>150": close > 150,
+            "+DI>-DI": plus_di > minus_di,
+            "RSI>50": rsi > 50,
+            "MACD>Signal": macd_line > macd_signal,
+            "Close>2dAgoClose": close > closes[-3],
+            "SMA(20)>SMA(40)": sma20 > sma40,
+        }
+        return {
+            "close": close,
+            "rsi14": round(rsi, 2),
+            "adx14": round(adx, 2),
+            "checks": checks,
+            "pass": all(checks.values()),
+        }
+
+    @staticmethod
+    def _screen_open_high_low(candles: list[dict]) -> dict | None:
+        """'Open High Or Low - F&O' - today's open equals today's high or
+        today's low (exact match, as the source screener specifies)."""
+        if not candles:
+            return None
+        c = candles[-1]
+        checks = {"Open=High": c["open"] == c["high"], "Open=Low": c["open"] == c["low"]}
+        return {
+            "close": c["close"],
+            "open": c["open"],
+            "checks": checks,
+            "pass": any(checks.values()),
+        }
+
+    @staticmethod
+    def _screen_strong_uptrend(candles: list[dict]) -> dict | None:
+        """'Strong Uptrend F&O Stocks (Price > 180 RSI)' - 3 always-on
+        conditions AND any 1 of 5 alternative "trend confirmation" branches
+        (moving averages, ADX, a 4-day rising-close chain, RSI band, or
+        MACD)."""
+        if len(candles) < 42 or len(candles) < 6:
+            return None
+        closes = [c["close"] for c in candles]
+        open_px, volume = candles[-1]["open"], candles[-1]["volume"]
+        close = closes[-1]
+        ema5 = NSEClient._ema_latest(closes, 5)
+        ema20 = NSEClient._ema_latest(closes, 20)
+        sma40 = NSEClient._sma(closes, 40)
+        adx, plus_di, minus_di = NSEClient._adx(candles, SCREENER_ADX_PERIOD)
+        rsi = NSEClient._rsi(closes, SCREENER_RSI_PERIOD)
+        macd_line, macd_signal = NSEClient._macd(
+            closes, SCREENER_MACD_FAST, SCREENER_MACD_SLOW, SCREENER_MACD_SIGNAL
+        )
+        if None in (ema5, ema20, sma40, adx, plus_di, minus_di, rsi, macd_line, macd_signal):
+            return None
+
+        branch_ma = ema5 > ema20 and ema20 > sma40
+        branch_adx = plus_di > minus_di and adx > 25 and plus_di > 25
+        branch_close_chain = closes[-2] > closes[-3] > closes[-4] > closes[-5]
+        branch_rsi = 30 < rsi < 60
+        branch_macd = macd_line > macd_signal and macd_line > 0
+
+        checks = {
+            "Open>180": open_px > 180,
+            "Volume>1L": volume > 100_000,
+            "Close>PrevClose": close > closes[-2],
+            "branch:MA(5>20>SMA40)": branch_ma,
+            "branch:ADX(+DI>-DI,>25)": branch_adx,
+            "branch:4dRisingClose": branch_close_chain,
+            "branch:RSI(30-60)": branch_rsi,
+            "branch:MACD>Signal>0": branch_macd,
+        }
+        base_pass = checks["Open>180"] and checks["Volume>1L"] and checks["Close>PrevClose"]
+        any_branch = branch_ma or branch_adx or branch_close_chain or branch_rsi or branch_macd
+        return {
+            "close": close,
+            "open": open_px,
+            "rsi14": round(rsi, 2),
+            "adx14": round(adx, 2),
+            "checks": checks,
+            "pass": base_pass and any_branch,
+        }
+
+    @staticmethod
+    def _screen_volume_shockers(candles: list[dict], multiplier: float = 5.0) -> dict | None:
+        """'Volume Shockers F&O' - today's volume vs its own 20-day SMA."""
+        if len(candles) < 20:
+            return None
+        volumes = [c["volume"] for c in candles]
+        vol_sma20 = NSEClient._sma(volumes, 20)
+        if vol_sma20 is None:
+            return None
+        volume = volumes[-1]
+        checks = {f"Volume>{multiplier:g}xSMA(20)": volume > vol_sma20 * multiplier}
+        return {
+            "close": candles[-1]["close"],
+            "volume": volume,
+            "volSma20": round(vol_sma20, 2),
+            "checks": checks,
+            "pass": checks[f"Volume>{multiplier:g}xSMA(20)"],
+        }
+
+    @staticmethod
+    def _screen_price_range(candles: list[dict], low: float = 110.0, high: float = 750.0) -> dict | None:
+        """'F&O Stocks' - Close within a price band AND Close moved at all
+        vs the prior day (the source scanner's "greater OR less than
+        yesterday's close" is true for almost anything that isn't dead
+        flat - kept exactly as published, not tightened)."""
+        if len(candles) < 2:
+            return None
+        close = candles[-1]["close"]
+        prev_close = candles[-2]["close"]
+        checks = {
+            f"₹{low:g}<Close<₹{high:g}": low < close < high,
+            "ClosedNotFlatVsPrevClose": close != prev_close,
+        }
+        return {"close": close, "checks": checks, "pass": all(checks.values())}
+
     def _fetch_bhavcopy_day(self, day: dt.date) -> dict | None:
         """One day's NSE Bhavcopy (EOD settlement) archive: real daily OHLC
         for every EQ-series stock. Unlike NSE's JSON APIs, this static-file
@@ -672,14 +989,15 @@ class NSEClient:
 
     def _build_daily_history(self) -> dict[str, list[dict]]:
         """symbol -> ascending list of real daily candles (oldest first),
-        built from ~45 calendar days of Bhavcopy so DAILY_SMA_PERIOD (20)
-        real trading days are available even accounting for weekends and
-        holidays. Cached for hours - a given date's file never changes,
-        and a new one only appears after that day's session closes."""
+        built from up to DAILY_HISTORY_MAX_CHECKED calendar days of Bhavcopy
+        so DAILY_HISTORY_TARGET_DAYS real trading days are available even
+        accounting for weekends and holidays. Cached for hours - a given
+        date's file never changes, and a new one only appears after that
+        day's session closes."""
         by_date: dict[str, dict[str, dict]] = {}
         day = dt.datetime.now(IST).date()
         checked = 0
-        while len(by_date) < 30 and checked < 50:
+        while len(by_date) < DAILY_HISTORY_TARGET_DAYS and checked < DAILY_HISTORY_MAX_CHECKED:
             result = self._fetch_bhavcopy_day(day)
             checked += 1
             if result and result["date"] not in by_date:
@@ -914,6 +1232,70 @@ class NSEClient:
             "totalFOSymbols": len(fo_symbols),
             "symbolsWithHistory": len(results),
             "status": self.get_breakout_scanner_status(),
+            "stocks": results,
+        }
+
+    # -- F&O Screener ---------------------------------------------------------
+
+    def get_screener_list(self) -> list[dict]:
+        return SCREENER_SCREENS
+
+    def get_screener_status(self) -> dict:
+        daily_history = self._get_daily_history()
+        bars = max((len(v) for v in daily_history.values()), default=0)
+        return {
+            "barsAvailable": bars,
+            "barsNeeded": SCREENER_MIN_BARS_NEEDED,
+            "ready": bars >= SCREENER_MIN_BARS_NEEDED,
+        }
+
+    def get_screener(self, key: str) -> dict:
+        screen_funcs = {
+            "bullish_trend": self._screen_bullish_trend,
+            "open_high_low": self._screen_open_high_low,
+            "strong_uptrend": self._screen_strong_uptrend,
+            "volume_shockers": self._screen_volume_shockers,
+            "price_range": self._screen_price_range,
+        }
+        fn = screen_funcs.get(key)
+        if fn is None:
+            raise ValueError(f"unknown screen {key!r}")
+
+        daily_history = self._get_daily_history()
+        fo_symbols = self._fo_universe()
+        rows = {r.get("symbol"): r for r in self._fo_quote_rows()}
+
+        results = []
+        with_history = 0
+        for sym in fo_symbols:
+            row = rows.get(sym)
+            candles = daily_history.get(sym, [])
+            if row is None or not candles:
+                continue
+            signal = fn(candles)
+            if signal is None:
+                continue
+            with_history += 1
+            checks = signal.pop("checks")
+            passed = signal.pop("pass")
+            results.append(
+                {
+                    "symbol": sym,
+                    "sector": self._sector_for(sym),
+                    "ltp": row.get("lastPrice"),
+                    "pChange": row.get("pChange"),
+                    **signal,
+                    "checks": checks,
+                    "qualifies": passed,
+                }
+            )
+
+        results.sort(key=lambda r: (not r["qualifies"], -abs(r.get("pChange") or 0)))
+        return {
+            "screen": key,
+            "totalFOSymbols": len(fo_symbols),
+            "symbolsWithHistory": with_history,
+            "status": self.get_screener_status(),
             "stocks": results,
         }
 
