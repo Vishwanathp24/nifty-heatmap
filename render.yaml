@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: nifty-dashboard
+    runtime: python
+    plan: starter # NOT free - this app runs a background tracking thread
+                  # continuously through market hours; free tier instances
+                  # spin down when idle and would silently kill it.
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: NIFTY_DATA_DIR
+        value: /var/data
+    disk:
+      name: intraday-history
+      mountPath: /var/data
+      sizeGB: 1

@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nifty Terminal</title>
+  <link rel="stylesheet" href="/pro/static/styles.css" />
+</head>
+<body>
+  <header class="topnav">
+    <div class="topnav-left">
+      <div class="brand-mark">N</div>
+      <div class="brand-text">
+        <span class="brand-name">Nifty Terminal</span>
+        <span class="brand-sub">Sectors &middot; Breadth &middot; F&amp;O Flow</span>
+      </div>
+    </div>
+    <div class="topnav-right">
+      <span id="market-status" class="status-pill">&mdash;</span>
+      <span id="as-of" class="as-of">&mdash;</span>
+      <button id="refresh-btn" class="btn-ghost" title="Refresh now">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>
+        Refresh
+      </button>
+      <a href="/" class="btn-ghost btn-link">Classic view</a>
+    </div>
+  </header>
+
+  <div id="error-banner" class="error-banner hidden"></div>
+
+  <main>
+    <section class="two-col">
+      <!-- Market Indices -->
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <h2>Market Indices</h2>
+            <p class="card-sub">Nifty 50 &middot; Bank Nifty &middot; India VIX</p>
+          </div>
+        </div>
+        <div id="index-cards" class="index-cards">
+          <div class="skel-row"></div>
+        </div>
+      </div>
+
+      <!-- Market Bias -->
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <h2>Market Bias</h2>
+            <p class="card-sub">Same-session breadth read, not a forecast. Sensex &amp; global indices excluded (no reliable free source).</p>
+          </div>
+          <span id="bias-value" class="bias-value">&mdash;</span>
+        </div>
+        <div id="bias-factors" class="bias-factors"></div>
+      </div>
+    </section>
+
+    <!-- Heatmap -->
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <h2>Sectoral Heatmap</h2>
+          <p class="card-sub">Click a tile for its constituent stocks</p>
+        </div>
+        <span id="sector-count" class="count-chip">&mdash;</span>
+      </div>
+      <div id="heatmap-grid" class="heatmap-grid">
+        <div class="skel-grid"></div>
+      </div>
+    </section>
+
+    <!-- Advance / Decline -->
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <h2>Nifty 50 Breadth</h2>
+          <p class="card-sub">Advance / decline vs today's open</p>
+        </div>
+      </div>
+      <div id="ad-body" class="ad-body">
+        <div class="skel-line"></div>
+      </div>
+    </section>
+
+    <!-- Sector filter -->
+    <section class="filter-bar">
+      <span class="filter-label">Filter F&amp;O movers</span>
+      <select id="sector-filter" class="select">
+        <option value="ALL">All Sectors</option>
+      </select>
+      <span id="filter-hint" class="filter-hint"></span>
+    </section>
+
+    <!-- Gainers / Losers -->
+    <section class="two-col">
+      <div class="card">
+        <div class="card-head"><h2><span class="dot-up"></span>F&amp;O Gainers</h2></div>
+        <div id="fo-gainers" class="data-table"><div class="skel-line"></div></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2><span class="dot-down"></span>F&amp;O Losers</h2></div>
+        <div id="fo-losers" class="data-table"><div class="skel-line"></div></div>
+      </div>
+    </section>
+
+    <!-- Volume -->
+    <section class="card">
+      <div class="card-head">
+        <div>
+          <h2>F&amp;O Volume Leaders</h2>
+          <p class="card-sub">Ranked by today's traded volume</p>
+        </div>
+      </div>
+      <div id="fo-volume" class="data-table"><div class="skel-line"></div></div>
+
+      <div class="card-head sub">
+        <div>
+          <h3>Volume Spurts</h3>
+          <p class="card-sub">NSE's list, vs 1-week avg volume</p>
+        </div>
+      </div>
+      <div id="fo-spurts" class="data-table"><div class="skel-line"></div></div>
+    </section>
+  </main>
+
+  <div id="drawer" class="drawer hidden">
+    <div class="drawer-backdrop" id="drawer-backdrop"></div>
+    <div class="drawer-panel">
+      <div class="drawer-head">
+        <h2 id="drawer-title">Sector</h2>
+        <button id="drawer-close" class="icon-btn" aria-label="Close">&times;</button>
+      </div>
+      <div id="drawer-body" class="drawer-body">
+        <div class="skel-line"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/pro/static/app.js"></script>
+</body>
+</html>

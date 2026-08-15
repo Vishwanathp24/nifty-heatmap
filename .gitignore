@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Self-tracked runtime state (accumulated per-deployment, not source) -
+# these are ORB/intraday candle history the app writes to disk itself.
+backend/intraday_history_*.json
+backend/hourly_history.json
+
+# OS/editor
+.DS_Store
