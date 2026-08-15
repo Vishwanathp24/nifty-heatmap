@@ -680,7 +680,7 @@ async function refreshAll() {
     clearError();
   }
 
-  $("#as-of").textContent = `Last updated: ${new Date().toLocaleTimeString("en-IN")}`;
+  $("#as-of").innerHTML = `<span class="as-of-label">Last updated: </span>${new Date().toLocaleTimeString("en-IN")}`;
   $("#market-status").textContent = isMarketHoursIST() ? "Market Live" : "Market Closed";
 }
 

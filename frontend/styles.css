@@ -66,6 +66,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  row-gap: 10px;
   padding: 14px 24px;
   background: linear-gradient(120deg, var(--purple-dark), var(--purple));
   color: white;
@@ -75,7 +77,8 @@ body {
   box-shadow: var(--shadow);
 }
 
-.brand { display: flex; align-items: center; gap: 12px; }
+.topbar-left { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; row-gap: 8px; }
+.topbar-right { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; font-size: 12px; }
 
 .brand-mark {
   width: 36px; height: 36px;
@@ -86,17 +89,19 @@ body {
   flex-shrink: 0;
 }
 
-.brand h1 { font-size: 17px; margin: 0; font-weight: 700; }
-.brand .subtitle { font-size: 12px; margin: 2px 0 0; opacity: 0.85; }
+.topbar-left h1 { font-size: 17px; margin: 0; font-weight: 700; white-space: nowrap; }
 
-.status { display: flex; align-items: center; gap: 12px; font-size: 12px; }
-.status .pill {
+.pill {
   background: rgba(255,255,255,0.15);
   padding: 4px 10px;
   border-radius: 999px;
   font-weight: 600;
+  font-size: 12px;
+  white-space: nowrap;
 }
+#as-of { white-space: nowrap; }
 #refresh-btn, #theme-toggle, .view-switch-link {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   background: rgba(255,255,255,0.15);
   border: 1px solid rgba(255,255,255,0.3);
   color: white;
@@ -104,10 +109,15 @@ body {
   border-radius: 6px;
   cursor: pointer;
   font-size: 12px;
+  white-space: nowrap;
 }
 #refresh-btn:hover, #theme-toggle:hover, .view-switch-link:hover { background: rgba(255,255,255,0.28); }
-#theme-toggle { padding: 5px 9px; line-height: 1; }
-.view-switch-link { text-decoration: none; font-weight: 600; display: inline-block; }
+#refresh-btn, #theme-toggle { padding: 6px 9px; line-height: 1; }
+.view-switch-link { text-decoration: none; font-weight: 600; display: inline-flex; }
+
+@media (max-width: 480px) {
+  .as-of-label { display: none; }
+}
 
 .error-banner {
   background: #fdecea;
