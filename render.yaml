@@ -10,6 +10,16 @@ services:
     envVars:
       - key: NIFTY_DATA_DIR
         value: /var/data
+      # Fyers integration (F&O Scanner real-time quotes, Phase 1) - set these
+      # manually in the Render dashboard (Environment tab), never committed
+      # here. FYERS_REDIRECT_URI must exactly match the Redirect URL
+      # registered on the Fyers app itself (e.g. https://<your-domain>/fyers/callback).
+      - key: FYERS_APP_ID
+        sync: false
+      - key: FYERS_APP_SECRET
+        sync: false
+      - key: FYERS_REDIRECT_URI
+        sync: false
     disk:
       name: intraday-history
       mountPath: /var/data

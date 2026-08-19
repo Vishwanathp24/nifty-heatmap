@@ -2,11 +2,21 @@ from __future__ import annotations
 
 import pathlib
 
+from dotenv import load_dotenv
+
+# Loads a local .env file if one exists (for local dev - e.g. FYERS_APP_ID/
+# FYERS_APP_SECRET). Must run before the imports below, since nse_client
+# reads NIFTY_DATA_DIR from the environment at import time. No-op in
+# production (Render): no .env file is deployed there, and real env vars
+# set in Render's dashboard are already in os.environ regardless.
+load_dotenv()
+
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
+from . import fyers_client
 from .nse_client import HEATMAP_SECTOR_SYMBOLS, SECTOR_LIST, NSEFetchError, client
 
 FRONTEND_DIR = pathlib.Path(__file__).resolve().parent.parent / "frontend"
@@ -164,6 +174,55 @@ def breakout_scanner(
     if direction not in ("buy", "sell"):
         raise HTTPException(status_code=400, detail="direction must be 'buy' or 'sell'")
     return _wrap(client.get_breakout_scanner, direction)
+
+
+# ---------------------------------------------------------------------------
+# Fyers integration (Phase 1: login flow + raw-quote diagnostic only - see
+# fyers_client.py's module docstring for why this isn't wired into the F&O
+# Scanner table yet). Requires FYERS_APP_ID / FYERS_APP_SECRET env vars.
+
+@app.get("/api/fyers/status")
+def fyers_status():
+    return fyers_client.get_connection_status()
+
+
+@app.get("/fyers/login")
+def fyers_login():
+    """Sends the browser to Fyers' own login page. Visit this once each
+    trading day - the access token Fyers issues is only valid for that
+    calendar day."""
+    try:
+        return RedirectResponse(fyers_client.get_login_url())
+    except fyers_client.FyersConfigError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.get("/fyers/callback")
+def fyers_callback(code: str | None = None, s: str | None = None):
+    """Where Fyers redirects back to after login - exchanges the auth code
+    for an access token and persists it."""
+    if not code:
+        raise HTTPException(status_code=400, detail=f"No auth code in callback (s={s!r})")
+    try:
+        fyers_client.exchange_auth_code(code)
+    except fyers_client.FyersConfigError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return RedirectResponse("/pro")
+
+
+@app.get("/api/fyers/raw-quote")
+def fyers_raw_quote(symbols: str = Query(..., description="comma-separated NSE trading symbols, e.g. RELIANCE,TCS")):
+    """Diagnostic only: returns Fyers' quotes response completely unparsed,
+    so the real field shape can be inspected before it's mapped into the
+    F&O Scanner table."""
+    nse_symbols = [s.strip().upper() for s in symbols.split(",") if s.strip()]
+    fyers_symbols = [fyers_client.to_fyers_symbol(s) for s in nse_symbols]
+    try:
+        return fyers_client.get_raw_quotes(fyers_symbols)
+    except fyers_client.FyersNotConnected as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except fyers_client.FyersConfigError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 # ---------------------------------------------------------------------------

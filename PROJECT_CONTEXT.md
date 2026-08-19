@@ -264,6 +264,63 @@ everything else (`/`, `/pro`, the 4 remaining scanner tabs) still works.
 No reason was given for the removal - if this comes up again, don't assume
 it's unwanted for the same reason as before; ask fresh.
 
+## Fyers real-time quotes integration (2026-08-19) — Phase 1 done, Phase 2 pending
+
+The user compared this dashboard's live prices against their broker and
+found a mismatch. Root cause explained: this app sources data from NSE's
+own public website JSON endpoints (not a licensed real-time feed) plus
+several caching layers (15s/8s backend TTLs + 20s frontend poll), while
+brokers use a licensed real-time exchange feed - a persistent, structural
+gap, not a bug. User chose to integrate their own broker's real-time API
+to close it, scoped to **F&O Scanner table only** (everything else stays
+on NSE data - the Bhavcopy-based daily scanners are already reliable and
+unaffected either way).
+
+Compared Upstox/Fyers/Dhan on cost (not accuracy - all three use licensed
+exchange feeds, no meaningful accuracy difference): Dhan's *market data*
+API needs a paid ₹499/mo add-on (only order-placement is free); Upstox's
+free tier is explicitly time-limited ("valid till 30 Sept 2026"); **Fyers**
+is free with no stated expiry - user went with Fyers, created an app named
+"NSE F&O Dashboard" (non-trading, permissions: Quotes/market data +
+Historical data, NOT order placement) with Redirect URL
+`https://heatmap.bankerage.in/fyers/callback`.
+
+**Built (`backend/fyers_client.py`, routes in `main.py`)**: the full OAuth
+login flow via the official `fyers-apiv3` SDK (`fyersModel.SessionModel`/
+`FyersModel` - verified against the actual installed package source, not
+just docs, since Fyers' public docs don't reliably expose exact method
+signatures) -
+- `GET /fyers/login` - redirects to Fyers' own login page
+- `GET /fyers/callback` - exchanges the auth `code` for an access token,
+  persists it to `{DATA_DIR}/fyers_token.json` with the IST issue-date
+- `GET /api/fyers/status` - `{"connected": bool}`, used by the frontend
+- `GET /api/fyers/raw-quote?symbols=RELIANCE,TCS` - diagnostic passthrough
+
+Access tokens expire daily (Fyers invalidates them overnight) - tracked
+here as "valid only for the calendar day (IST) it was issued", so the user
+re-logs in via `/fyers/login` once each trading morning. Requires env vars
+`FYERS_APP_ID`/`FYERS_APP_SECRET`/`FYERS_REDIRECT_URI` (documented as
+`sync: false` placeholders in `render.yaml` - real values live only in
+Render's dashboard and the user's local `.env`, never in the repo or this
+chat). Login flow verified end-to-end locally with fake credentials
+(confirmed it redirects to the real `api-t1.fyers.in` auth endpoint with
+correct params) - not yet verified with the user's real account.
+
+**Deliberately NOT done yet - Phase 2**: parsing Fyers' Quotes response
+into the F&O Scanner table. Why held back: Fyers' docs don't publish exact
+response field names anywhere fetchable, AND there are user-reported cases
+(Fyers community forum) of the Quotes API returning a **null LTP
+specifically for NSE F&O-list symbols, even during market hours** - a
+real, documented risk matching this exact use case, not hypothetical.
+Guessing field names and shipping wrong numbers would be worse than the
+NSE-lag problem being solved. Next step: user completes `/fyers/login`,
+then use `/api/fyers/raw-quote` together to inspect one real response,
+confirm field names (and whether the null-LTP issue actually bites for
+this app's symbol list) before writing the parsing/mapping into
+`get_fo_scanner_list`. Do not skip this verification step even if asked
+to "just wire it in" - the risk is specifically about this API+symbol-type
+combination, confirmed via web search, not a generic caution.
+
 ## NOT yet built (explicitly deferred, not forgotten)
 
 - ~~6 more published Chartink screens~~ — **moot**: these would have

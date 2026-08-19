@@ -9,5 +9,8 @@ venv/
 backend/intraday_history_*.json
 backend/hourly_history.json
 
+# Secrets - never commit (Fyers API credentials, etc.)
+.env
+
 # OS/editor
 .DS_Store
