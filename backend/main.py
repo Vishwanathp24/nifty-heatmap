@@ -98,6 +98,14 @@ def fifty_two_week():
     return _wrap(client.get_52_week)
 
 
+@app.get("/api/day-level-stocks")
+def day_level_stocks():
+    """Stocks trading closest to today's day-high or day-low right now
+    (same-session complement to /api/52-week's 52-week high/low), F&O
+    stocks only."""
+    return _wrap(client.get_day_level_stocks)
+
+
 @app.get("/api/fo-stock-list")
 def fo_stock_list():
     """F&O Stock List (Volume & RSI) - a liquidity/valuation screener
@@ -124,6 +132,15 @@ def sector_labels():
     """Every distinct value the 'sector' field on F&O rows can take -
     for the frontend's sector filter dropdown."""
     return {"labels": _wrap(client.get_sector_labels)}
+
+
+@app.get("/api/sector-bias")
+def sector_bias():
+    """Self-computed bullish/bearish/neutral read per sector (see
+    NSEClient.get_sector_bias) - shown next to a stock's sector label
+    anywhere the app displays one, as a quick "is this stock's sector
+    trending with or against it" signal."""
+    return _wrap(client.get_sector_bias)
 
 
 @app.get("/api/orb/status")

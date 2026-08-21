@@ -274,6 +274,17 @@ DAILY_SMA_PERIOD = 20
 DAILY_RSI_PERIOD = 14
 DAILY_LOOKBACK_DAYS = 5  # "1 day ago" .. "5 days ago" high/low
 
+# Dead zone (in % net move over the last DAILY_SMA_PERIOD (20) days) around
+# zero that counts as "Neutral" rather than Uptrend/Downtrend for the
+# Market Breadth table's trend read - same idea as SECTOR_BIAS_NEUTRAL_BAND,
+# just sized for a 20-day price move instead of a same-day % change.
+TREND_20D_NEUTRAL_BAND_PCT = 2.0
+
+# Daily Average True Range period - the risk unit "R-Factor" is expressed in
+# (see the "Entered at" tracking comment below). 14 is the standard ATR
+# period; needs 15 daily bars, comfortably covered by DAILY_HISTORY_TARGET_DAYS.
+DAILY_ATR_PERIOD = 14
+
 # How many real trading days of Bhavcopy history to build - 30 is enough
 # for RSI(14)/SMA(20) (the Buy/Sell scanner's daily leg, the only consumer
 # of this history now that the F&O Screener has been removed).
@@ -303,6 +314,33 @@ INTRADAY_HISTORY_PATH_TMPL = str(DATA_DIR / "intraday_history_{}m.json")
 # the source scanner specifies, kept as-is rather than "corrected" to match.
 BREAKOUT_TIMEFRAME_MIN = 15
 BREAKOUT_LOOKBACK_PERIOD = 20
+
+# ---------------------------------------------------------------------------
+# "Entered at" tracking - what clock-time a stock first started qualifying
+# for a scanner today, so the UI can show e.g. "since 10:05" instead of just
+# a pass/fail flag (a signal that's been true for 2 hours reads very
+# differently from one that just turned true). Recomputed every ~20s tick in
+# _track_scanner_entries below, using the exact same pass/fail logic the
+# get_orb / get_scanner / get_breakout_scanner methods use, so the timestamp
+# always matches what the API is actually reporting.
+#
+# Each entry also snapshots the LTP (and daily ATR(14)) at the moment the
+# stock first qualified, so the API can additionally report:
+#   - "signalPct": % move from that entry price to the current LTP.
+#   - "rFactor": that same move expressed in units of the entry-time daily
+#     ATR(14) - a rough stand-in for the classic trading "R" (risk unit,
+#     normally entry-price minus a manual stop-loss; here ATR(14) plays that
+#     role since there's no user-set stop). Both are raw (not sign-flipped
+#     for sell/bearish signals) - a bearish stock that kept falling shows a
+#     negative signalPct/rFactor, matching how these numbers read on the
+#     third-party scanners this was modeled after.
+#
+# In-memory only, reset at day-rollover - NOT persisted to disk like the
+# intraday candle history is. A backend restart during market hours loses
+# today's "first seen" clocks (and their entry price/ATR snapshots) and they
+# start fresh from the restart time; a lower-stakes gap than losing candle
+# history, so not worth the extra persistence machinery.
+FIRST_SEEN_DIRECTIONS = ("buy", "sell")
 
 # ---------------------------------------------------------------------------
 # F&O Stock List (Volume & RSI) - a published screener's liquidity/valuation
@@ -378,6 +416,16 @@ class NSEClient:
             tf: {} for tf in INTRADAY_TIMEFRAMES
         }
         self._intraday_persisted_date: dt.date | None = None
+
+        # "Entered at" tracking (see FIRST_SEEN_DIRECTIONS above) - symbol ->
+        # "HH:MM:SS" (IST) it first started qualifying today, per scanner.
+        self._first_seen_lock = threading.Lock()
+        self._first_seen_date: dt.date | None = None
+        self._orb_first_seen: dict[int, dict[str, str]] = {w: {} for w in ORB_WINDOWS_MIN}
+        self._buysell_first_seen: dict[tuple[str, int], dict[str, str]] = {
+            (d, tf): {} for d in FIRST_SEEN_DIRECTIONS for tf in INTRADAY_TIMEFRAMES
+        }
+        self._breakout_first_seen: dict[str, dict[str, str]] = {d: {} for d in FIRST_SEEN_DIRECTIONS}
 
         threading.Thread(target=self._orb_loop, daemon=True, name="orb-tracker").start()
 
@@ -456,6 +504,7 @@ class NSEClient:
                 self._tick_history.setdefault(sym, []).append((ts, price, vol))
 
         self._persist_completed_intraday_candles(now, market_open)
+        self._track_scanner_entries(now, rows)
 
         if not pending:
             return
@@ -511,6 +560,136 @@ class NSEClient:
                 if changed:
                     self._save_intraday_history(tf)
 
+    # -- "Entered at" tracking (see FIRST_SEEN_DIRECTIONS above) -------------
+
+    def _reset_first_seen_if_new_day(self, today: dt.date):
+        with self._first_seen_lock:
+            if self._first_seen_date != today:
+                self._orb_first_seen = {w: {} for w in ORB_WINDOWS_MIN}
+                self._buysell_first_seen = {
+                    (d, tf): {} for d in FIRST_SEEN_DIRECTIONS for tf in INTRADAY_TIMEFRAMES
+                }
+                self._breakout_first_seen = {d: {} for d in FIRST_SEEN_DIRECTIONS}
+                self._first_seen_date = today
+
+    @staticmethod
+    def _atr(bars: list[dict], period: int) -> float | None:
+        """Average True Range over the last `period` bars of an ascending
+        (oldest-first) OHLC series - needs `period + 1` bars (one extra for
+        the first bar's "previous close"). Returns None if there isn't
+        enough history yet."""
+        if len(bars) < period + 1:
+            return None
+        window = bars[-period:]
+        trs = []
+        for i, bar in enumerate(window):
+            prev_close = bars[-period - 1 + i]["close"]
+            trs.append(
+                max(
+                    bar["high"] - bar["low"],
+                    abs(bar["high"] - prev_close),
+                    abs(bar["low"] - prev_close),
+                )
+            )
+        return sum(trs) / period
+
+    @staticmethod
+    def _update_first_seen(
+        bucket: dict[str, dict], qualifying: set[str], now_str: str, prices: dict[str, float], atrs: dict[str, float]
+    ):
+        """`bucket` (symbol -> {"time": "HH:MM:SS", "entryPrice": float,
+        "entryAtr": float | None} it first qualified today) is mutated in
+        place: drop any symbol that stopped qualifying (so a later re-entry
+        gets a fresh timestamp/price instead of its earlier one), then stamp
+        any newly-qualifying symbol with `now_str` and its current LTP/ATR."""
+        for sym in list(bucket):
+            if sym not in qualifying:
+                del bucket[sym]
+        for sym in qualifying:
+            if sym not in bucket and prices.get(sym) is not None:
+                bucket[sym] = {"time": now_str, "entryPrice": prices[sym], "entryAtr": atrs.get(sym)}
+
+    @staticmethod
+    def _entry_metrics(entry: dict | None, ltp: float | None) -> dict:
+        """Given a first-seen entry ({"time", "entryPrice", "entryAtr"} or
+        None) and the current LTP, returns the "since" / "signalPct" /
+        "rFactor" trio the API rows expose - see the FIRST_SEEN_DIRECTIONS
+        comment above for what these mean. All three are None when the
+        stock isn't currently qualifying (entry is None)."""
+        if entry is None:
+            return {"since": None, "signalPct": None, "rFactor": None}
+        entry_price = entry.get("entryPrice")
+        signal_pct = round((ltp - entry_price) / entry_price * 100, 2) if ltp is not None and entry_price else None
+        entry_atr = entry.get("entryAtr")
+        r_factor = round((ltp - entry_price) / entry_atr, 2) if ltp is not None and entry_price and entry_atr else None
+        return {"since": entry.get("time"), "signalPct": signal_pct, "rFactor": r_factor}
+
+    def _track_scanner_entries(self, now: dt.datetime, rows: dict[str, dict]):
+        """Runs every ~20s tick (see _orb_tick) - recomputes which symbols
+        currently qualify for the ORB / Buy-Sell / 15-Min Breakout scanners,
+        using the exact same pass/fail logic get_orb / get_scanner /
+        get_breakout_scanner use below, and records the first clock-time
+        each one started qualifying today."""
+        self._reset_first_seen_if_new_day(now.date())
+        now_str = now.strftime("%H:%M:%S")
+        prices = {sym: row.get("lastPrice") for sym, row in rows.items() if row.get("lastPrice") is not None}
+        daily_history = self._get_daily_history()
+        atrs = {sym: self._atr(bars, DAILY_ATR_PERIOD) for sym, bars in daily_history.items()}
+
+        # -- ORB: reuse the ranges this same tick already captured ------------
+        with self._orb_lock:
+            ranges_by_window = {w: dict(self._orb_ranges[w]) for w in ORB_WINDOWS_MIN}
+        with self._first_seen_lock:
+            for w, ranges in ranges_by_window.items():
+                qualifying = set()
+                for sym, rng in ranges.items():
+                    row = rows.get(sym)
+                    ltp = row.get("lastPrice") if row else None
+                    if ltp is None:
+                        continue
+                    if ltp > rng["orbHigh"] or ltp < rng["orbLow"]:
+                        qualifying.add(sym)
+                self._update_first_seen(self._orb_first_seen[w], qualifying, now_str, prices, atrs)
+
+        # -- Buy/Sell + 15-Min Breakout: share the same per-timeframe candles -
+        fo_symbols = self._fo_universe()
+        buysell_qualifying: dict[tuple[str, int], set[str]] = {
+            (d, tf): set() for d in FIRST_SEEN_DIRECTIONS for tf in INTRADAY_TIMEFRAMES
+        }
+        breakout_qualifying: dict[str, set[str]] = {d: set() for d in FIRST_SEEN_DIRECTIONS}
+
+        for sym in fo_symbols:
+            if sym not in rows:
+                continue
+            daily_signals = {
+                d: self._timeframe_signal(
+                    daily_history.get(sym, []), d, DAILY_SMA_PERIOD, DAILY_RSI_PERIOD, DAILY_LOOKBACK_DAYS
+                )
+                for d in FIRST_SEEN_DIRECTIONS
+            }
+            for tf in INTRADAY_TIMEFRAMES:
+                candles = self._intraday_candles_for(sym, tf)
+                for d in FIRST_SEEN_DIRECTIONS:
+                    daily = daily_signals[d]
+                    if daily is None or not daily["pass"]:
+                        continue
+                    intraday = self._timeframe_signal(
+                        candles, d, INTRADAY_SMA_PERIOD, INTRADAY_RSI_PERIOD, INTRADAY_LOOKBACK_BARS
+                    )
+                    if intraday is not None and intraday["pass"]:
+                        buysell_qualifying[(d, tf)].add(sym)
+                if tf == BREAKOUT_TIMEFRAME_MIN:
+                    for d in FIRST_SEEN_DIRECTIONS:
+                        signal = self._breakout_signal(candles, d, BREAKOUT_LOOKBACK_PERIOD)
+                        if signal is not None and signal["pass"]:
+                            breakout_qualifying[d].add(sym)
+
+        with self._first_seen_lock:
+            for key, qualifying in buysell_qualifying.items():
+                self._update_first_seen(self._buysell_first_seen[key], qualifying, now_str, prices, atrs)
+            for d, qualifying in breakout_qualifying.items():
+                self._update_first_seen(self._breakout_first_seen[d], qualifying, now_str, prices, atrs)
+
     def get_orb_status(self) -> list[dict]:
         """Whether each window's range has formed yet today, and its
         clock-time label - shown even before/without any captured data."""
@@ -544,6 +723,8 @@ class NSEClient:
             return {"window": window, "formed": False, "demo": False, "stocks": []}
 
         rows = {r.get("symbol"): r for r in self._fo_quote_rows()}
+        with self._first_seen_lock:
+            first_seen = dict(self._orb_first_seen.get(window, {}))
         stocks = []
         for sym, rng in ranges.items():
             row = rows.get(sym)
@@ -559,6 +740,7 @@ class NSEClient:
                 breakout, breakout_price = "down", orb_low
             else:
                 breakout, breakout_price = "none", None
+            entry = first_seen.get(sym) if breakout != "none" else None
             stocks.append(
                 {
                     "symbol": sym,
@@ -570,6 +752,13 @@ class NSEClient:
                     "pChange": row.get("pChange"),
                     "breakout": breakout,
                     "breakoutPrice": breakout_price,
+                    # "HH:MM:SS" (IST) this symbol first broke out today, or
+                    # None if it's inside range or the background tracker
+                    # hasn't caught up yet (e.g. right after a restart). Plus
+                    # signalPct/rFactor - see the FIRST_SEEN_DIRECTIONS
+                    # comment above (not currently shown in the ORB UI, but
+                    # available here like the other two scanners).
+                    **self._entry_metrics(entry, ltp),
                 }
             )
 
@@ -645,6 +834,30 @@ class NSEClient:
         if len(values) < period:
             return None
         return sum(values[-period:]) / period
+
+    @staticmethod
+    def _trend_20d(candles: list[dict]) -> str | None:
+        """Uptrend/Downtrend/Neutral read from the last DAILY_SMA_PERIOD
+        (20) daily candles: needs BOTH the latest close on the right side
+        of its own SMA(20) AND a net % move over that window past
+        TREND_20D_NEUTRAL_BAND_PCT - a lone SMA cross without real
+        follow-through (or a real move that hasn't crossed the SMA yet)
+        reads as Neutral rather than flipping the label on noise. None if
+        there isn't a full 20-day window yet."""
+        period = DAILY_SMA_PERIOD
+        if len(candles) < period:
+            return None
+        closes = [c["close"] for c in candles[-period:]]
+        first, latest = closes[0], closes[-1]
+        if not first:
+            return None
+        sma = sum(closes) / period
+        pct_move = ((latest - first) / first) * 100
+        if latest > sma and pct_move > TREND_20D_NEUTRAL_BAND_PCT:
+            return "Uptrend"
+        if latest < sma and pct_move < -TREND_20D_NEUTRAL_BAND_PCT:
+            return "Downtrend"
+        return "Neutral"
 
     @staticmethod
     def _ema_series(values: list[float], period: int) -> list[float | None]:
@@ -829,6 +1042,8 @@ class NSEClient:
         daily_history = self._get_daily_history()
         fo_symbols = self._fo_universe()
         rows = {r.get("symbol"): r for r in self._fo_quote_rows()}
+        with self._first_seen_lock:
+            first_seen = dict(self._buysell_first_seen.get((direction, timeframe), {}))
 
         results = []
         for sym in fo_symbols:
@@ -847,6 +1062,8 @@ class NSEClient:
                 INTRADAY_RSI_PERIOD,
                 INTRADAY_LOOKBACK_BARS,
             )
+            qualifies = bool(daily["pass"] and intraday and intraday["pass"])
+            entry = first_seen.get(sym) if qualifies else None
             results.append(
                 {
                     "symbol": sym,
@@ -862,7 +1079,13 @@ class NSEClient:
                     "intradaySma20": intraday["sma"] if intraday else None,
                     "intradayRsi14": intraday["rsi"] if intraday else None,
                     "intradayPass": intraday["pass"] if intraday else None,
-                    "qualifies": bool(daily["pass"] and intraday and intraday["pass"]),
+                    "qualifies": qualifies,
+                    # "since" ("HH:MM:SS" IST this symbol first qualified today,
+                    # both legs passing), "signalPct" (% move since then) and
+                    # "rFactor" (that move in daily-ATR(14) units) - see the
+                    # FIRST_SEEN_DIRECTIONS comment above. All None if not
+                    # currently qualifying or the tracker hasn't caught up yet.
+                    **self._entry_metrics(entry, row.get("lastPrice")),
                 }
             )
 
@@ -920,6 +1143,8 @@ class NSEClient:
         for the exact rule, replicated from two published Chartink scanners."""
         fo_symbols = self._fo_universe()
         rows = {r.get("symbol"): r for r in self._fo_quote_rows()}
+        with self._first_seen_lock:
+            first_seen = dict(self._breakout_first_seen.get(direction, {}))
 
         results = []
         for sym in fo_symbols:
@@ -943,6 +1168,10 @@ class NSEClient:
                     "closePass": signal["closePass"],
                     "volPass": signal["volPass"],
                     "qualifies": signal["pass"],
+                    # "since" / "signalPct" / "rFactor" - see the
+                    # FIRST_SEEN_DIRECTIONS comment above. All None if not
+                    # currently qualifying or the tracker hasn't caught up yet.
+                    **self._entry_metrics(first_seen.get(sym) if signal["pass"] else None, row.get("lastPrice")),
                 }
             )
 
@@ -1128,6 +1357,7 @@ class NSEClient:
         counters on /allIndices measure)."""
         rows = self._index_constituents(NIFTY50_INDEX)
         stocks = [r for r in rows if r.get("priority") != 1]
+        daily_history = self._get_daily_history()
 
         advances = declines = unchanged = 0
         details = []
@@ -1138,6 +1368,13 @@ class NSEClient:
                 continue
             chg_from_open = last_px - open_px
             pct_from_open = (chg_from_open / open_px) * 100
+            year_high = r.get("yearHigh")
+            year_low = r.get("yearLow")
+            # Negative (or zero at the high itself) - LTP is at/below its
+            # 52-week high; positive (or zero at the low itself) - LTP is
+            # at/above its 52-week low.
+            pct_from_year_high = round(((last_px - year_high) / year_high) * 100, 2) if year_high else None
+            pct_from_year_low = round(((last_px - year_low) / year_low) * 100, 2) if year_low else None
             if chg_from_open > 0:
                 advances += 1
                 status = "advance"
@@ -1156,6 +1393,13 @@ class NSEClient:
                     "changeFromOpen": round(chg_from_open, 2),
                     "pctFromOpen": round(pct_from_open, 2),
                     "status": status,
+                    "dayHigh": r.get("dayHigh"),
+                    "dayLow": r.get("dayLow"),
+                    "yearHigh": year_high,
+                    "yearLow": year_low,
+                    "pctFromYearHigh": pct_from_year_high,
+                    "pctFromYearLow": pct_from_year_low,
+                    "trend20d": self._trend_20d(daily_history.get(r.get("symbol"), [])),
                 }
             )
         details.sort(key=lambda d: d["pctFromOpen"], reverse=True)
@@ -1280,6 +1524,41 @@ class NSEClient:
             ]
 
         return {"high": shape(self._52_week("high")), "low": shape(self._52_week("low"))}
+
+    def get_day_level_stocks(self, limit: int = 15) -> dict:
+        """Stocks currently trading closest to TODAY's day-high or day-low
+        ("Top Level Stocks" / "Low Level Stocks" on other scanner sites) -
+        a same-session complement to the 52-week high/low panel above.
+        Pure NSE snapshot data (dayHigh/dayLow/lastPrice, already fetched
+        for every other panel) - no self-tracking or extra history needed.
+        "diff" is dayHigh - LTP for the near-high list (LTP - dayLow for
+        near-low) - the smaller it is, the closer the stock is trading to
+        that extreme right now; 0.00 means it's sitting right at it."""
+        fo_symbols = self._fo_universe()
+        near_high, near_low = [], []
+        for row in self._fo_quote_rows():
+            sym = row.get("symbol")
+            if sym not in fo_symbols:
+                continue
+            ltp = row.get("lastPrice")
+            day_high = row.get("dayHigh")
+            day_low = row.get("dayLow")
+            if ltp is None or day_high is None or day_low is None:
+                continue
+            base = {
+                "symbol": sym,
+                "sector": self._sector_for(sym),
+                "ltp": ltp,
+                "pChange": row.get("pChange"),
+                "dayHigh": day_high,
+                "dayLow": day_low,
+            }
+            near_high.append({**base, "diff": round(day_high - ltp, 2)})
+            near_low.append({**base, "diff": round(ltp - day_low, 2)})
+
+        near_high.sort(key=lambda r: r["diff"])
+        near_low.sort(key=lambda r: r["diff"])
+        return {"high": near_high[:limit], "low": near_low[:limit]}
 
     def get_fo_stock_list(self) -> dict:
         """F&O Stock List (Volume & RSI) - see the module comment above
@@ -1559,6 +1838,58 @@ class NSEClient:
         """Canonical list of every sector label the 'sector' field can
         take, for the frontend's filter dropdown."""
         return sorted(SECTOR_LIST)
+
+    # Dead zone (in average % change) around zero that counts as "Neutral"
+    # rather than Bullish/Bearish - avoids a sector flipping label on tiny,
+    # directionless moves.
+    SECTOR_BIAS_NEUTRAL_BAND = 0.1
+
+    def get_sector_bias(self) -> dict:
+        """Self-computed bullish/bearish/neutral read for every sector in
+        SECTOR_LIST (the F&O-only, zero-overlap classification via
+        FO_SECTOR_MAP - NOT NSE's own sectoral indices, which use a
+        different, overlapping grouping - see HEATMAP_SECTOR_SYMBOLS above),
+        from the average % change of that sector's own F&O stocks right now.
+        Used to flag, next to a scanner row's "sector" column, whether the
+        stock's own sector is currently trending with or against the
+        signal - deliberately not sourced from the Heatmap's NSE sectoral
+        indices, since those don't map 1:1 onto this app's sector buckets."""
+        fo_symbols = self._fo_universe()
+        rows = self._fo_quote_rows()
+
+        by_sector: dict[str, list[float]] = {name: [] for name in SECTOR_LIST}
+        by_sector[UNCLASSIFIED_LABEL] = []
+        for row in rows:
+            sym = row.get("symbol")
+            if sym not in fo_symbols:
+                continue
+            p = row.get("pChange")
+            if p is None:
+                continue
+            by_sector.setdefault(self._sector_for(sym), []).append(p)
+
+        sectors = {}
+        for sector, changes in by_sector.items():
+            if not changes:
+                sectors[sector] = {"label": "Neutral", "avgPChange": None, "up": 0, "down": 0, "count": 0}
+                continue
+            avg = sum(changes) / len(changes)
+            up = sum(1 for c in changes if c > 0)
+            down = sum(1 for c in changes if c < 0)
+            if avg > self.SECTOR_BIAS_NEUTRAL_BAND:
+                label = "Bullish"
+            elif avg < -self.SECTOR_BIAS_NEUTRAL_BAND:
+                label = "Bearish"
+            else:
+                label = "Neutral"
+            sectors[sector] = {
+                "label": label,
+                "avgPChange": round(avg, 2),
+                "up": up,
+                "down": down,
+                "count": len(changes),
+            }
+        return {"sectors": sectors}
 
 
 client = NSEClient()

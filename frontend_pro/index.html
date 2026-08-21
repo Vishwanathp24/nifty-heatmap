@@ -17,11 +17,11 @@
       </div>
 
       <nav class="sidebar-nav" id="sidebar-nav">
-        <button class="nav-item" data-view="dashboard">
+        <button class="nav-item active" data-view="dashboard">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
           Dashboard
         </button>
-        <button class="nav-item active" data-view="scanner">
+        <button class="nav-item" data-view="scanner">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>
           F&amp;O Scanner
         </button>
@@ -66,7 +66,7 @@
           <button class="sidebar-burger" id="sidebar-burger" aria-label="Toggle menu">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
           </button>
-          <h1 id="page-title">F&amp;O Scanner</h1>
+          <h1 id="page-title">Dashboard</h1>
           <span class="live-pill" id="market-status">&mdash;</span>
         </div>
         <div class="topbar-right">
@@ -93,7 +93,7 @@
 
       <main class="view-area">
         <!-- ============================== Dashboard ============================== -->
-        <section class="view" data-view="dashboard">
+        <section class="view active" data-view="dashboard">
           <div class="view-head">
             <h2>Dashboard</h2>
             <p class="view-sub">Same-session market overview &mdash; not a prediction.</p>
@@ -111,6 +111,10 @@
               <div id="dash-ad-body" class="ad-body"><div class="skel-line"></div></div>
             </div>
           </div>
+          <div class="card">
+            <div class="card-head"><div><h3>Sectors Heatmap</h3><p class="card-sub">All F&amp;O sectors, self-grouped</p></div></div>
+            <div id="dash-mini-sectors" class="mini-sector-grid"></div>
+          </div>
           <div class="two-col">
             <div class="card">
               <div class="card-head"><h3><span class="dot-up"></span>F&amp;O Gainers</h3></div>
@@ -124,7 +128,7 @@
         </section>
 
         <!-- ============================== F&O Scanner ============================== -->
-        <section class="view active" data-view="scanner">
+        <section class="view" data-view="scanner">
           <div class="view-head">
             <h2>F&amp;O Stock Scanner</h2>
             <p class="view-sub">Live NSE F&amp;O stocks with key technical &amp; market data</p>
@@ -242,13 +246,8 @@
             <p class="view-sub">For technical research, not a trading recommendation.</p>
           </div>
 
-          <div class="group-tabs" id="scanner-group-tabs">
-            <button class="group-tab active" data-group="orb">Opening Range Breakout</button>
-            <button class="group-tab" data-group="buysell">Buy / Sell (Bullish / Bearish)</button>
-            <button class="group-tab" data-group="breakout15">15-Min Breakout</button>
-          </div>
-
-          <div class="scanner-group active" data-group="orb">
+          <div class="scanner-section" data-group="orb">
+            <h3 class="scanner-section-title">Opening Range Breakout</h3>
             <p class="view-sub">Range forms in the first N minutes after 09:15 IST; a later break above/below it is flagged here.</p>
             <div id="orb-tabs" class="qf-chips">
               <button class="qf-chip active" data-window="5">5 min</button>
@@ -261,7 +260,8 @@
             <div id="orb-table" class="data-table"><div class="skel-line"></div></div>
           </div>
 
-          <div class="scanner-group" data-group="buysell">
+          <div class="scanner-section" data-group="buysell">
+            <h3 class="scanner-section-title">Buy / Sell (Bullish / Bearish)</h3>
             <p class="view-sub">
               Daily and intraday, each: Close vs SMA(20) &middot; Close vs each of the last 5 bars' High/Low &middot; RSI(14) vs 60 (buy) / 40 (sell).
               Daily uses real NSE EOD history (ready now); intraday is self-tracked and persisted across days. A stock only "qualifies" once both timeframes pass.
@@ -280,7 +280,8 @@
             <div id="buysell-table" class="data-table"><div class="skel-line"></div></div>
           </div>
 
-          <div class="scanner-group" data-group="breakout15">
+          <div class="scanner-section" data-group="breakout15">
+            <h3 class="scanner-section-title">15-Min Breakout</h3>
             <p class="view-sub">
               Pure 15-min, independent of the scanner above: Close breaks above/below the prior bar's rolling 20-period Close high,
               plus Volume vs its own 20-period SMA. The Sell version deliberately wants volume <em>below</em> average (not a spike) &mdash; that's the source rule, not a mistake.
@@ -341,6 +342,16 @@
             <div class="card">
               <div class="card-head"><h3>Most Active &mdash; By Value</h3></div>
               <div id="movers-active-value" class="data-table"><div class="skel-line"></div></div>
+            </div>
+          </div>
+          <div class="two-col">
+            <div class="card">
+              <div class="card-head"><h3><span class="dot-up"></span>Near Day High <span class="card-sub">&mdash; closest to today's high right now</span></h3></div>
+              <div id="movers-day-high" class="data-table"><div class="skel-line"></div></div>
+            </div>
+            <div class="card">
+              <div class="card-head"><h3><span class="dot-down"></span>Near Day Low <span class="card-sub">&mdash; closest to today's low right now</span></h3></div>
+              <div id="movers-day-low" class="data-table"><div class="skel-line"></div></div>
             </div>
           </div>
         </section>

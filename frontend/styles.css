@@ -270,6 +270,7 @@ tr:last-child td { border-bottom: none; }
 }
 .sym-link:hover { color: var(--purple); border-bottom-color: var(--purple); }
 .cell-left { text-align: left; color: var(--muted); font-size: 12px; }
+.sector-bias { margin-left: 3px; cursor: help; }
 
 /* Sector filter bar */
 .sector-filter-bar {
@@ -403,21 +404,11 @@ tr:last-child td { border-bottom: none; }
 .breakout-down { color: var(--red-5); font-weight: 700; }
 .breakout-none { color: var(--muted); }
 
-/* Scanners mega-panel: one top-level group visible at a time (ORB / Buy-Sell
-   / 15-Min Breakout) - this is the main mobile-friendliness fix: previously
-   all sections rendered stacked and always-visible, which made the page
-   extremely long to scroll on a phone. */
-.group-tabs {
-  display: flex; gap: 4px; margin-top: 10px;
-  overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 2px;
-  border-bottom: 1px solid var(--border);
-}
-.group-tab {
-  font-size: 13px; font-weight: 700; color: var(--muted);
-  background: none; border: none; border-bottom: 2px solid transparent;
-  padding: 8px 14px; cursor: pointer; white-space: nowrap; flex-shrink: 0;
-}
-.group-tab:hover { color: var(--ink); }
-.group-tab.active { color: var(--purple); border-bottom-color: var(--purple); }
-.scanner-group { display: none; margin-top: 14px; }
-.scanner-group.active { display: block; }
+/* Scanners mega-panel: each top-level group (ORB / Buy-Sell / 15-Min
+   Breakout) as its own always-visible stacked section, separated by a
+   divider and its own heading - previously these were tab-switched (one
+   visible at a time) for mobile-scroll-length reasons; that tradeoff was
+   intentionally dropped in favor of always-visible sections. */
+.scanner-section { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border); }
+.scanner-section:first-of-type { margin-top: 10px; padding-top: 0; border-top: none; }
+.scanner-section-title { font-size: 15px; font-weight: 700; margin: 0 0 4px; color: var(--ink); }

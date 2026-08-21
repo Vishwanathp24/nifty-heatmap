@@ -21,6 +21,26 @@ function chgClass(v) {
   return "flat";
 }
 
+// Trend (20D) is computed server-side (backend/nse_client.py's
+// _trend_20d) from the last 20 daily candles - "Uptrend"/"Downtrend"/
+// "Neutral". Just maps that label to the same up/down/flat color classes
+// used everywhere else.
+function trendClass(trend) {
+  if (trend === "Uptrend") return "up";
+  if (trend === "Downtrend") return "down";
+  return "flat";
+}
+
+// Numeric rank so the Trend (20D) column can sort like every other
+// numeric column - null (not enough daily history yet) sorts like any
+// other missing value (always to the bottom, regardless of direction).
+function trendRank(trend) {
+  if (trend === "Uptrend") return 1;
+  if (trend === "Downtrend") return -1;
+  if (trend === "Neutral") return 0;
+  return null;
+}
+
 function sign(v) {
   return v > 0 ? "+" : "";
 }
@@ -33,8 +53,32 @@ function symbolLink(symbol) {
   return `<a class="sym-link" href="${tvLink(symbol)}" target="_blank" rel="noopener noreferrer" title="Open ${symbol} chart on TradingView">${symbol}</a>`;
 }
 
+// Self-computed bullish/bearish/neutral read per sector, fetched from
+// /api/sector-bias and refreshed alongside everything else - see
+// NSEClient.get_sector_bias in the backend for how it's computed.
+let sectorBias = {};
+
 function sectorLabel(sector) {
-  return sector ? sector : `<span class="flat">&mdash;</span>`;
+  if (!sector) return `<span class="flat">&mdash;</span>`;
+  const bias = sectorBias[sector];
+  if (!bias || !bias.count) return sector;
+  const icon = bias.label === "Bullish" ? "🟢" : bias.label === "Bearish" ? "🔴" : "⚪";
+  const detail = `${sector} sector avg ${sign(bias.avgPChange)}${fmtNum(bias.avgPChange)}% (${bias.up} up / ${bias.down} down) — ${bias.label}`;
+  return `${sector} <span class="sector-bias" title="${detail}">${icon}</span>`;
+}
+
+// "HH:MM:SS" (IST) a stock first started qualifying today -> "HH:MM (Xm
+// ago)". Returns a dash when the scanner isn't currently flagging the
+// stock (or the background tracker hasn't caught up yet).
+function fmtSince(since) {
+  if (!since) return `<span class="flat">&mdash;</span>`;
+  const [h, m] = since.split(":");
+  const now = nowIST();
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+  const sinceMins = Number(h) * 60 + Number(m);
+  const elapsed = Math.max(0, nowMins - sinceMins);
+  const elapsedLabel = elapsed < 1 ? "just now" : elapsed < 60 ? `${elapsed}m ago` : `${Math.floor(elapsed / 60)}h ${elapsed % 60}m ago`;
+  return `${h}:${m} <span class="flat">(${elapsedLabel})</span>`;
 }
 
 async function fetchJSON(url) {
@@ -208,12 +252,12 @@ function renderMarketBias(bias) {
 
 const adExpanded = {};
 
-function renderAdvanceDecline(elId, data) {
+function renderAdvanceDecline(elId, data, navigateTo) {
   const { advances, declines, unchanged, total, stocks } = data;
   const advPct = total ? (advances / total) * 100 : 0;
   const decPct = total ? (declines / total) * 100 : 0;
   const uncPct = total ? (unchanged / total) * 100 : 0;
-  const expanded = !!adExpanded[elId];
+  const expanded = !navigateTo && !!adExpanded[elId];
 
   const body = $(`#${elId}`);
   body.innerHTML = `
@@ -223,15 +267,46 @@ function renderAdvanceDecline(elId, data) {
       <span class="dec-c">Declining <b>${declines}</b></span>
       <span>Unchanged <b>${unchanged}</b></span>
     </div>
-    <button class="ad-toggle" id="${elId}-toggle">${expanded ? "Hide" : "Show"} all 50 stocks</button>
+    <button class="ad-toggle" id="${elId}-toggle">${navigateTo ? "Show all 50 stocks" : (expanded ? "Hide" : "Show") + " all 50 stocks"}</button>
     <div id="${elId}-detail"></div>
   `;
   $(`#${elId}-toggle`).addEventListener("click", () => {
+    if (navigateTo) {
+      switchView(navigateTo);
+      return;
+    }
     adExpanded[elId] = !adExpanded[elId];
     renderAdvanceDecline(elId, data);
   });
   if (expanded) {
-    const rows = stocks
+    const detailId = `${elId}-detail`;
+    const sortState = tableSortState[detailId];
+    const sortCols = [
+      { key: "open", header: "Open" },
+      { key: "lastPrice", header: "LTP" },
+      { key: "pctFromOpen", header: "Chg from Open" },
+      { key: "dayHigh", header: "Day High" },
+      { key: "dayLow", header: "Day Low" },
+      { key: "yearHigh", header: "52W High" },
+      { key: "pctFromYearHigh", header: "52W High %" },
+      { key: "yearLow", header: "52W Low" },
+      { key: "pctFromYearLow", header: "52W Low %" },
+      { key: "trend20d", header: "Trend (20D)" },
+    ];
+    const sortedStocks = sortState
+      ? [...stocks].sort((a, b) => {
+          let av = a[sortState.key], bv = b[sortState.key];
+          if (sortState.key === "trend20d") {
+            av = trendRank(av);
+            bv = trendRank(bv);
+          }
+          if (av == null && bv == null) return 0;
+          if (av == null) return 1;
+          if (bv == null) return -1;
+          return (av - bv) * sortState.dir;
+        })
+      : stocks;
+    const rows = sortedStocks
       .map(
         (s) => `
       <tr>
@@ -240,12 +315,35 @@ function renderAdvanceDecline(elId, data) {
         <td>${fmtNum(s.open)}</td>
         <td>${fmtNum(s.lastPrice)}</td>
         <td class="${chgClass(s.changeFromOpen)}">${sign(s.pctFromOpen)}${fmtNum(s.pctFromOpen)}%</td>
+        <td>${fmtNum(s.dayHigh)}</td>
+        <td>${fmtNum(s.dayLow)}</td>
+        <td>${fmtNum(s.yearHigh)}</td>
+        <td class="${chgClass(s.pctFromYearHigh)}">${sign(s.pctFromYearHigh)}${fmtNum(s.pctFromYearHigh)}%</td>
+        <td>${fmtNum(s.yearLow)}</td>
+        <td class="${chgClass(s.pctFromYearLow)}">${sign(s.pctFromYearLow)}${fmtNum(s.pctFromYearLow)}%</td>
+        <td class="${trendClass(s.trend20d)}">${s.trend20d || "--"}</td>
       </tr>`
       )
       .join("");
-    $(`#${elId}-detail`).innerHTML = `
-      <table><thead><tr><th>Symbol</th><th class="cell-left">Sector</th><th>Open</th><th>LTP</th><th>Chg from Open</th></tr></thead>
+    const sortHeadCells = sortCols
+      .map((c) => {
+        const active = sortState && sortState.key === c.key;
+        const arrow = active ? (sortState.dir === 1 ? " ▲" : " ▼") : "";
+        return `<th class="sortable" data-sort-key="${c.key}">${c.header}${arrow}</th>`;
+      })
+      .join("");
+    const detailEl = $(`#${detailId}`);
+    detailEl.innerHTML = `
+      <table><thead><tr><th>Symbol</th><th class="cell-left">Sector</th>${sortHeadCells}</tr></thead>
       <tbody>${rows}</tbody></table>`;
+    detailEl.querySelectorAll("th.sortable").forEach((th) => {
+      th.addEventListener("click", () => {
+        const key = th.dataset.sortKey;
+        const cur = tableSortState[detailId];
+        tableSortState[detailId] = { key, dir: cur && cur.key === key ? -cur.dir : -1 };
+        renderAdvanceDecline(elId, data, navigateTo);
+      });
+    });
   }
 }
 
@@ -275,15 +373,8 @@ function renderHeatmap(sectors) {
   renderMiniSectors(sorted);
 }
 
-function renderMiniSectors(sorted) {
-  const el = $("#mini-sectors");
-  if (!el) return;
-  // `sorted` arrives already sorted descending by pChange - the top 6 and
-  // bottom 6 entries are the best/worst performing sectors, not just
-  // "however the first 12 happened to sort" (which, on a broadly red day,
-  // used to hide the actual worst decliners entirely).
-  const tiles = sorted.length <= 12 ? sorted : [...sorted.slice(0, 6), ...sorted.slice(-6)];
-  el.innerHTML = tiles
+function sectorTileHtml(tiles) {
+  return tiles
     .map(
       (s) => `
     <div class="mini-sector-tile ${chgClass(s.pChange)}" data-symbol="${s.symbol}">
@@ -292,9 +383,32 @@ function renderMiniSectors(sorted) {
     </div>`
     )
     .join("");
-  el.querySelectorAll(".mini-sector-tile").forEach((tile) => {
-    tile.addEventListener("click", () => openDrawer(tile.dataset.symbol));
-  });
+}
+
+function renderMiniSectors(sorted) {
+  // Rendered in two places, deliberately at different sizes:
+  // - Dashboard view (#dash-mini-sectors): the FULL list, all 23 sectors -
+  //   same count as the dedicated Sector Heatmap page, just a different
+  //   (compact-tile) style.
+  // - F&O Scanner view's bottom-grid (#mini-sectors): a genuinely "mini"
+  //   widget alongside Top Gainers/Losers/High Volume - top 6 + bottom 6
+  //   only, not just "however the first 12 happened to sort" (which, on a
+  //   broadly red day, used to hide the actual worst decliners entirely).
+  const dash = $("#dash-mini-sectors");
+  if (dash) {
+    dash.innerHTML = sectorTileHtml(sorted);
+    dash.querySelectorAll(".mini-sector-tile").forEach((tile) => {
+      tile.addEventListener("click", () => openDrawer(tile.dataset.symbol));
+    });
+  }
+  const mini = $("#mini-sectors");
+  if (mini) {
+    const tiles = sorted.length <= 12 ? sorted : [...sorted.slice(0, 6), ...sorted.slice(-6)];
+    mini.innerHTML = sectorTileHtml(tiles);
+    mini.querySelectorAll(".mini-sector-tile").forEach((tile) => {
+      tile.addEventListener("click", () => openDrawer(tile.dataset.symbol));
+    });
+  }
 }
 
 async function openDrawer(symbol) {
@@ -396,16 +510,6 @@ function renderMoversTable(el, rows, opts = {}) {
 // ported from the classic dashboard's identical scanners (same backend
 // routes, same rules). See frontend/app.js for the original.
 
-function initScannerGroupTabs() {
-  $("#scanner-group-tabs").addEventListener("click", (e) => {
-    const btn = e.target.closest(".group-tab");
-    if (!btn) return;
-    const group = btn.dataset.group;
-    $$("#scanner-group-tabs .group-tab").forEach((b) => b.classList.toggle("active", b === btn));
-    $$('.view[data-view="scanners"] .scanner-group').forEach((el) => el.classList.toggle("active", el.dataset.group === group));
-  });
-}
-
 // -- ORB Scanner --------------------------------------------------------------
 
 let selectedOrbWindow = 5;
@@ -428,6 +532,7 @@ const ORB_COLUMNS = [
         ? `<span class="breakout-down">▼ Below ${fmtNum(r.breakoutPrice)}</span>`
         : `<span class="breakout-none">Inside range</span>`,
   },
+  { header: "Since", render: (r) => fmtSince(r.since) },
 ];
 
 function renderOrbStatusNote() {
@@ -473,31 +578,42 @@ let selectedScanDirection = "buy";
 let selectedScanTimeframe = 60;
 let scannerAutoSync = true; // stays true until the user manually picks buy/sell
 
-const BUYSELL_COLUMNS = [
+// Daily-leg columns - always shown, meaningfully different per row (real
+// NSE EOD history, ready almost immediately).
+const BUYSELL_DAILY_COLUMNS = [
   { header: "Symbol", render: (r) => symbolLink(r.symbol) },
   { header: "Sector", render: (r) => sectorLabel(r.sector), cls: "cell-left" },
   { header: "LTP", render: (r) => fmtNum(r.ltp) },
   { header: "Chg %", render: (r) => `<span class="${chgClass(r.pChange)}">${sign(r.pChange)}${fmtNum(r.pChange)}%</span>` },
   { header: "Daily RSI(14)", render: (r) => fmtNum(r.dailyRsi14) },
   { header: "Daily vs SMA20", render: (r) => `${fmtNum(r.dailyClose)} / ${fmtNum(r.dailySma20)}` },
-  {
-    header: "Intraday RSI(14)",
-    render: (r) => (r.intradayReady ? fmtNum(r.intradayRsi14) : `<span class="flat">pending</span>`),
-  },
-  {
-    header: "Intraday vs SMA20",
-    render: (r) => (r.intradayReady ? `${fmtNum(r.intradayClose)} / ${fmtNum(r.intradaySma20)}` : `<span class="flat">pending</span>`),
-  },
+];
+// Intraday-leg columns - only worth showing once the selected timeframe's
+// self-tracked candle history is ready; before that, every row reads
+// "pending" / "Daily only — intraday pending" / "—" identically, which is
+// clutter, not information (the status note above the table already says
+// the timeframe is still building).
+const BUYSELL_INTRADAY_COLUMNS = [
+  { header: "Intraday RSI(14)", render: (r) => fmtNum(r.intradayRsi14) },
+  { header: "Intraday vs SMA20", render: (r) => `${fmtNum(r.intradayClose)} / ${fmtNum(r.intradaySma20)}` },
   {
     header: "Status",
     render: (r) =>
       r.qualifies
         ? `<span class="up">✓ Qualified (daily + intraday)</span>`
-        : r.dailyPass
-        ? `<span class="flat">Daily only — intraday pending</span>`
-        : `<span class="flat">—</span>`,
+        : `<span class="flat">Daily only</span>`,
   },
+  { header: "Since", render: (r) => fmtSince(r.since) },
+  {
+    header: "Signal %",
+    render: (r) => `<span class="${chgClass(r.signalPct)}">${sign(r.signalPct)}${fmtNum(r.signalPct)}%</span>`,
+  },
+  { header: "R-Factor", render: (r) => (r.rFactor == null ? "--" : `${sign(r.rFactor)}${fmtNum(r.rFactor)}R`) },
 ];
+
+function buysellColumns(intradayReady) {
+  return intradayReady ? [...BUYSELL_DAILY_COLUMNS, ...BUYSELL_INTRADAY_COLUMNS] : BUYSELL_DAILY_COLUMNS;
+}
 
 function renderBuySellStatusNote(status) {
   const note = $("#buysell-status-note");
@@ -529,12 +645,12 @@ async function refreshBuySellScanner() {
   try {
     const data = await fetchJSON(`/api/scanner?direction=${selectedScanDirection}&timeframe=${selectedScanTimeframe}`);
     renderBuySellStatusNote(data.status);
-
-    const el = $("#buysell-table");
+    const tf = data.status.timeframes[String(selectedScanTimeframe)];
+    const columns = buysellColumns(Boolean(tf && tf.ready));
     const relevant = data.stocks.filter((s) => s.dailyPass);
-    renderMoversTable(el, relevant, {
+    renderMoversTable($("#buysell-table"), relevant, {
       emptyText: `No stocks currently pass the daily ${selectedScanDirection} conditions.`,
-      columns: BUYSELL_COLUMNS,
+      columns,
     });
   } catch (err) {
     $("#buysell-table").innerHTML = `<div class="empty-note">Couldn't load scanner data: ${err.message}</div>`;
@@ -562,6 +678,12 @@ const BREAKOUT_COLUMNS = [
     header: "Status",
     render: (r) => (r.qualifies ? `<span class="up">✓ Qualified</span>` : `<span class="flat">—</span>`),
   },
+  { header: "Since", render: (r) => fmtSince(r.since) },
+  {
+    header: "Signal %",
+    render: (r) => `<span class="${chgClass(r.signalPct)}">${sign(r.signalPct)}${fmtNum(r.signalPct)}%</span>`,
+  },
+  { header: "R-Factor", render: (r) => (r.rFactor == null ? "--" : `${sign(r.rFactor)}${fmtNum(r.rFactor)}R`) },
 ];
 
 function renderBreakoutStatusNote(status) {
@@ -619,7 +741,6 @@ function initScannersTabControls() {
     $$("#breakout-tabs .qf-chip").forEach((b) => b.classList.toggle("active", b === btn));
     refreshBreakoutScanner();
   });
-  initScannerGroupTabs();
 }
 
 async function refreshScannersTab() {
@@ -973,6 +1094,18 @@ function initScannerControls() {
 let refreshTimer = null;
 
 async function refreshAll() {
+  // Fetched (and applied to the `sectorBias` global) before the main batch
+  // below so every sectorLabel() call this cycle - inside refreshScanner()/
+  // refreshScannersTab(), which run concurrently in that batch - sees the
+  // freshest data rather than racing it.
+  try {
+    const { sectors } = await fetchJSON("/api/sector-bias");
+    sectorBias = sectors || {};
+  } catch (err) {
+    // leave sectorBias as whatever it was - sector labels just show their
+    // plain name (no bias badge) until this succeeds.
+  }
+
   const results = await Promise.allSettled([
     fetchJSON("/api/market-overview"),
     fetchJSON("/api/heatmap"),
@@ -981,11 +1114,21 @@ async function refreshAll() {
     fetchJSON("/api/most-active"),
     fetchJSON("/api/52-week"),
     fetchJSON("/api/volume-gainers"),
+    fetchJSON("/api/day-level-stocks"),
     refreshScanner(),
     refreshScannersTab(),
   ]);
 
-  const [overviewRes, heatmapRes, advDeclRes, foRes, activeRes, week52Res, volRes] = results;
+  const [
+    overviewRes,
+    heatmapRes,
+    advDeclRes,
+    foRes,
+    activeRes,
+    week52Res,
+    volRes,
+    dayLevelRes,
+  ] = results;
   const failures = results.filter((r) => r.status === "rejected");
 
   if (overviewRes.status === "fulfilled") {
@@ -997,7 +1140,7 @@ async function refreshAll() {
   if (heatmapRes.status === "fulfilled") renderHeatmap(heatmapRes.value.sectors);
   if (advDeclRes.status === "fulfilled") {
     latestAdSummary = advDeclRes.value;
-    renderAdvanceDecline("dash-ad-body", advDeclRes.value);
+    renderAdvanceDecline("dash-ad-body", advDeclRes.value, "breadth");
     renderAdvanceDecline("breadth-body", advDeclRes.value);
   }
   renderIndexStrip();
@@ -1036,6 +1179,19 @@ async function refreshAll() {
         { header: "Volume", render: (r) => fmtInt(r.volume), sortKey: "volume" },
         { header: "1wk Avg Vol", render: (r) => fmtInt(r.week1AvgVolume), sortKey: "week1AvgVolume" },
       ],
+    });
+  }
+  if (dayLevelRes.status === "fulfilled") {
+    // Backend rows use "ltp" (not "lastPrice") - same convention as the
+    // 52-week high/low remap just above.
+    const ltpColumns = DEFAULT_COLUMNS.map((c) => (c.sortKey === "lastPrice" ? { ...c, render: (r) => fmtNum(r.ltp), sortKey: "ltp" } : c));
+    renderMoversTable($("#movers-day-high"), dayLevelRes.value.high, {
+      emptyText: "No F&O stock day-high data right now.",
+      columns: [...ltpColumns, { header: "Day High", render: (r) => fmtNum(r.dayHigh), sortKey: "dayHigh" }, { header: "Diff from High", render: (r) => fmtNum(r.diff), sortKey: "diff" }],
+    });
+    renderMoversTable($("#movers-day-low"), dayLevelRes.value.low, {
+      emptyText: "No F&O stock day-low data right now.",
+      columns: [...ltpColumns, { header: "Day Low", render: (r) => fmtNum(r.dayLow), sortKey: "dayLow" }, { header: "Diff from Low", render: (r) => fmtNum(r.diff), sortKey: "diff" }],
     });
   }
 

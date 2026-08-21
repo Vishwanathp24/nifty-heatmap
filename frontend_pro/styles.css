@@ -216,6 +216,7 @@ table { width: 100%; border-collapse: collapse; font-size: 12.8px; }
 th, td { text-align: right; padding: 7px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
 th { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); font-weight: 700; }
 td.cell-left, th.cell-left { text-align: left; }
+.sector-bias { margin-left: 3px; cursor: help; }
 th.sortable { cursor: pointer; user-select: none; }
 th.sortable:hover { color: var(--ink); }
 tbody tr:hover { background: var(--panel-alt); }
@@ -282,22 +283,16 @@ tbody tr:hover { background: var(--panel-alt); }
 .qf-chip:hover { color: var(--ink); }
 .qf-chip.active { background: var(--purple); color: white; border-color: var(--purple); }
 
-/* ------------------------------------------------------- scanner group tabs */
+/* ------------------------------------------------------- scanner sections */
+/* Each scanner (ORB / Buy-Sell / 15-Min Breakout) as its own always-visible
+   stacked section, separated by a divider and its own heading - previously
+   these were tab-switched (one visible at a time) for mobile-scroll-length
+   reasons; that tradeoff was intentionally dropped in favor of always-visible
+   sections. */
 
-.group-tabs {
-  display: flex; gap: 4px; margin-bottom: 4px;
-  overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 2px;
-  border-bottom: 1px solid var(--border);
-}
-.group-tab {
-  font: inherit; font-size: 13px; font-weight: 700; color: var(--muted);
-  background: none; border: none; border-bottom: 2px solid transparent;
-  padding: 9px 16px; cursor: pointer; white-space: nowrap; flex-shrink: 0;
-}
-.group-tab:hover { color: var(--ink); }
-.group-tab.active { color: var(--purple); border-bottom-color: var(--purple); }
-.scanner-group { display: none; margin-top: 14px; }
-.scanner-group.active { display: block; }
+.scanner-section { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border); }
+.scanner-section:first-of-type { margin-top: 14px; padding-top: 0; border-top: none; }
+.scanner-section-title { font-size: 15px; font-weight: 700; margin: 0 0 4px; color: var(--ink); }
 .status-note { font-size: 12px; color: var(--muted); margin: 10px 0 0; }
 .breakout-up { color: var(--up); font-weight: 700; }
 .breakout-down { color: var(--down); font-weight: 700; }
