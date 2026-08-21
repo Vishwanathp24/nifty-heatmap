@@ -1184,6 +1184,161 @@ class NSEClient:
             "stocks": results,
         }
 
+    # -- Stock Verdict ("smart summary") -------------------------------------
+    # No external AI call - just combines the signals this app already
+    # computes elsewhere (Trend 20D, the Buy/Sell Scanner's daily+60-min
+    # combo, the 15-Min Breakout scanner, ORB, and classic floor-trader
+    # pivot levels) into one plain-language read for a single symbol,
+    # on demand (click-to-open on a stock symbol, anywhere in either
+    # frontend). Cheap: reuses cached daily/intraday history, no new
+    # data fetching beyond the live quote snapshot already cached.
+
+    @staticmethod
+    def _pivot_levels(high: float, low: float, close: float) -> dict:
+        """Classic floor-trader pivot points (PP, R1-R3, S1-S3) from the
+        prior session's High/Low/Close - the same public, widely-used
+        formula every charting site shows, not a guessed proprietary
+        one."""
+        pp = (high + low + close) / 3
+        r1 = 2 * pp - low
+        s1 = 2 * pp - high
+        r2 = pp + (high - low)
+        s2 = pp - (high - low)
+        r3 = high + 2 * (pp - low)
+        s3 = low - 2 * (high - pp)
+        return {
+            "pp": round(pp, 2),
+            "r1": round(r1, 2),
+            "r2": round(r2, 2),
+            "r3": round(r3, 2),
+            "s1": round(s1, 2),
+            "s2": round(s2, 2),
+            "s3": round(s3, 2),
+        }
+
+    @staticmethod
+    def _pivot_position(ltp: float, pivot: dict) -> str:
+        """Where the live LTP sits relative to the pivot ladder, as a
+        short plain-language range - e.g. 'between Pivot and R1'."""
+        if ltp >= pivot["r3"]:
+            return "above R3"
+        if ltp >= pivot["r2"]:
+            return "between R2 and R3"
+        if ltp >= pivot["r1"]:
+            return "between R1 and R2"
+        if ltp >= pivot["pp"]:
+            return "between Pivot and R1"
+        if ltp >= pivot["s1"]:
+            return "between S1 and Pivot"
+        if ltp >= pivot["s2"]:
+            return "between S2 and S1"
+        if ltp >= pivot["s3"]:
+            return "between S3 and S2"
+        return "below S3"
+
+    def get_stock_verdict(self, symbol: str) -> dict:
+        """On-demand smart summary for one symbol. `score` is just the net
+        count of bullish-minus-bearish signals below (each +1/-1); +-2 or
+        more before it's called Bullish/Bearish rather than Neutral, so a
+        single stray signal doesn't flip the headline."""
+        rows = {r.get("symbol"): r for r in self._fo_quote_rows()}
+        row = rows.get(symbol)
+        if row is None:
+            raise NSEFetchError(f"no live quote for {symbol!r} (not in the F&O/NIFTY 500 snapshot)")
+        ltp = row.get("lastPrice")
+
+        daily_history = self._get_daily_history()
+        daily_candles = daily_history.get(symbol, [])
+        trend = self._trend_20d(daily_candles)
+
+        buy_daily = self._timeframe_signal(daily_candles, "buy", DAILY_SMA_PERIOD, DAILY_RSI_PERIOD, DAILY_LOOKBACK_DAYS)
+        sell_daily = self._timeframe_signal(daily_candles, "sell", DAILY_SMA_PERIOD, DAILY_RSI_PERIOD, DAILY_LOOKBACK_DAYS)
+        intraday60_buy = self._timeframe_signal(
+            self._intraday_candles_for(symbol, 60), "buy", INTRADAY_SMA_PERIOD, INTRADAY_RSI_PERIOD, INTRADAY_LOOKBACK_BARS
+        )
+        intraday60_sell = self._timeframe_signal(
+            self._intraday_candles_for(symbol, 60), "sell", INTRADAY_SMA_PERIOD, INTRADAY_RSI_PERIOD, INTRADAY_LOOKBACK_BARS
+        )
+        buy_qualifies = bool(buy_daily and buy_daily["pass"] and intraday60_buy and intraday60_buy["pass"])
+        sell_qualifies = bool(sell_daily and sell_daily["pass"] and intraday60_sell and intraday60_sell["pass"])
+
+        breakout_candles = self._intraday_candles_for(symbol, BREAKOUT_TIMEFRAME_MIN)
+        breakout_buy = self._breakout_signal(breakout_candles, "buy", BREAKOUT_LOOKBACK_PERIOD)
+        breakout_sell = self._breakout_signal(breakout_candles, "sell", BREAKOUT_LOOKBACK_PERIOD)
+
+        orb_status = None
+        with self._orb_lock:
+            captured_today = self._orb_date == dt.datetime.now(IST).date()
+            ranges_by_window = {w: dict(self._orb_ranges[w]) for w in ORB_WINDOWS_MIN} if captured_today else {}
+        if ltp is not None:
+            for window in ORB_WINDOWS_MIN:
+                rng = ranges_by_window.get(window, {}).get(symbol)
+                if not rng:
+                    continue
+                if ltp > rng["orbHigh"]:
+                    orb_status = {"window": window, "breakout": "up", "level": rng["orbHigh"]}
+                    break
+                if ltp < rng["orbLow"]:
+                    orb_status = {"window": window, "breakout": "down", "level": rng["orbLow"]}
+                    break
+
+        pivot = self._pivot_levels(*[daily_candles[-1][k] for k in ("high", "low", "close")]) if daily_candles else None
+        pivot_position = self._pivot_position(ltp, pivot) if (pivot and ltp is not None) else None
+
+        score = 0
+        reasons = []
+        if trend == "Uptrend":
+            score += 1
+            reasons.append("Uptrend over the last 20 daily candles - above its 20-day SMA with a real net move up over that window")
+        elif trend == "Downtrend":
+            score -= 1
+            reasons.append("Downtrend over the last 20 daily candles - below its 20-day SMA with a real net move down over that window")
+        if buy_qualifies:
+            score += 1
+            reasons.append("Qualifies on the Buy/Sell Scanner's Bullish read (daily + 60-min SMA/RSI/range combo)")
+        if sell_qualifies:
+            score -= 1
+            reasons.append("Qualifies on the Buy/Sell Scanner's Bearish read (daily + 60-min SMA/RSI/range combo)")
+        if breakout_buy and breakout_buy["pass"]:
+            score += 1
+            reasons.append("Broke above its 20-bar 15-min range high, with volume above average (15-Min Breakout scanner)")
+        if breakout_sell and breakout_sell["pass"]:
+            score -= 1
+            reasons.append("Broke below its 20-bar 15-min range low, with volume below average (15-Min Bearish Breakout rule)")
+        if orb_status:
+            level = round(orb_status["level"], 2)
+            if orb_status["breakout"] == "up":
+                score += 1
+                reasons.append(f"Broke above its {orb_status['window']}-min Opening Range high (₹{level})")
+            else:
+                score -= 1
+                reasons.append(f"Broke below its {orb_status['window']}-min Opening Range low (₹{level})")
+        if pivot_position:
+            reasons.append(f"Trading {pivot_position} (Pivot ₹{pivot['pp']})")
+
+        verdict = "Bullish" if score >= 2 else "Bearish" if score <= -2 else "Neutral"
+
+        return {
+            "symbol": symbol,
+            "sector": self._sector_for(symbol),
+            "ltp": ltp,
+            "pChange": row.get("pChange"),
+            "verdict": verdict,
+            "score": score,
+            "reasons": reasons,
+            "trend20d": trend,
+            "buyQualifies": buy_qualifies,
+            "sellQualifies": sell_qualifies,
+            "breakout15m": {
+                "buy": breakout_buy["pass"] if breakout_buy else None,
+                "sell": breakout_sell["pass"] if breakout_sell else None,
+                "ready": breakout_buy is not None or breakout_sell is not None,
+            },
+            "orb": orb_status,
+            "pivot": pivot,
+            "pivotPosition": pivot_position,
+        }
+
     # -- session handling ---------------------------------------------------
 
     def _bootstrap(self, force: bool = False):

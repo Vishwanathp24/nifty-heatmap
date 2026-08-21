@@ -193,6 +193,16 @@ def breakout_scanner(
     return _wrap(client.get_breakout_scanner, direction)
 
 
+@app.get("/api/stock-verdict")
+def stock_verdict(symbol: str = Query(..., description="NSE trading symbol, e.g. RELIANCE")):
+    """On-demand "smart summary" for one symbol (click-to-open panel, any
+    stock table in either frontend) - Bullish/Bearish/Neutral plus why,
+    combining Trend 20D, the Buy/Sell Scanner, the 15-Min Breakout
+    scanner, ORB, and classic pivot levels. No external AI call - see
+    NSEClient.get_stock_verdict."""
+    return _wrap(client.get_stock_verdict, symbol.strip().upper())
+
+
 # ---------------------------------------------------------------------------
 # Fyers integration (Phase 1: login flow + raw-quote diagnostic only - see
 # fyers_client.py's module docstring for why this isn't wired into the F&O

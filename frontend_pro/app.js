@@ -50,7 +50,7 @@ function tvLink(symbol) {
 }
 
 function symbolLink(symbol) {
-  return `<a class="sym-link" href="${tvLink(symbol)}" target="_blank" rel="noopener noreferrer" title="Open ${symbol} chart on TradingView">${symbol}</a>`;
+  return `<span class="sym-cell"><a class="sym-link" href="${tvLink(symbol)}" target="_blank" rel="noopener noreferrer" title="Open ${symbol} chart on TradingView">${symbol}</a><button type="button" class="verdict-trigger" data-symbol="${symbol}" title="Smart summary for ${symbol} - trend, breakout, pivot read">✦</button></span>`;
 }
 
 // Self-computed bullish/bearish/neutral read per sector, fetched from
@@ -448,6 +448,69 @@ function renderDrawerStocks(stocks) {
 
 function closeDrawer() {
   $("#drawer").classList.add("hidden");
+}
+
+// ---------------------------------------------------------------- stock verdict ("smart summary")
+// Click-to-open panel, wired via event delegation to every ".verdict-trigger"
+// button symbolLink() renders - survives the tables re-rendering every 20s
+// without needing to re-attach a listener per row. No external AI call -
+// GET /api/stock-verdict just combines signals this app already computes
+// (see NSEClient.get_stock_verdict) into one plain-language read.
+
+async function openVerdict(symbol) {
+  const drawer = $("#verdict-drawer");
+  drawer.classList.remove("hidden");
+  $("#verdict-title").textContent = symbol;
+  $("#verdict-body").innerHTML = `<div class="skel-line">Loading…</div>`;
+  try {
+    const data = await fetchJSON(`/api/stock-verdict?symbol=${encodeURIComponent(symbol)}`);
+    renderVerdict(data);
+  } catch (err) {
+    $("#verdict-body").innerHTML = `<div class="empty-note">Couldn't load: ${err.message}</div>`;
+  }
+}
+
+function renderVerdict(v) {
+  const verdictClass = v.verdict === "Bullish" ? "up" : v.verdict === "Bearish" ? "down" : "flat";
+  const reasons = v.reasons.length
+    ? `<ul class="verdict-reasons">${v.reasons.map((r) => `<li>${r}</li>`).join("")}</ul>`
+    : `<p class="empty-note">No signals firing either way right now.</p>`;
+  const pivotRows = v.pivot
+    ? `
+    <table class="verdict-pivot">
+      <tbody>
+        <tr><td>R3</td><td>${fmtNum(v.pivot.r3)}</td></tr>
+        <tr><td>R2</td><td>${fmtNum(v.pivot.r2)}</td></tr>
+        <tr><td>R1</td><td>${fmtNum(v.pivot.r1)}</td></tr>
+        <tr class="verdict-pivot-pp"><td>Pivot</td><td>${fmtNum(v.pivot.pp)}</td></tr>
+        <tr><td>S1</td><td>${fmtNum(v.pivot.s1)}</td></tr>
+        <tr><td>S2</td><td>${fmtNum(v.pivot.s2)}</td></tr>
+        <tr><td>S3</td><td>${fmtNum(v.pivot.s3)}</td></tr>
+      </tbody>
+    </table>`
+    : `<p class="empty-note">Not enough daily history yet for pivot levels.</p>`;
+  $("#verdict-body").innerHTML = `
+    <div class="verdict-head">
+      <span class="verdict-badge ${verdictClass}">${v.verdict}</span>
+      <span class="verdict-ltp">${fmtNum(v.ltp)} <span class="${chgClass(v.pChange)}">${sign(v.pChange)}${fmtNum(v.pChange)}%</span></span>
+    </div>
+    ${reasons}
+    <h3 class="verdict-subhead">Pivot levels (prior session H/L/C)${v.pivotPosition ? ` &mdash; trading ${v.pivotPosition}` : ""}</h3>
+    ${pivotRows}
+  `;
+}
+
+function closeVerdictDrawer() {
+  $("#verdict-drawer").classList.add("hidden");
+}
+
+function initVerdictTriggers() {
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest(".verdict-trigger");
+    if (!btn) return;
+    e.preventDefault();
+    openVerdict(btn.dataset.symbol);
+  });
 }
 
 // ---------------------------------------------------------------- generic movers table
@@ -1222,9 +1285,15 @@ function init() {
 
   $("#drawer-close").addEventListener("click", closeDrawer);
   $("#drawer-backdrop").addEventListener("click", closeDrawer);
+  $("#verdict-close").addEventListener("click", closeVerdictDrawer);
+  $("#verdict-backdrop").addEventListener("click", closeVerdictDrawer);
+  initVerdictTriggers();
   $("#refresh-btn").addEventListener("click", refreshAll);
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") closeDrawer();
+    if (e.key === "Escape") {
+      closeDrawer();
+      closeVerdictDrawer();
+    }
   });
   $("#auto-refresh-checkbox").addEventListener("change", (e) => {
     if (e.target.checked) startAutoRefresh();
