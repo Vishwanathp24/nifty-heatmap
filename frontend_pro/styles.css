@@ -445,6 +445,10 @@ select:disabled { opacity: 0.6; }
 .mini-row { display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; gap: 8px; }
 .mini-row .m-rank { color: var(--muted-2); font-weight: 700; width: 14px; flex-shrink: 0; }
 .mini-row .m-sym { font-weight: 700; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.mini-row .m-sector {
+  color: var(--muted); font-weight: 600; font-size: 11px; flex-shrink: 1; min-width: 0;
+  max-width: 38%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right;
+}
 .mini-row .m-val { font-weight: 700; flex-shrink: 0; }
 
 .page-footer { padding: 12px 20px 20px; font-size: 11.5px; color: var(--muted-2); text-align: center; }
