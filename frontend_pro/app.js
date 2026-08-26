@@ -527,6 +527,8 @@ const DEFAULT_COLUMNS = [
 ];
 
 const tableSortState = {};
+const tablePageState = {}; // el.id -> current page index (0-based)
+const TABLE_PAGE_SIZE = 10;
 
 function renderMoversTable(el, rows, opts = {}) {
   if (!rows.length) {
@@ -534,6 +536,7 @@ function renderMoversTable(el, rows, opts = {}) {
     return;
   }
   const columns = opts.columns || DEFAULT_COLUMNS;
+  const pageSize = opts.pageSize || TABLE_PAGE_SIZE;
   const state = tableSortState[el.id];
   const sortedRows = state
     ? [...rows].sort((a, b) => {
@@ -545,6 +548,18 @@ function renderMoversTable(el, rows, opts = {}) {
       })
     : rows;
 
+  // Paginated so a long list (e.g. the Downtrend Scanner's ~200+ F&O
+  // universe) doesn't dump everything onto one page. Page index is kept
+  // per element id, clamped to whatever range today's row count allows -
+  // so switching tabs (same table element, different data) never crashes,
+  // it just snaps back into range.
+  const pageCount = Math.max(1, Math.ceil(sortedRows.length / pageSize));
+  let page = tablePageState[el.id] || 0;
+  if (page >= pageCount) page = pageCount - 1;
+  if (page < 0) page = 0;
+  tablePageState[el.id] = page;
+  const pageRows = sortedRows.slice(page * pageSize, page * pageSize + pageSize);
+
   const head = columns
     .map((c) => {
       if (!c.sortKey) return `<th class="${c.cls || ""}">${c.header}</th>`;
@@ -553,19 +568,42 @@ function renderMoversTable(el, rows, opts = {}) {
       return `<th class="${c.cls || ""} sortable" data-sort-key="${c.sortKey}">${c.header}${arrow}</th>`;
     })
     .join("");
-  const body = sortedRows
+  const body = pageRows
     .map((r) => `<tr>${columns.map((c) => `<td class="${c.cls || ""}">${c.render(r)}</td>`).join("")}</tr>`)
     .join("");
-  el.innerHTML = `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+  const pager =
+    pageCount > 1
+      ? `<div class="table-pager">
+          <button type="button" class="table-pager-prev" ${page === 0 ? "disabled" : ""}>&larr; Prev</button>
+          <span class="table-pager-info">Page ${page + 1} of ${pageCount} &middot; ${sortedRows.length} stocks</span>
+          <button type="button" class="table-pager-next" ${page >= pageCount - 1 ? "disabled" : ""}>Next &rarr;</button>
+        </div>`
+      : "";
+  el.innerHTML = `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>${pager}`;
 
   el.querySelectorAll("th.sortable").forEach((th) => {
     th.addEventListener("click", () => {
       const key = th.dataset.sortKey;
       const cur = tableSortState[el.id];
       tableSortState[el.id] = { key, dir: cur && cur.key === key ? -cur.dir : -1 };
+      tablePageState[el.id] = 0; // new sort order - back to page 1
       renderMoversTable(el, rows, opts);
     });
   });
+  const prevBtn = el.querySelector(".table-pager-prev");
+  const nextBtn = el.querySelector(".table-pager-next");
+  if (prevBtn) {
+    prevBtn.addEventListener("click", () => {
+      tablePageState[el.id] = Math.max(0, page - 1);
+      renderMoversTable(el, rows, opts);
+    });
+  }
+  if (nextBtn) {
+    nextBtn.addEventListener("click", () => {
+      tablePageState[el.id] = Math.min(pageCount - 1, page + 1);
+      renderMoversTable(el, rows, opts);
+    });
+  }
 }
 
 // ---------------------------------------------------------------- Scanners (self-tracked)
