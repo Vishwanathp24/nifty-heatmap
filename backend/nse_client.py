@@ -280,6 +280,12 @@ DAILY_LOOKBACK_DAYS = 5  # "1 day ago" .. "5 days ago" high/low
 # just sized for a 20-day price move instead of a same-day % change.
 TREND_20D_NEUTRAL_BAND_PCT = 2.0
 
+# SuperTrend (Olivier Seban) settings for the Stock Verdict's 15-min read -
+# period 10 / multiplier 3 is the standard default every charting platform
+# (TradingView, Chartink, ...) ships with, not a guessed variant.
+SUPERTREND_PERIOD = 10
+SUPERTREND_MULTIPLIER = 3.0
+
 # Daily Average True Range period - the risk unit "R-Factor" is expressed in
 # (see the "Entered at" tracking comment below). 14 is the standard ATR
 # period; needs 15 daily bars, comfortably covered by DAILY_HISTORY_TARGET_DAYS.
@@ -860,6 +866,77 @@ class NSEClient:
         return "Neutral"
 
     @staticmethod
+    def _ema_cross_status(closes: list[float]) -> dict | None:
+        """EMA(5)/EMA(9)/EMA(21) stack on a close series - "Bullish" when
+        5 > 9 > 21 (fully stacked up), "Bearish" when 5 < 9 < 21, else
+        "Mixed" (no clean alignment). `justCrossed` is True when this bar's
+        stack differs from the previous bar's - i.e. a cross happened on
+        the latest completed candle, not several candles ago. None if
+        there's isn't enough history for all three EMAs yet."""
+        if len(closes) < 22:
+            return None
+        e5, e9, e21 = NSEClient._ema_series(closes, 5), NSEClient._ema_series(closes, 9), NSEClient._ema_series(closes, 21)
+        if None in (e5[-1], e9[-1], e21[-1], e5[-2], e9[-2], e21[-2]):
+            return None
+
+        def stack(a, b, c):
+            if a > b > c:
+                return "Bullish"
+            if a < b < c:
+                return "Bearish"
+            return "Mixed"
+
+        now_stack = stack(e5[-1], e9[-1], e21[-1])
+        prev_stack = stack(e5[-2], e9[-2], e21[-2])
+        return {
+            "ema5": round(e5[-1], 2),
+            "ema9": round(e9[-1], 2),
+            "ema21": round(e21[-1], 2),
+            "alignment": now_stack,
+            "justCrossed": now_stack != "Mixed" and now_stack != prev_stack,
+        }
+
+    @staticmethod
+    def _supertrend(bars: list[dict], period: int = SUPERTREND_PERIOD, multiplier: float = SUPERTREND_MULTIPLIER) -> dict | None:
+        """SuperTrend (Olivier Seban) at the standard default settings
+        every charting platform ships with (period 10, multiplier 3) -
+        not a guessed variant. Returns the current trend direction and
+        the SuperTrend line's live level (the trailing stop it implies).
+        None if there aren't enough bars yet."""
+        if len(bars) < period + 2:
+            return None
+        n = len(bars)
+        final_upper: dict[int, float] = {}
+        final_lower: dict[int, float] = {}
+        trend: dict[int, int] = {}
+        for i in range(period, n):
+            atr = NSEClient._atr(bars[: i + 1], period)
+            if atr is None:
+                continue
+            hl2 = (bars[i]["high"] + bars[i]["low"]) / 2
+            basic_upper = hl2 + multiplier * atr
+            basic_lower = hl2 - multiplier * atr
+            if (i - 1) not in final_upper:
+                final_upper[i] = basic_upper
+                final_lower[i] = basic_lower
+                trend[i] = 1 if bars[i]["close"] > basic_upper else -1
+                continue
+            prev_close = bars[i - 1]["close"]
+            final_upper[i] = basic_upper if (basic_upper < final_upper[i - 1] or prev_close > final_upper[i - 1]) else final_upper[i - 1]
+            final_lower[i] = basic_lower if (basic_lower > final_lower[i - 1] or prev_close < final_lower[i - 1]) else final_lower[i - 1]
+            if bars[i]["close"] > final_upper[i - 1]:
+                trend[i] = 1
+            elif bars[i]["close"] < final_lower[i - 1]:
+                trend[i] = -1
+            else:
+                trend[i] = trend[i - 1]
+        if (n - 1) not in trend:
+            return None
+        latest_trend = trend[n - 1]
+        latest_band = final_lower[n - 1] if latest_trend == 1 else final_upper[n - 1]
+        return {"direction": "Uptrend" if latest_trend == 1 else "Downtrend", "level": round(latest_band, 2)}
+
+    @staticmethod
     def _ema_series(values: list[float], period: int) -> list[float | None]:
         """Full EMA series, same length as `values` - the first `period - 1`
         entries are None (not enough history yet). Seeded with the SMA of
@@ -1266,6 +1343,23 @@ class NSEClient:
         breakout_buy = self._breakout_signal(breakout_candles, "buy", BREAKOUT_LOOKBACK_PERIOD)
         breakout_sell = self._breakout_signal(breakout_candles, "sell", BREAKOUT_LOOKBACK_PERIOD)
 
+        # 15-min EMA(5/9/21) stack, SuperTrend(10, 3), RSI(14), and volume
+        # reads - all standard, publicly-documented technical indicators
+        # (no fabricated numbers, no price targets/strike suggestions -
+        # see the /api/stock-verdict route docstring for why).
+        closes15 = [c["close"] for c in breakout_candles]
+        ema_cross = self._ema_cross_status(closes15)
+        super_trend = self._supertrend(breakout_candles, SUPERTREND_PERIOD, SUPERTREND_MULTIPLIER)
+        rsi15 = self._rsi(closes15, INTRADAY_RSI_PERIOD)
+        vol_sma20 = self._sma([c["volume"] for c in breakout_candles], BREAKOUT_LOOKBACK_PERIOD)
+        latest_volume = breakout_candles[-1]["volume"] if breakout_candles else None
+        prev_volume = breakout_candles[-2]["volume"] if len(breakout_candles) >= 2 else None
+        volume_vs_prev = (
+            {"current": latest_volume, "previous": prev_volume, "isHigher": latest_volume > prev_volume}
+            if latest_volume is not None and prev_volume is not None
+            else None
+        )
+
         orb_status = None
         with self._orb_lock:
             captured_today = self._orb_date == dt.datetime.now(IST).date()
@@ -1313,8 +1407,35 @@ class NSEClient:
             else:
                 score -= 1
                 reasons.append(f"Broke below its {orb_status['window']}-min Opening Range low (₹{level})")
+        if ema_cross:
+            just = " (just crossed on the latest completed candle)" if ema_cross["justCrossed"] else ""
+            if ema_cross["alignment"] == "Bullish":
+                score += 1
+                reasons.append(f"15-min EMA(5/9/21) stacked bullish - 5 > 9 > 21{just}")
+            elif ema_cross["alignment"] == "Bearish":
+                score -= 1
+                reasons.append(f"15-min EMA(5/9/21) stacked bearish - 5 < 9 < 21{just}")
+        if super_trend:
+            if super_trend["direction"] == "Uptrend":
+                score += 1
+                reasons.append(f"SuperTrend(10, 3) on Uptrend, line at ₹{super_trend['level']}")
+            else:
+                score -= 1
+                reasons.append(f"SuperTrend(10, 3) on Downtrend, line at ₹{super_trend['level']}")
         if pivot_position:
             reasons.append(f"Trading {pivot_position} (Pivot ₹{pivot['pp']})")
+        if rsi15 is not None:
+            reasons.append(f"15-min RSI(14) at {round(rsi15, 1)}")
+        if vol_sma20 is not None and latest_volume is not None:
+            reasons.append(
+                f"15-min volume {'above' if latest_volume > vol_sma20 else 'below'} its 20-period average "
+                f"({latest_volume:,.0f} vs {vol_sma20:,.0f})"
+            )
+        if volume_vs_prev:
+            reasons.append(
+                f"15-min volume {'higher' if volume_vs_prev['isHigher'] else 'lower'} than the previous candle "
+                f"({volume_vs_prev['current']:,.0f} vs {volume_vs_prev['previous']:,.0f})"
+            )
 
         verdict = "Bullish" if score >= 2 else "Bearish" if score <= -2 else "Neutral"
 
@@ -1337,6 +1458,13 @@ class NSEClient:
             "orb": orb_status,
             "pivot": pivot,
             "pivotPosition": pivot_position,
+            "emaCross": ema_cross,
+            "superTrend": super_trend,
+            "rsi15m": round(rsi15, 1) if rsi15 is not None else None,
+            "volume15m": latest_volume,
+            "volSma20": round(vol_sma20) if vol_sma20 is not None else None,
+            "volumeAboveAvg": (latest_volume > vol_sma20) if (vol_sma20 is not None and latest_volume is not None) else None,
+            "volumeVsPrev": volume_vs_prev,
         }
 
     # -- session handling ---------------------------------------------------
