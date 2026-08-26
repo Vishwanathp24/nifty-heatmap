@@ -1082,6 +1082,20 @@ class NSEClient:
         todays = self._bucket_candles(ticks, tf, market_open.timestamp())
         return history + [{"date": today_str, **c} for c in todays]
 
+    @staticmethod
+    def _intraday_leg_is_current(candles: list[dict], today_str: str) -> bool:
+        """True only if `candles` (as returned by _intraday_candles_for,
+        oldest-first) has a bar that actually completed TODAY. Early in the
+        session - before a given timeframe's very first bar has closed
+        (9:30 for 15-min, 9:45 for 30-min, 10:00 for 45-min, 10:15 for
+        60-min) - the series' last entry is still a prior session's final
+        candle. Without this check that stale candle was being silently
+        treated as "the current intraday signal", which is what made every
+        timeframe tab look identical (and sometimes spuriously "qualified")
+        right after the open, since the last candle of any bucket size on a
+        given day always closes at that day's very last traded price."""
+        return bool(candles) and candles[-1].get("date") == today_str
+
     def get_scanner_status(self) -> dict:
         """How far along the daily (Bhavcopy-backed, ready almost
         immediately) history is, plus each intraday timeframe's self-tracked
@@ -1095,10 +1109,17 @@ class NSEClient:
         with self._intraday_lock:
             for tf in INTRADAY_TIMEFRAMES:
                 bars = max((len(v) for v in self._intraday_history[tf].values()), default=0)
+                today_bars = max(self._intraday_persisted_today.get(tf, {}).values(), default=0)
                 timeframes[str(tf)] = {
                     "barsAvailable": bars,
                     "barsNeeded": intraday_needed,
                     "ready": bars >= intraday_needed,
+                    # Separate from "ready" (which is about accumulated history):
+                    # whether this timeframe's very first candle of TODAY'S
+                    # session has completed yet. Until it has, the scanner
+                    # can't show a genuinely current intraday signal for this
+                    # timeframe - see _intraday_leg_is_current.
+                    "todayBarCompleted": today_bars > 0,
                 }
         return {
             "dailyBarsAvailable": daily_bars,
@@ -1119,6 +1140,7 @@ class NSEClient:
         daily_history = self._get_daily_history()
         fo_symbols = self._fo_universe()
         rows = {r.get("symbol"): r for r in self._fo_quote_rows()}
+        today_str = dt.datetime.now(IST).date().isoformat()
         with self._first_seen_lock:
             first_seen = dict(self._buysell_first_seen.get((direction, timeframe), {}))
 
@@ -1132,12 +1154,21 @@ class NSEClient:
             )
             if daily is None:
                 continue
-            intraday = self._timeframe_signal(
-                self._intraday_candles_for(sym, timeframe),
-                direction,
-                INTRADAY_SMA_PERIOD,
-                INTRADAY_RSI_PERIOD,
-                INTRADAY_LOOKBACK_BARS,
+            intraday_candles = self._intraday_candles_for(sym, timeframe)
+            # Only treat the intraday leg as usable once THIS timeframe has a
+            # bar that actually completed today - otherwise every timeframe
+            # tab falls back to the same prior-session candle and looks
+            # identical (see _intraday_leg_is_current).
+            intraday = (
+                self._timeframe_signal(
+                    intraday_candles,
+                    direction,
+                    INTRADAY_SMA_PERIOD,
+                    INTRADAY_RSI_PERIOD,
+                    INTRADAY_LOOKBACK_BARS,
+                )
+                if self._intraday_leg_is_current(intraday_candles, today_str)
+                else None
             )
             qualifies = bool(daily["pass"] and intraday and intraday["pass"])
             entry = first_seen.get(sym) if qualifies else None
@@ -1211,8 +1242,14 @@ class NSEClient:
             bars = max(
                 (len(v) for v in self._intraday_history[BREAKOUT_TIMEFRAME_MIN].values()), default=0
             )
+            today_bars = max(self._intraday_persisted_today.get(BREAKOUT_TIMEFRAME_MIN, {}).values(), default=0)
         needed = BREAKOUT_LOOKBACK_PERIOD + 1
-        return {"barsAvailable": bars, "barsNeeded": needed, "ready": bars >= needed}
+        return {
+            "barsAvailable": bars,
+            "barsNeeded": needed,
+            "ready": bars >= needed,
+            "todayBarCompleted": today_bars > 0,
+        }
 
     def get_breakout_scanner(self, direction: str) -> dict:
         """direction: 'buy' (15 Minute Stock Breakouts) or 'sell' (15 Min
@@ -1220,6 +1257,7 @@ class NSEClient:
         for the exact rule, replicated from two published Chartink scanners."""
         fo_symbols = self._fo_universe()
         rows = {r.get("symbol"): r for r in self._fo_quote_rows()}
+        today_str = dt.datetime.now(IST).date().isoformat()
         with self._first_seen_lock:
             first_seen = dict(self._breakout_first_seen.get(direction, {}))
 
@@ -1229,6 +1267,8 @@ class NSEClient:
             if row is None:
                 continue
             candles = self._intraday_candles_for(sym, BREAKOUT_TIMEFRAME_MIN)
+            if not self._intraday_leg_is_current(candles, today_str):
+                continue  # today's first 15-min bar hasn't completed yet
             signal = self._breakout_signal(candles, direction, BREAKOUT_LOOKBACK_PERIOD)
             if signal is None:
                 continue
@@ -1327,33 +1367,46 @@ class NSEClient:
         daily_history = self._get_daily_history()
         daily_candles = daily_history.get(symbol, [])
         trend = self._trend_20d(daily_candles)
+        today_str = dt.datetime.now(IST).date().isoformat()
 
         buy_daily = self._timeframe_signal(daily_candles, "buy", DAILY_SMA_PERIOD, DAILY_RSI_PERIOD, DAILY_LOOKBACK_DAYS)
         sell_daily = self._timeframe_signal(daily_candles, "sell", DAILY_SMA_PERIOD, DAILY_RSI_PERIOD, DAILY_LOOKBACK_DAYS)
-        intraday60_buy = self._timeframe_signal(
-            self._intraday_candles_for(symbol, 60), "buy", INTRADAY_SMA_PERIOD, INTRADAY_RSI_PERIOD, INTRADAY_LOOKBACK_BARS
-        )
-        intraday60_sell = self._timeframe_signal(
-            self._intraday_candles_for(symbol, 60), "sell", INTRADAY_SMA_PERIOD, INTRADAY_RSI_PERIOD, INTRADAY_LOOKBACK_BARS
-        )
+        intraday60_candles = self._intraday_candles_for(symbol, 60)
+        # Same freshness rule as the Buy/Sell Scanner: don't treat the 60-min
+        # leg as current until today's first 60-min bar has actually closed
+        # (10:15) - otherwise this silently reuses a prior session's candle.
+        if self._intraday_leg_is_current(intraday60_candles, today_str):
+            intraday60_buy = self._timeframe_signal(
+                intraday60_candles, "buy", INTRADAY_SMA_PERIOD, INTRADAY_RSI_PERIOD, INTRADAY_LOOKBACK_BARS
+            )
+            intraday60_sell = self._timeframe_signal(
+                intraday60_candles, "sell", INTRADAY_SMA_PERIOD, INTRADAY_RSI_PERIOD, INTRADAY_LOOKBACK_BARS
+            )
+        else:
+            intraday60_buy = None
+            intraday60_sell = None
         buy_qualifies = bool(buy_daily and buy_daily["pass"] and intraday60_buy and intraday60_buy["pass"])
         sell_qualifies = bool(sell_daily and sell_daily["pass"] and intraday60_sell and intraday60_sell["pass"])
 
         breakout_candles = self._intraday_candles_for(symbol, BREAKOUT_TIMEFRAME_MIN)
-        breakout_buy = self._breakout_signal(breakout_candles, "buy", BREAKOUT_LOOKBACK_PERIOD)
-        breakout_sell = self._breakout_signal(breakout_candles, "sell", BREAKOUT_LOOKBACK_PERIOD)
+        # Same rule again for the whole 15-min block below (breakout, EMA
+        # cross, SuperTrend, RSI, volume) - all of it reads off the same
+        # 15-min series, so it's all-or-nothing stale/fresh together.
+        breakout_fresh = self._intraday_leg_is_current(breakout_candles, today_str)
+        breakout_buy = self._breakout_signal(breakout_candles, "buy", BREAKOUT_LOOKBACK_PERIOD) if breakout_fresh else None
+        breakout_sell = self._breakout_signal(breakout_candles, "sell", BREAKOUT_LOOKBACK_PERIOD) if breakout_fresh else None
 
         # 15-min EMA(5/9/21) stack, SuperTrend(10, 3), RSI(14), and volume
         # reads - all standard, publicly-documented technical indicators
         # (no fabricated numbers, no price targets/strike suggestions -
         # see the /api/stock-verdict route docstring for why).
         closes15 = [c["close"] for c in breakout_candles]
-        ema_cross = self._ema_cross_status(closes15)
-        super_trend = self._supertrend(breakout_candles, SUPERTREND_PERIOD, SUPERTREND_MULTIPLIER)
-        rsi15 = self._rsi(closes15, INTRADAY_RSI_PERIOD)
-        vol_sma20 = self._sma([c["volume"] for c in breakout_candles], BREAKOUT_LOOKBACK_PERIOD)
-        latest_volume = breakout_candles[-1]["volume"] if breakout_candles else None
-        prev_volume = breakout_candles[-2]["volume"] if len(breakout_candles) >= 2 else None
+        ema_cross = self._ema_cross_status(closes15) if breakout_fresh else None
+        super_trend = self._supertrend(breakout_candles, SUPERTREND_PERIOD, SUPERTREND_MULTIPLIER) if breakout_fresh else None
+        rsi15 = self._rsi(closes15, INTRADAY_RSI_PERIOD) if breakout_fresh else None
+        vol_sma20 = self._sma([c["volume"] for c in breakout_candles], BREAKOUT_LOOKBACK_PERIOD) if breakout_fresh else None
+        latest_volume = breakout_candles[-1]["volume"] if breakout_fresh and breakout_candles else None
+        prev_volume = breakout_candles[-2]["volume"] if breakout_fresh and len(breakout_candles) >= 2 else None
         volume_vs_prev = (
             {"current": latest_volume, "previous": prev_volume, "isHigher": latest_volume > prev_volume}
             if latest_volume is not None and prev_volume is not None
@@ -1436,6 +1489,8 @@ class NSEClient:
                 f"15-min volume {'higher' if volume_vs_prev['isHigher'] else 'lower'} than the previous candle "
                 f"({volume_vs_prev['current']:,.0f} vs {volume_vs_prev['previous']:,.0f})"
             )
+        if not breakout_fresh:
+            reasons.append("15-min breakout/EMA/SuperTrend/RSI/volume reads are still building for today's session")
 
         verdict = "Bullish" if score >= 2 else "Bearish" if score <= -2 else "Neutral"
 

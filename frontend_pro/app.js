@@ -688,9 +688,14 @@ function renderBuySellStatusNote(status) {
     ? `Daily: ready (${status.dailyBarsAvailable} real trading days).`
     : `Daily: building (${status.dailyBarsAvailable}/${status.dailyBarsNeeded} trading days).`;
   const tf = status.timeframes[String(selectedScanTimeframe)];
-  const intraday = tf.ready
-    ? `${selectedScanTimeframe}-min: ready (${tf.barsAvailable} bars, self-tracked).`
-    : `${selectedScanTimeframe}-min: building (${tf.barsAvailable}/${tf.barsNeeded} bars).`;
+  let intraday;
+  if (!tf.todayBarCompleted) {
+    intraday = `${selectedScanTimeframe}-min: waiting for today's first ${selectedScanTimeframe}-min candle to close — intraday signal not current yet.`;
+  } else if (tf.ready) {
+    intraday = `${selectedScanTimeframe}-min: ready (${tf.barsAvailable} bars, self-tracked).`;
+  } else {
+    intraday = `${selectedScanTimeframe}-min: building (${tf.barsAvailable}/${tf.barsNeeded} bars).`;
+  }
   note.textContent = `${daily} ${intraday}`;
 }
 
@@ -755,9 +760,13 @@ function renderBreakoutStatusNote(status) {
     note.textContent = "";
     return;
   }
-  note.textContent = status.ready
-    ? `Ready (${status.barsAvailable} 15-min bars, self-tracked, persisted across days).`
-    : `Building (${status.barsAvailable}/${status.barsNeeded} 15-min bars) — fills within a single session once tracking starts.`;
+  if (!status.todayBarCompleted) {
+    note.textContent = "Waiting for today's first 15-min candle to close — no fresh breakouts to show yet.";
+  } else {
+    note.textContent = status.ready
+      ? `Ready (${status.barsAvailable} 15-min bars, self-tracked, persisted across days).`
+      : `Building (${status.barsAvailable}/${status.barsNeeded} 15-min bars) — fills within a single session once tracking starts.`;
+  }
 }
 
 async function refreshBreakoutScanner() {
