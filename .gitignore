@@ -14,3 +14,4 @@ backend/hourly_history.json
 
 # OS/editor
 .DS_Store
+backend/long_daily_history.json
