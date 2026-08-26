@@ -1160,24 +1160,27 @@ function renderScannerTable() {
   });
 }
 
-function renderMiniList(elId, rows, valueFn) {
+// Same Symbol / Sector / LTP / (Chg % or Volume) table markup and cell
+// classes as DEFAULT_COLUMNS elsewhere in the app - headers + alignment
+// match every other table, just capped to 5 rows with no sort/paginate.
+function renderMiniList(elId, rows, valueHeader, valueFn) {
   const el = $(`#${elId}`);
   if (!rows.length) {
     el.innerHTML = `<div class="empty-note">No data.</div>`;
     return;
   }
-  el.innerHTML = rows
+  const body = rows
     .map(
-      (r, i) => `
-    <div class="mini-row">
-      <span class="m-rank">${i + 1}</span>
-      <span class="m-sym">${symbolLink(r.symbol)}</span>
-      <span class="m-sector">${sectorLabel(r.sector)}</span>
-      <span class="m-ltp">${fmtNum(r.ltp)}</span>
-      <span class="m-val ${chgClass(r.pChange)}">${valueFn(r)}</span>
-    </div>`
+      (r) => `
+    <tr>
+      <td>${symbolLink(r.symbol)}</td>
+      <td class="cell-left">${sectorLabel(r.sector)}</td>
+      <td>${fmtNum(r.ltp)}</td>
+      <td>${valueFn(r)}</td>
+    </tr>`
     )
     .join("");
+  el.innerHTML = `<table><thead><tr><th>Symbol</th><th class="cell-left">Sector</th><th>LTP</th><th>${valueHeader}</th></tr></thead><tbody>${body}</tbody></table>`;
 }
 
 function renderScannerBottomPanels() {
@@ -1186,14 +1189,16 @@ function renderScannerBottomPanels() {
   const topGainers = [...rows].filter((r) => r.pChange > 0).sort((a, b) => b.pChange - a.pChange).slice(0, 5);
   const topLosers = [...rows].filter((r) => r.pChange < 0).sort((a, b) => a.pChange - b.pChange).slice(0, 5);
   const highVol = [...rows].sort((a, b) => b.volume - a.volume).slice(0, 5);
+  const chgCell = (r) => `<span class="${chgClass(r.pChange)}">${sign(r.pChange)}${fmtNum(r.pChange)}%</span>`;
+  const volCell = (r) => fmtInt(r.volume);
 
-  renderMiniList("mini-top-gainers", topGainers, (r) => `${sign(r.pChange)}${fmtNum(r.pChange)}%`);
-  renderMiniList("mini-top-losers", topLosers, (r) => `${sign(r.pChange)}${fmtNum(r.pChange)}%`);
-  renderMiniList("mini-high-volume", highVol, (r) => fmtInt(r.volume));
+  renderMiniList("mini-top-gainers", topGainers, "Chg %", chgCell);
+  renderMiniList("mini-top-losers", topLosers, "Chg %", chgCell);
+  renderMiniList("mini-high-volume", highVol, "Volume", volCell);
   // Same three lists, mirrored onto the Dashboard's compact widget.
-  renderMiniList("dash-top-gainers", topGainers, (r) => `${sign(r.pChange)}${fmtNum(r.pChange)}%`);
-  renderMiniList("dash-top-losers", topLosers, (r) => `${sign(r.pChange)}${fmtNum(r.pChange)}%`);
-  renderMiniList("dash-high-volume", highVol, (r) => fmtInt(r.volume));
+  renderMiniList("dash-top-gainers", topGainers, "Chg %", chgCell);
+  renderMiniList("dash-top-losers", topLosers, "Chg %", chgCell);
+  renderMiniList("dash-high-volume", highVol, "Volume", volCell);
   if (latestSectors.length) renderMiniSectors([...latestSectors].sort((a, b) => (b.pChange ?? 0) - (a.pChange ?? 0)));
 }
 
