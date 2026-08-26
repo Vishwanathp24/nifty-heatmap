@@ -19,7 +19,6 @@ from fastapi.staticfiles import StaticFiles
 from . import fyers_client
 from .nse_client import HEATMAP_SECTOR_SYMBOLS, SECTOR_LIST, NSEFetchError, client
 
-FRONTEND_DIR = pathlib.Path(__file__).resolve().parent.parent / "frontend"
 FRONTEND_PRO_DIR = pathlib.Path(__file__).resolve().parent.parent / "frontend_pro"
 
 app = FastAPI(title="Nifty Sector Heatmap")
@@ -234,7 +233,7 @@ def fyers_callback(code: str | None = None, s: str | None = None):
         fyers_client.exchange_auth_code(code)
     except fyers_client.FyersConfigError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return RedirectResponse("/pro")
+    return RedirectResponse("/")
 
 
 @app.get("/api/fyers/raw-quote")
@@ -253,18 +252,18 @@ def fyers_raw_quote(symbols: str = Query(..., description="comma-separated NSE t
 
 
 # ---------------------------------------------------------------------------
-# Frontend (static single-page apps) - two frontends, same API, for side by
-# side comparison: "/" is the original build, "/pro" is a restyled pass.
+# Frontend (static single-page app). The classic build has been retired -
+# "/" now serves what used to be the "/pro" restyle. "/pro" itself stays as
+# a redirect so any old bookmarks/links still land on the dashboard.
 
-app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 app.mount("/pro/static", StaticFiles(directory=FRONTEND_PRO_DIR), name="static_pro")
 
 
 @app.get("/")
 def index():
-    return FileResponse(FRONTEND_DIR / "index.html")
+    return FileResponse(FRONTEND_PRO_DIR / "index.html")
 
 
 @app.get("/pro")
 def index_pro():
-    return FileResponse(FRONTEND_PRO_DIR / "index.html")
+    return RedirectResponse("/")
