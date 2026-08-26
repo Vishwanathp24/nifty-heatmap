@@ -1069,6 +1069,10 @@ function renderScannerSummary() {
       ${cardIcon('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M18 17V9M13 17V5M8 17v-3"/></svg>')}
       <div><div class="sc-label">Total Volume</div><div class="sc-value">${fmtNum(s.totalVolumeCr, 2)} Cr</div><div class="sc-sub">Today</div></div>
     </div>
+    <div class="summary-card total">
+      ${cardIcon('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg>')}
+      <div><div class="sc-label">Sectors Up / Down</div><div class="sc-value"><span class="up">${latestSectors.filter((sec) => (sec.pChange ?? 0) > 0).length}</span> / <span class="down">${latestSectors.filter((sec) => (sec.pChange ?? 0) < 0).length}</span></div><div class="sc-sub">of ${latestSectors.length || 23} sectors</div></div>
+    </div>
   `;
 }
 
@@ -1350,7 +1354,14 @@ async function refreshAll() {
     renderMarketBias(overviewRes.value.bias);
     syncScannerToBias(overviewRes.value.bias.label);
   }
-  if (heatmapRes.status === "fulfilled") renderHeatmap(heatmapRes.value.sectors);
+  if (heatmapRes.status === "fulfilled") {
+    renderHeatmap(heatmapRes.value.sectors);
+    // refreshScanner() (above, inside the same Promise.allSettled batch)
+    // already painted the summary cards using whatever latestSectors was
+    // BEFORE this line updated it - repaint now so the Sectors Up/Down
+    // card isn't a cycle stale.
+    if (scannerData) renderScannerSummary();
+  }
   if (advDeclRes.status === "fulfilled") {
     latestAdSummary = advDeclRes.value;
     renderAdvanceDecline("dash-ad-body", advDeclRes.value, "breadth");
