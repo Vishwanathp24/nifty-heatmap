@@ -292,6 +292,21 @@
             <p id="breakout-status-note" class="status-note"></p>
             <div id="breakout-table" class="data-table"><div class="skel-line"></div></div>
           </div>
+
+          <div class="scanner-section" data-group="downtrend">
+            <h3 class="scanner-section-title">Downtrend Scanner</h3>
+            <p class="view-sub">
+              Daily: Close &lt; EMA20 &lt; EMA50 &lt; EMA200, RSI(14) &lt; 45, ADX(14) &gt; 20 &mdash; real NSE daily candles.
+              Intraday: price &lt; EMA200 (15-min) AND price &lt; EMA20 &lt; EMA50 &lt; EMA200 (5-min), plus RSI(14) &lt; 45,
+              ADX(14) &gt; 20 and above-average volume on the 15-min chart. A dedicated bearish-trend screen, not a Buy/Sell Scanner variant.
+            </p>
+            <div id="downtrend-tabs" class="qf-chips">
+              <button class="qf-chip active" data-mode="daily">Daily</button>
+              <button class="qf-chip" data-mode="intraday">Intraday</button>
+            </div>
+            <p id="downtrend-status-note" class="status-note"></p>
+            <div id="downtrend-table" class="data-table"><div class="skel-line"></div></div>
+          </div>
         </section>
 
         <!-- ============================== Market Breadth ============================== -->

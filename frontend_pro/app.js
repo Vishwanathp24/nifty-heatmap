@@ -782,6 +782,92 @@ async function refreshBreakoutScanner() {
   }
 }
 
+// -- Downtrend Scanner ------------------------------------------------------
+
+let selectedDowntrendMode = "daily";
+
+const DOWNTREND_DAILY_COLUMNS = [
+  { header: "Symbol", render: (r) => symbolLink(r.symbol) },
+  { header: "Sector", render: (r) => sectorLabel(r.sector), cls: "cell-left" },
+  { header: "LTP", render: (r) => fmtNum(r.ltp), sortKey: "ltp" },
+  {
+    header: "Chg %",
+    render: (r) => `<span class="${chgClass(r.pChange)}">${sign(r.pChange)}${fmtNum(r.pChange)}%</span>`,
+    sortKey: "pChange",
+  },
+  { header: "Close", render: (r) => fmtNum(r.close), sortKey: "close" },
+  {
+    header: "EMA 20 / 50 / 200",
+    render: (r) => `${fmtNum(r.emas["20"])} / ${fmtNum(r.emas["50"])} / ${fmtNum(r.emas["200"])}`,
+  },
+  { header: "RSI(14)", render: (r) => fmtNum(r.rsi), sortKey: "rsi" },
+  { header: "ADX(14)", render: (r) => fmtNum(r.adx), sortKey: "adx" },
+  {
+    header: "Status",
+    render: (r) => (r.qualifies ? `<span class="down">✓ Downtrend</span>` : `<span class="flat">—</span>`),
+  },
+];
+
+const DOWNTREND_INTRADAY_COLUMNS = [
+  { header: "Symbol", render: (r) => symbolLink(r.symbol) },
+  { header: "Sector", render: (r) => sectorLabel(r.sector), cls: "cell-left" },
+  { header: "LTP", render: (r) => fmtNum(r.ltp), sortKey: "ltp" },
+  {
+    header: "Chg %",
+    render: (r) => `<span class="${chgClass(r.pChange)}">${sign(r.pChange)}${fmtNum(r.pChange)}%</span>`,
+    sortKey: "pChange",
+  },
+  { header: "15m Close / EMA200", render: (r) => `${fmtNum(r.close15m)} / ${fmtNum(r.ema200_15m)}` },
+  {
+    header: "5m Close / EMA 20-50-200",
+    render: (r) => `${fmtNum(r.close5m)} / ${fmtNum(r.emas5m["20"])} / ${fmtNum(r.emas5m["50"])} / ${fmtNum(r.emas5m["200"])}`,
+  },
+  { header: "15m RSI(14)", render: (r) => fmtNum(r.rsi15m), sortKey: "rsi15m" },
+  { header: "15m ADX(14)", render: (r) => fmtNum(r.adx15m), sortKey: "adx15m" },
+  { header: "15m Vol / SMA(20)", render: (r) => `${fmtInt(r.volume15m)} / ${fmtInt(r.volSma20)}` },
+  {
+    header: "Status",
+    render: (r) => (r.qualifies ? `<span class="down">✓ Downtrend</span>` : `<span class="flat">—</span>`),
+  },
+];
+
+function renderDowntrendStatusNote(status) {
+  const note = $("#downtrend-status-note");
+  if (!status) {
+    note.textContent = "";
+    return;
+  }
+  if (selectedDowntrendMode === "daily") {
+    const d = status.daily;
+    note.textContent = d.ready
+      ? `Daily: ready (${d.barsAvailable} real trading days, background-warmed).`
+      : `Daily: building EMA(200) history in the background (${d.barsAvailable}/${d.barsNeeded} trading days) — this can take a while after a restart.`;
+    return;
+  }
+  const m5 = status.intraday5m;
+  const m15 = status.intraday15m;
+  const leg = (label, tf) =>
+    !tf.todayBarCompleted
+      ? `${label}: waiting for today's first candle to close.`
+      : tf.ready
+        ? `${label}: ready (${tf.barsAvailable} bars).`
+        : `${label}: building (${tf.barsAvailable}/${tf.barsNeeded} bars, self-tracked).`;
+  note.textContent = `${leg("5-min", m5)} ${leg("15-min", m15)}`;
+}
+
+async function refreshDowntrendScanner() {
+  try {
+    const data = await fetchJSON(`/api/downtrend-scanner?mode=${selectedDowntrendMode}`);
+    renderDowntrendStatusNote(data.status);
+    renderMoversTable($("#downtrend-table"), data.stocks, {
+      emptyText: `No stocks currently pass the ${selectedDowntrendMode} downtrend conditions.`,
+      columns: selectedDowntrendMode === "daily" ? DOWNTREND_DAILY_COLUMNS : DOWNTREND_INTRADAY_COLUMNS,
+    });
+  } catch (err) {
+    $("#downtrend-table").innerHTML = `<div class="empty-note">Couldn't load downtrend scanner data: ${err.message}</div>`;
+  }
+}
+
 function initScannersTabControls() {
   $("#orb-tabs").addEventListener("click", (e) => {
     const btn = e.target.closest(".qf-chip");
@@ -813,10 +899,17 @@ function initScannersTabControls() {
     $$("#breakout-tabs .qf-chip").forEach((b) => b.classList.toggle("active", b === btn));
     refreshBreakoutScanner();
   });
+  $("#downtrend-tabs").addEventListener("click", (e) => {
+    const btn = e.target.closest(".qf-chip");
+    if (!btn) return;
+    selectedDowntrendMode = btn.dataset.mode;
+    $$("#downtrend-tabs .qf-chip").forEach((b) => b.classList.toggle("active", b === btn));
+    refreshDowntrendScanner();
+  });
 }
 
 async function refreshScannersTab() {
-  await Promise.allSettled([refreshOrb(), refreshBuySellScanner(), refreshBreakoutScanner()]);
+  await Promise.allSettled([refreshOrb(), refreshBuySellScanner(), refreshBreakoutScanner(), refreshDowntrendScanner()]);
 }
 
 // ---------------------------------------------------------------- F&O Scanner

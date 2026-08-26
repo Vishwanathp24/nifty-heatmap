@@ -192,6 +192,28 @@ def breakout_scanner(
     return _wrap(client.get_breakout_scanner, direction)
 
 
+@app.get("/api/downtrend-scanner/status")
+def downtrend_scanner_status():
+    """How far along the daily (long-lookback, background-warmed) and each
+    intraday leg (5-min + 15-min, self-tracked) history the Downtrend
+    Scanner's data is."""
+    return _wrap(client.get_downtrend_scanner_status)
+
+
+@app.get("/api/downtrend-scanner")
+def downtrend_scanner(mode: str = Query("daily", description="'daily' or 'intraday'")):
+    """Dedicated bearish-trend screen (not a Buy/Sell Scanner variant):
+    mode='daily' - Close < EMA20 < EMA50 < EMA200 (daily), RSI(14) < 45,
+    ADX(14) > 20. mode='intraday' - price < EMA200 (15-min) AND price <
+    EMA20 < EMA50 < EMA200 (5-min) AND, on the 15-min chart: RSI(14) < 45,
+    ADX(14) > 20, volume above its own 20-period average. See
+    NSEClient.get_downtrend_scanner."""
+    mode = mode.strip().lower()
+    if mode not in ("daily", "intraday"):
+        raise HTTPException(status_code=400, detail="mode must be 'daily' or 'intraday'")
+    return _wrap(client.get_downtrend_scanner, mode)
+
+
 @app.get("/api/stock-verdict")
 def stock_verdict(symbol: str = Query(..., description="NSE trading symbol, e.g. RELIANCE")):
     """On-demand "smart summary" for one symbol (click-to-open panel, any

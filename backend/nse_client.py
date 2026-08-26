@@ -297,11 +297,16 @@ DAILY_ATR_PERIOD = 14
 DAILY_HISTORY_TARGET_DAYS = 30
 DAILY_HISTORY_MAX_CHECKED = 100  # calendar days to scan looking for that many trading days
 
-INTRADAY_TIMEFRAMES = (15, 30, 45, 60)
+INTRADAY_5M_TF = 5
+INTRADAY_TIMEFRAMES = (5, 15, 30, 45, 60)
 INTRADAY_SMA_PERIOD = 20
 INTRADAY_RSI_PERIOD = 14
 INTRADAY_LOOKBACK_BARS = 5  # "[-1] .. [-5]" high/low
-INTRADAY_HISTORY_MAX_BARS = 60  # per symbol, per timeframe
+INTRADAY_HISTORY_MAX_BARS = 60  # per symbol, per timeframe - 15/30/45/60-min
+# 5-min needs a much deeper window than the other timeframes: the Downtrend
+# Scanner's 5-min leg needs EMA(200), i.e. ~200 5-min bars (~2.7 trading
+# days), so its cap can't be the shared 60-bar default.
+INTRADAY_HISTORY_MAX_BARS_5M = 230
 INTRADAY_HISTORY_PATH_TMPL = str(DATA_DIR / "intraday_history_{}m.json")
 
 # ---------------------------------------------------------------------------
@@ -320,6 +325,36 @@ INTRADAY_HISTORY_PATH_TMPL = str(DATA_DIR / "intraday_history_{}m.json")
 # the source scanner specifies, kept as-is rather than "corrected" to match.
 BREAKOUT_TIMEFRAME_MIN = 15
 BREAKOUT_LOOKBACK_PERIOD = 20
+
+# ---------------------------------------------------------------------------
+# Downtrend Scanner - a dedicated bearish-trend screen (distinct from the
+# Buy/Sell Scanner's SMA/RSI/range rule above), two modes:
+#
+# Daily:    Close < EMA20 < EMA50 < EMA200 (daily)  AND  RSI(14) < 45  AND  ADX(14) > 20
+# Intraday: Price < EMA200 (15-min)  AND  Price < EMA20 < EMA50 < EMA200 (5-min)
+#           AND, on the 15-min chart: RSI(14) < 45, ADX(14) > 20, volume > SMA(volume, 20)
+#
+# EMA(200) needs real depth of history on both legs - see the long daily
+# history section below (daily leg) and INTRADAY_HISTORY_MAX_BARS_5M (5-min
+# leg, self-tracked like the rest of this app's intraday data).
+DOWNTREND_EMA_PERIODS = (20, 50, 200)
+DOWNTREND_RSI_PERIOD = 14
+DOWNTREND_ADX_PERIOD = 14
+DOWNTREND_RSI_MAX = 45.0  # "RSI < 45"
+DOWNTREND_ADX_MIN = 20.0  # "ADX > 20"
+DOWNTREND_VOLUME_SMA_PERIOD = 20  # "volume above average" - same convention as the 15-Min Breakout scanner
+
+# A separate, much deeper daily history than DAILY_HISTORY_TARGET_DAYS above
+# (30 days - fine for RSI/SMA(20), nowhere near enough for EMA(200)). Walking
+# ~220 trading days of NSE's Bhavcopy archive one day at a time is too slow
+# to do inside a live request (see _build_long_daily_history_incremental),
+# so it's built and kept warm on its own background thread instead, and
+# persisted to disk so a restart doesn't repeat the full walk.
+LONG_DAILY_HISTORY_TARGET_DAYS = 220
+LONG_DAILY_HISTORY_MAX_CHECKED = 400  # calendar days to scan on a from-scratch build
+LONG_DAILY_HISTORY_TRIM_DAYS = LONG_DAILY_HISTORY_TARGET_DAYS + 10  # small buffer past target before trimming
+LONG_DAILY_HISTORY_REFRESH_SEC = 6 * 3600.0
+LONG_DAILY_HISTORY_PATH = str(DATA_DIR / "long_daily_history.json")
 
 # ---------------------------------------------------------------------------
 # "Entered at" tracking - what clock-time a stock first started qualifying
@@ -433,7 +468,17 @@ class NSEClient:
         }
         self._breakout_first_seen: dict[str, dict[str, str]] = {d: {} for d in FIRST_SEEN_DIRECTIONS}
 
+        # Long-lookback daily history (Downtrend Scanner's daily EMA(200)
+        # leg) - loaded from disk if a previous run already built it, then
+        # kept warm by its own background thread (see _long_daily_loop).
+        # Not market-hours-gated like the ORB tracker: EOD archive data is
+        # static regardless of whether the market is open right now.
+        self._long_daily_lock = threading.Lock()
+        self._long_daily_history: dict[str, list[dict]] = self._load_long_daily_history()
+        self._long_daily_ready: bool = bool(self._long_daily_history)
+
         threading.Thread(target=self._orb_loop, daemon=True, name="orb-tracker").start()
+        threading.Thread(target=self._long_daily_loop, daemon=True, name="long-daily-history").start()
 
     @staticmethod
     def _intraday_history_path(tf: int) -> pathlib.Path:
@@ -559,8 +604,9 @@ class NSEClient:
                     bucket = self._intraday_history[tf].setdefault(sym, [])
                     for c in candles[done:]:
                         bucket.append({"date": now.date().isoformat(), **c})
-                    if len(bucket) > INTRADAY_HISTORY_MAX_BARS:
-                        del bucket[: len(bucket) - INTRADAY_HISTORY_MAX_BARS]
+                    max_bars = INTRADAY_HISTORY_MAX_BARS_5M if tf == INTRADAY_5M_TF else INTRADAY_HISTORY_MAX_BARS
+                    if len(bucket) > max_bars:
+                        del bucket[: len(bucket) - max_bars]
                     self._intraday_persisted_today[tf][sym] = len(candles)
                     changed = True
                 if changed:
@@ -598,6 +644,61 @@ class NSEClient:
                 )
             )
         return sum(trs) / period
+
+    @staticmethod
+    def _adx(bars: list[dict], period: int) -> float | None:
+        """Average Directional Index (Wilder) over an ascending (oldest-
+        first) OHLC series - the standard trend-STRENGTH indicator (a high
+        reading means a strong trend in EITHER direction, not specifically
+        down - it's paired with a direction check elsewhere, same as every
+        real ADX-based scanner). Needs 2*period+1 bars: `period` to seed the
+        first smoothed +DM/-DM/TR (same "seed with a simple average of the
+        first `period` values" convention _ema_series already uses), then
+        another `period` DX readings to average into the first ADX value,
+        Wilder-smoothed from there. Returns None if there isn't enough
+        history yet."""
+        if len(bars) < 2 * period + 1:
+            return None
+        plus_dm, minus_dm, tr = [], [], []
+        for i in range(1, len(bars)):
+            up_move = bars[i]["high"] - bars[i - 1]["high"]
+            down_move = bars[i - 1]["low"] - bars[i]["low"]
+            plus_dm.append(up_move if (up_move > down_move and up_move > 0) else 0.0)
+            minus_dm.append(down_move if (down_move > up_move and down_move > 0) else 0.0)
+            tr.append(
+                max(
+                    bars[i]["high"] - bars[i]["low"],
+                    abs(bars[i]["high"] - bars[i - 1]["close"]),
+                    abs(bars[i]["low"] - bars[i - 1]["close"]),
+                )
+            )
+
+        def wilder_smooth(values: list[float]) -> list[float]:
+            smoothed = [sum(values[:period])]
+            for v in values[period:]:
+                smoothed.append(smoothed[-1] - smoothed[-1] / period + v)
+            return smoothed
+
+        smoothed_tr = wilder_smooth(tr)
+        smoothed_plus_dm = wilder_smooth(plus_dm)
+        smoothed_minus_dm = wilder_smooth(minus_dm)
+
+        dx = []
+        for str_tr, str_plus, str_minus in zip(smoothed_tr, smoothed_plus_dm, smoothed_minus_dm):
+            if str_tr == 0:
+                dx.append(0.0)
+                continue
+            plus_di = 100 * str_plus / str_tr
+            minus_di = 100 * str_minus / str_tr
+            denom = plus_di + minus_di
+            dx.append(0.0 if denom == 0 else 100 * abs(plus_di - minus_di) / denom)
+
+        if len(dx) < period:
+            return None
+        adx = sum(dx[:period]) / period
+        for d in dx[period:]:
+            adx = (adx * (period - 1) + d) / period
+        return adx
 
     @staticmethod
     def _update_first_seen(
@@ -897,6 +998,32 @@ class NSEClient:
         }
 
     @staticmethod
+    def _ema_downtrend_stack(closes: list[float], periods: tuple[int, ...]) -> dict | None:
+        """True ("pass") only if price is below every EMA in `periods` AND
+        each EMA is below the next-longer one - e.g. for periods=(20, 50,
+        200): price < EMA20 < EMA50 < EMA200, a "stacked downtrend". Pass a
+        single-value tuple (e.g. (200,)) for a plain price-below-one-EMA
+        check - the "each EMA below the next" part is vacuously true with
+        only one EMA. Used by the Downtrend Scanner (daily and both
+        intraday legs). None if there isn't enough history for the longest
+        EMA yet."""
+        longest = max(periods)
+        if len(closes) < longest:
+            return None
+        emas = {p: NSEClient._ema_latest(closes, p) for p in periods}
+        if any(v is None for v in emas.values()):
+            return None
+        price = closes[-1]
+        ordered = sorted(periods)
+        price_below_all = all(price < emas[p] for p in ordered)
+        stacked = all(emas[ordered[i]] < emas[ordered[i + 1]] for i in range(len(ordered) - 1))
+        return {
+            "close": price,
+            "emas": {str(p): round(emas[p], 2) for p in periods},
+            "pass": price_below_all and stacked,
+        }
+
+    @staticmethod
     def _supertrend(bars: list[dict], period: int = SUPERTREND_PERIOD, multiplier: float = SUPERTREND_MULTIPLIER) -> dict | None:
         """SuperTrend (Olivier Seban) at the standard default settings
         every charting platform ships with (period 10, multiplier 3) -
@@ -1030,6 +1157,101 @@ class NSEClient:
 
     def _get_daily_history(self) -> dict[str, list[dict]]:
         return self._cached("daily-history", 6 * 3600.0, self._build_daily_history)
+
+    # -- Long-lookback daily history (Downtrend Scanner's daily EMA(200) leg) --
+
+    @staticmethod
+    def _long_daily_history_path() -> pathlib.Path:
+        return pathlib.Path(LONG_DAILY_HISTORY_PATH)
+
+    @staticmethod
+    def _load_long_daily_history() -> dict[str, list[dict]]:
+        try:
+            with open(NSEClient._long_daily_history_path()) as f:
+                return json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError, OSError):
+            return {}
+
+    def _save_long_daily_history(self):
+        try:
+            path = self._long_daily_history_path()
+            tmp = path.with_suffix(".tmp")
+            with self._long_daily_lock:
+                data = self._long_daily_history
+            with open(tmp, "w") as f:
+                json.dump(data, f)
+            tmp.replace(path)
+        except OSError:
+            pass  # persistence is best-effort - losing a write just delays warm-up
+
+    def _build_long_daily_history_incremental(self) -> dict[str, list[dict]]:
+        """Like _build_daily_history, but incremental: reuses whatever is
+        already in self._long_daily_history (loaded from disk, or built by
+        an earlier cycle of this same loop) and only fetches Bhavcopy days
+        newer than the newest date already held, instead of re-walking the
+        full LONG_DAILY_HISTORY_TARGET_DAYS window from scratch every cycle.
+        That full walk (up to LONG_DAILY_HISTORY_MAX_CHECKED sequential
+        archive fetches) is expensive and should only ever happen once -
+        the first time this app runs with no on-disk cache yet."""
+        with self._long_daily_lock:
+            existing = {sym: list(bars) for sym, bars in self._long_daily_history.items()}
+
+        def parse_date(s: str) -> dt.date:
+            return dt.datetime.strptime(s, "%d-%b-%Y").date()
+
+        newest_known: dt.date | None = None
+        for bars in existing.values():
+            if bars:
+                d = parse_date(bars[-1]["date"])
+                if newest_known is None or d > newest_known:
+                    newest_known = d
+
+        # From scratch: walk the full target window. Catching up: only look
+        # a handful of calendar days back - there's at most one new trading
+        # day per refresh cycle (LONG_DAILY_HISTORY_REFRESH_SEC), plus a
+        # little slack for long weekends/holidays.
+        target_days = LONG_DAILY_HISTORY_TARGET_DAYS if newest_known is None else 5
+        max_checked = LONG_DAILY_HISTORY_MAX_CHECKED if newest_known is None else 10
+
+        by_date: dict[str, dict[str, dict]] = {}
+        day = dt.datetime.now(IST).date()
+        checked = 0
+        while len(by_date) < target_days and checked < max_checked:
+            if newest_known is not None and day <= newest_known:
+                break  # caught up to what we already have on disk
+            result = self._fetch_bhavcopy_day(day)
+            checked += 1
+            if result and result["date"] not in by_date:
+                by_date[result["date"]] = result["rows"]
+            day -= dt.timedelta(days=1)
+
+        if not by_date:
+            return existing  # nothing new yet (e.g. today's session hasn't closed/published)
+
+        fo_symbols = self._fo_universe()
+        merged = {sym: list(existing.get(sym, [])) for sym in fo_symbols}
+        for date_str in sorted(by_date.keys(), key=parse_date):
+            day_rows = by_date[date_str]
+            for sym in fo_symbols:
+                row = day_rows.get(sym)
+                if row:
+                    merged[sym].append({"date": date_str, **row})
+        for sym in merged:
+            if len(merged[sym]) > LONG_DAILY_HISTORY_TRIM_DAYS:
+                merged[sym] = merged[sym][-LONG_DAILY_HISTORY_TRIM_DAYS:]
+        return merged
+
+    def _long_daily_loop(self):
+        while True:
+            try:
+                history = self._build_long_daily_history_incremental()
+                with self._long_daily_lock:
+                    self._long_daily_history = history
+                    self._long_daily_ready = True
+                self._save_long_daily_history()
+            except Exception:
+                pass  # never let a bad NSE response kill the tracker thread
+            time.sleep(LONG_DAILY_HISTORY_REFRESH_SEC)
 
     @staticmethod
     def _timeframe_signal(candles: list[dict], direction: str, sma_period: int, rsi_period: int, lookback: int) -> dict | None:
@@ -1298,6 +1520,149 @@ class NSEClient:
             "totalFOSymbols": len(fo_symbols),
             "symbolsWithHistory": len(results),
             "status": self.get_breakout_scanner_status(),
+            "stocks": results,
+        }
+
+    # -- Downtrend Scanner -----------------------------------------------------
+    # See the DOWNTREND_* constants above for the exact rule per mode.
+
+    def get_downtrend_scanner_status(self) -> dict:
+        with self._long_daily_lock:
+            daily_bars = max((len(v) for v in self._long_daily_history.values()), default=0)
+            daily_ready = self._long_daily_ready
+        daily_needed = max(DOWNTREND_EMA_PERIODS) + 1
+        with self._intraday_lock:
+            bars_5m = max((len(v) for v in self._intraday_history[INTRADAY_5M_TF].values()), default=0)
+            today_bars_5m = max(self._intraday_persisted_today.get(INTRADAY_5M_TF, {}).values(), default=0)
+            bars_15m = max((len(v) for v in self._intraday_history[BREAKOUT_TIMEFRAME_MIN].values()), default=0)
+            today_bars_15m = max(self._intraday_persisted_today.get(BREAKOUT_TIMEFRAME_MIN, {}).values(), default=0)
+        needed_5m = max(DOWNTREND_EMA_PERIODS) + 1
+        needed_15m = max(200, 2 * DOWNTREND_ADX_PERIOD) + 1
+        return {
+            "daily": {
+                "barsAvailable": daily_bars,
+                "barsNeeded": daily_needed,
+                "ready": daily_ready and daily_bars >= daily_needed,
+            },
+            "intraday5m": {
+                "barsAvailable": bars_5m,
+                "barsNeeded": needed_5m,
+                "ready": bars_5m >= needed_5m,
+                "todayBarCompleted": today_bars_5m > 0,
+            },
+            "intraday15m": {
+                "barsAvailable": bars_15m,
+                "barsNeeded": needed_15m,
+                "ready": bars_15m >= needed_15m,
+                "todayBarCompleted": today_bars_15m > 0,
+            },
+        }
+
+    def get_downtrend_scanner(self, mode: str) -> dict:
+        """mode='daily': Close < EMA20 < EMA50 < EMA200 (daily), RSI(14) <
+        45, ADX(14) > 20 - all on real NSE daily candles.
+        mode='intraday': price < EMA200 on the 15-min chart AND price <
+        EMA20 < EMA50 < EMA200 on the 5-min chart AND, on the 15-min
+        chart: RSI(14) < 45, ADX(14) > 20, volume > its own 20-period SMA.
+        Not a Buy/Sell-Scanner variant - a dedicated bearish-trend screen,
+        see the DOWNTREND_* constants above for the exact rule."""
+        if mode not in ("daily", "intraday"):
+            raise ValueError("mode must be 'daily' or 'intraday'")
+
+        fo_symbols = self._fo_universe()
+        rows = {r.get("symbol"): r for r in self._fo_quote_rows()}
+        results = []
+
+        if mode == "daily":
+            with self._long_daily_lock:
+                daily_history = {sym: list(bars) for sym, bars in self._long_daily_history.items()}
+            for sym in fo_symbols:
+                row = rows.get(sym)
+                if row is None:
+                    continue
+                bars = daily_history.get(sym, [])
+                closes = [b["close"] for b in bars]
+                trend = self._ema_downtrend_stack(closes, DOWNTREND_EMA_PERIODS)
+                if trend is None:
+                    continue
+                rsi = self._rsi(closes, DOWNTREND_RSI_PERIOD)
+                adx = self._adx(bars, DOWNTREND_ADX_PERIOD)
+                if rsi is None or adx is None:
+                    continue
+                rsi_pass = rsi < DOWNTREND_RSI_MAX
+                adx_pass = adx > DOWNTREND_ADX_MIN
+                results.append(
+                    {
+                        "symbol": sym,
+                        "sector": self._sector_for(sym),
+                        "ltp": row.get("lastPrice"),
+                        "pChange": row.get("pChange"),
+                        "close": trend["close"],
+                        "emas": trend["emas"],
+                        "trendPass": trend["pass"],
+                        "rsi": round(rsi, 2),
+                        "rsiPass": rsi_pass,
+                        "adx": round(adx, 2),
+                        "adxPass": adx_pass,
+                        "qualifies": bool(trend["pass"] and rsi_pass and adx_pass),
+                    }
+                )
+        else:
+            today_str = dt.datetime.now(IST).date().isoformat()
+            for sym in fo_symbols:
+                row = rows.get(sym)
+                if row is None:
+                    continue
+                candles15 = self._intraday_candles_for(sym, BREAKOUT_TIMEFRAME_MIN)
+                candles5 = self._intraday_candles_for(sym, INTRADAY_5M_TF)
+                if not self._intraday_leg_is_current(candles15, today_str) or not self._intraday_leg_is_current(
+                    candles5, today_str
+                ):
+                    continue  # today's first bar of one (or both) legs hasn't completed yet
+                closes15 = [c["close"] for c in candles15]
+                closes5 = [c["close"] for c in candles5]
+                trend15 = self._ema_downtrend_stack(closes15, (200,))
+                trend5 = self._ema_downtrend_stack(closes5, DOWNTREND_EMA_PERIODS)
+                if trend15 is None or trend5 is None:
+                    continue
+                rsi = self._rsi(closes15, DOWNTREND_RSI_PERIOD)
+                adx = self._adx(candles15, DOWNTREND_ADX_PERIOD)
+                vol_sma = self._sma([c["volume"] for c in candles15], DOWNTREND_VOLUME_SMA_PERIOD)
+                latest_volume = candles15[-1]["volume"] if candles15 else None
+                if rsi is None or adx is None or vol_sma is None or latest_volume is None:
+                    continue
+                rsi_pass = rsi < DOWNTREND_RSI_MAX
+                adx_pass = adx > DOWNTREND_ADX_MIN
+                vol_pass = latest_volume > vol_sma
+                results.append(
+                    {
+                        "symbol": sym,
+                        "sector": self._sector_for(sym),
+                        "ltp": row.get("lastPrice"),
+                        "pChange": row.get("pChange"),
+                        "close15m": trend15["close"],
+                        "ema200_15m": trend15["emas"]["200"],
+                        "trend15Pass": trend15["pass"],
+                        "close5m": trend5["close"],
+                        "emas5m": trend5["emas"],
+                        "trend5Pass": trend5["pass"],
+                        "rsi15m": round(rsi, 2),
+                        "rsiPass": rsi_pass,
+                        "adx15m": round(adx, 2),
+                        "adxPass": adx_pass,
+                        "volume15m": latest_volume,
+                        "volSma20": round(vol_sma),
+                        "volPass": vol_pass,
+                        "qualifies": bool(trend15["pass"] and trend5["pass"] and rsi_pass and adx_pass and vol_pass),
+                    }
+                )
+
+        results.sort(key=lambda r: (not r["qualifies"], -abs(r.get("pChange") or 0)))
+        return {
+            "mode": mode,
+            "totalFOSymbols": len(fo_symbols),
+            "symbolsWithHistory": len(results),
+            "status": self.get_downtrend_scanner_status(),
             "stocks": results,
         }
 
