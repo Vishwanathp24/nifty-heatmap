@@ -1173,6 +1173,7 @@ function renderMiniList(elId, rows, valueFn) {
       <span class="m-rank">${i + 1}</span>
       <span class="m-sym">${symbolLink(r.symbol)}</span>
       <span class="m-sector">${sectorLabel(r.sector)}</span>
+      <span class="m-ltp">${fmtNum(r.ltp)}</span>
       <span class="m-val ${chgClass(r.pChange)}">${valueFn(r)}</span>
     </div>`
     )

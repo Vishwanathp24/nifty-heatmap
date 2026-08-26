@@ -447,9 +447,10 @@ select:disabled { opacity: 0.6; }
 .mini-row .m-sym { font-weight: 700; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .mini-row .m-sector {
   color: var(--ink); font-weight: 600; font-size: 11.5px; flex-shrink: 1; min-width: 0;
-  max-width: 38%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right;
+  max-width: 26%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right;
 }
-.mini-row .m-val { font-weight: 700; flex-shrink: 0; }
+.mini-row .m-ltp { color: var(--ink); font-weight: 700; flex-shrink: 0; text-align: right; min-width: 50px; }
+.mini-row .m-val { font-weight: 700; flex-shrink: 0; text-align: right; min-width: 56px; }
 
 .page-footer { padding: 12px 20px 20px; font-size: 11.5px; color: var(--muted-2); text-align: center; }
 
