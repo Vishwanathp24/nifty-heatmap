@@ -391,10 +391,10 @@ function renderMiniSectors(sorted) {
   // - Dashboard view (#dash-mini-sectors): the FULL list, all 23 sectors -
   //   same count as the dedicated Sector Heatmap page, just a different
   //   (compact-tile) style.
-  // - F&O Scanner view's bottom-grid (#mini-sectors): a genuinely "mini"
-  //   widget alongside Top Gainers/Losers/High Volume - top 6 + bottom 6
-  //   only, not just "however the first 12 happened to sort" (which, on a
-  //   broadly red day, used to hide the actual worst decliners entirely).
+  // - F&O Scanner view (#mini-sectors), above the F&O Stocks (Live) table:
+  //   a genuinely "mini" widget - top 5 + bottom 5 only, not just "however
+  //   the first 10 happened to sort" (which, on a broadly red day, used to
+  //   hide the actual worst decliners entirely).
   const dash = $("#dash-mini-sectors");
   if (dash) {
     dash.innerHTML = sectorTileHtml(sorted);
@@ -404,7 +404,7 @@ function renderMiniSectors(sorted) {
   }
   const mini = $("#mini-sectors");
   if (mini) {
-    const tiles = sorted.length <= 12 ? sorted : [...sorted.slice(0, 6), ...sorted.slice(-6)];
+    const tiles = sorted.length <= 10 ? sorted : [...sorted.slice(0, 5), ...sorted.slice(-5)];
     mini.innerHTML = sectorTileHtml(tiles);
     mini.querySelectorAll(".mini-sector-tile").forEach((tile) => {
       tile.addEventListener("click", () => openDrawer(tile.dataset.symbol));
@@ -1192,10 +1192,8 @@ function renderScannerBottomPanels() {
   const chgCell = (r) => `<span class="${chgClass(r.pChange)}">${sign(r.pChange)}${fmtNum(r.pChange)}%</span>`;
   const volCell = (r) => fmtInt(r.volume);
 
-  renderMiniList("mini-top-gainers", topGainers, "Chg %", chgCell);
-  renderMiniList("mini-top-losers", topLosers, "Chg %", chgCell);
-  renderMiniList("mini-high-volume", highVol, "Volume", volCell);
-  // Same three lists, mirrored onto the Dashboard's compact widget.
+  // Top Gainers/Losers/High Volume lists live only on the Dashboard now -
+  // the F&O Scanner tab used to duplicate them here, removed as redundant.
   renderMiniList("dash-top-gainers", topGainers, "Chg %", chgCell);
   renderMiniList("dash-top-losers", topLosers, "Chg %", chgCell);
   renderMiniList("dash-high-volume", highVol, "Volume", volCell);
