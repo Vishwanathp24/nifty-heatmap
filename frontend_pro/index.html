@@ -25,6 +25,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>
           F&amp;O Scanner
         </button>
+        <button class="nav-item" data-view="fogainerslosers">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v16M7 4l-3 3M7 4l3 3M17 20V4M17 20l-3-3M17 20l3-3"/></svg>
+          F&amp;O Gainers &amp; Losers
+        </button>
         <button class="nav-item" data-view="scanners">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/></svg>
           Scanners
@@ -114,14 +118,36 @@
             <div class="card-head"><div><h3>Sectors Heatmap</h3><p class="card-sub">All F&amp;O sectors, self-grouped</p></div></div>
             <div id="dash-mini-sectors" class="mini-sector-grid"></div>
           </div>
+          <div class="tri-grid">
+            <div class="mini-card">
+              <h4><span class="dot-up"></span>Top Gainers</h4>
+              <div id="dash-top-gainers" class="mini-list"></div>
+            </div>
+            <div class="mini-card">
+              <h4><span class="dot-down"></span>Top Losers</h4>
+              <div id="dash-top-losers" class="mini-list"></div>
+            </div>
+            <div class="mini-card">
+              <h4><span class="dot-vol"></span>High Volume</h4>
+              <div id="dash-high-volume" class="mini-list"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ============================== F&O Gainers & Losers ============================== -->
+        <section class="view" data-view="fogainerslosers">
+          <div class="view-head">
+            <h2>F&amp;O Gainers &amp; Losers</h2>
+            <p class="view-sub">Full same-session F&amp;O gainers and losers tables</p>
+          </div>
           <div class="two-col">
             <div class="card">
               <div class="card-head"><h3><span class="dot-up"></span>F&amp;O Gainers</h3></div>
-              <div id="dash-gainers" class="data-table"><div class="skel-line"></div></div>
+              <div id="fogl-gainers" class="data-table"><div class="skel-line"></div></div>
             </div>
             <div class="card">
               <div class="card-head"><h3><span class="dot-down"></span>F&amp;O Losers</h3></div>
-              <div id="dash-losers" class="data-table"><div class="skel-line"></div></div>
+              <div id="fogl-losers" class="data-table"><div class="skel-line"></div></div>
             </div>
           </div>
         </section>
@@ -337,16 +363,6 @@
           <div class="view-head">
             <h2>Top Movers</h2>
             <p class="view-sub">F&amp;O gainers and losers, and today's most active by volume/value</p>
-          </div>
-          <div class="two-col">
-            <div class="card">
-              <div class="card-head"><h3><span class="dot-up"></span>F&amp;O Gainers</h3></div>
-              <div id="movers-gainers" class="data-table"><div class="skel-line"></div></div>
-            </div>
-            <div class="card">
-              <div class="card-head"><h3><span class="dot-down"></span>F&amp;O Losers</h3></div>
-              <div id="movers-losers" class="data-table"><div class="skel-line"></div></div>
-            </div>
           </div>
           <div class="two-col">
             <div class="card">

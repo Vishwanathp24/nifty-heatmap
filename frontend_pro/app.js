@@ -140,6 +140,7 @@ function initTheme() {
 const VIEW_TITLES = {
   dashboard: "Dashboard",
   scanner: "F&O Scanner",
+  fogainerslosers: "F&O Gainers & Losers",
   scanners: "Scanners",
   breadth: "Market Breadth",
   heatmap: "Sector Heatmap",
@@ -1187,6 +1188,10 @@ function renderScannerBottomPanels() {
   renderMiniList("mini-top-gainers", topGainers, (r) => `${sign(r.pChange)}${fmtNum(r.pChange)}%`);
   renderMiniList("mini-top-losers", topLosers, (r) => `${sign(r.pChange)}${fmtNum(r.pChange)}%`);
   renderMiniList("mini-high-volume", highVol, (r) => fmtInt(r.volume));
+  // Same three lists, mirrored onto the Dashboard's compact widget.
+  renderMiniList("dash-top-gainers", topGainers, (r) => `${sign(r.pChange)}${fmtNum(r.pChange)}%`);
+  renderMiniList("dash-top-losers", topLosers, (r) => `${sign(r.pChange)}${fmtNum(r.pChange)}%`);
+  renderMiniList("dash-high-volume", highVol, (r) => fmtInt(r.volume));
   if (latestSectors.length) renderMiniSectors([...latestSectors].sort((a, b) => (b.pChange ?? 0) - (a.pChange ?? 0)));
 }
 
@@ -1349,10 +1354,8 @@ async function refreshAll() {
   renderIndexStrip();
 
   if (foRes.status === "fulfilled") {
-    renderMoversTable($("#dash-gainers"), foRes.value.gainers, { emptyText: "No F&O gainers data." });
-    renderMoversTable($("#dash-losers"), foRes.value.losers, { emptyText: "No F&O losers data." });
-    renderMoversTable($("#movers-gainers"), foRes.value.gainers, { emptyText: "No F&O gainers data." });
-    renderMoversTable($("#movers-losers"), foRes.value.losers, { emptyText: "No F&O losers data." });
+    renderMoversTable($("#fogl-gainers"), foRes.value.gainers, { emptyText: "No F&O gainers data." });
+    renderMoversTable($("#fogl-losers"), foRes.value.losers, { emptyText: "No F&O losers data." });
   }
   if (activeRes.status === "fulfilled") {
     renderMoversTable($("#movers-active-volume"), activeRes.value.byVolume, {
