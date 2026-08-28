@@ -359,9 +359,9 @@ function renderPcr(indices) {
     <div class="summary-card total">
       <span class="sc-icon">${PCR_ICON}</span>
       <div>
-        <div class="sc-label">${r.index} PCR (OI) &middot; ${r.expiry}</div>
+        <div class="sc-label">${r.index} PCR (OI)</div>
         <div class="sc-value">${r.pcrOi != null ? fmtNum(r.pcrOi, 2) : "--"}</div>
-        <div class="sc-sub">Call OI ${fmtInt(r.callOi)} &middot; Put OI ${fmtInt(r.putOi)} &middot; Vol PCR ${r.pcrVolume != null ? fmtNum(r.pcrVolume, 2) : "--"}</div>
+        <div class="sc-sub">Exp ${r.expiry} &middot; Vol PCR ${r.pcrVolume != null ? fmtNum(r.pcrVolume, 2) : "--"}</div>
       </div>
     </div>`
     )

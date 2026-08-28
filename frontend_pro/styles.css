@@ -195,7 +195,18 @@ a { color: inherit; }
 .card-head h3 { margin: 0; font-size: 14.5px; display: flex; align-items: center; gap: 8px; }
 .card-sub { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-.four-col { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+/* align-items: start (not the grid default stretch) - the Market Bias +
+   Nifty 50 Breadth stack and FII/DII Activity/Put-Call Ratio are all
+   naturally different heights (their sub-cards stack to different
+   degrees). stretch would force the shorter ones to grow and match the
+   tallest, leaving dead space at their own bottom; start just lets each
+   column sit at its own real height. */
+.three-col { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; align-items: start; }
+/* Market Bias + Nifty 50 Breadth sharing one column of .three-col -
+   plain flow stacking (own gap, no absolute positioning), each card
+   keeps its own natural compact size instead of stretching taller. */
+.card-stack { display: flex; flex-direction: column; gap: 14px; }
+.card-stack .card { margin-bottom: 0; }
 .stub-card { color: var(--muted); font-size: 13.5px; line-height: 1.6; }
 
 .dot-up, .dot-down, .dot-vol { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
@@ -514,12 +525,12 @@ select:disabled { opacity: 0.6; }
 @media (max-width: 1100px) {
   .index-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .tri-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .four-col { grid-template-columns: repeat(2, 1fr); }
+  .three-col { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (max-width: 860px) {
   .two-col { grid-template-columns: 1fr; }
-  .four-col { grid-template-columns: 1fr; }
+  .three-col { grid-template-columns: 1fr; }
   .sidebar-burger { display: inline-flex; }
   .sidebar {
     position: fixed; left: 0; top: 0; transform: translateX(-100%);
