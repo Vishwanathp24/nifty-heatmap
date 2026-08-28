@@ -211,6 +211,19 @@ a { color: inherit; }
 .card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
 .card-head h3 { margin: 0; font-size: 14.5px; display: flex; align-items: center; gap: 8px; }
 .card-sub { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
+
+/* Section-level tabs (IPO: Upcoming/Recent) - own design in this app's
+   own language (pill buttons, purple accent) rather than copying any
+   particular reference's folder-tab shape/colors. */
+.folder-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+.folder-tab {
+  font: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+  padding: 9px 18px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+  background: var(--panel-alt); color: var(--muted);
+}
+.folder-tab:hover { color: var(--ink); border-color: var(--purple); }
+.folder-tab.active { background: var(--purple); color: white; border-color: var(--purple); }
+.folder-panel.hidden { display: none; }
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 /* Grid default (stretch): the Market Bias + Nifty 50 Breadth stack and
    FII/DII Activity/Put-Call Ratio are naturally different heights, so

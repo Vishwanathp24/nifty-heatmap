@@ -55,11 +55,7 @@
         </button>
         <button class="nav-item" data-view="ipos">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-          Recent IPOs
-        </button>
-        <button class="nav-item" data-view="upcomingipos">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-          Upcoming IPOs
+          IPO
         </button>
         <button class="nav-item" data-view="swing">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M17 7h4v4"/></svg>
@@ -465,31 +461,36 @@
           </div>
         </section>
 
-        <!-- ============================== Recent IPOs ============================== -->
+        <!-- ============================== IPO ============================== -->
         <section class="view" data-view="ipos">
           <div class="view-head">
-            <h2>Recent IPOs</h2>
-            <p class="view-sub">NSE/BSE IPOs listed in the last 3 years, newest first - Name, Listing Date, IPO Market Cap, IPO Price, Current Price, % Change since listing.</p>
+            <h2>IPO</h2>
+            <p class="view-sub">Recent and upcoming NSE/BSE IPOs, sourced from screener.in.</p>
           </div>
-          <div class="table-toolbar">
-            <div class="search-box">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-              <input id="ipo-search" placeholder="Search IPO by name..." />
-            </div>
-          </div>
-          <div class="card">
-            <div id="ipos-table" class="data-table"><div class="skel-line"></div></div>
-          </div>
-        </section>
 
-        <!-- ============================== Upcoming IPOs ============================== -->
-        <section class="view" data-view="upcomingipos">
-          <div class="view-head">
-            <h2>Upcoming IPOs</h2>
-            <p class="view-sub">Companies currently open for subscription or listing over the next few days - Name, Subscription Period, Price Band, Listing Date, Market Cap, Subscription, PE, ROCE.</p>
+          <div class="folder-tabs" id="ipo-tabs">
+            <button class="folder-tab active" data-ipo-tab="upcoming">Upcoming IPOs</button>
+            <button class="folder-tab" data-ipo-tab="recent">Recent IPOs</button>
           </div>
-          <div class="card">
+
+          <div class="card folder-panel" data-ipo-panel="upcoming">
+            <div class="card-head">
+              <div><h3>Upcoming IPOs</h3><p class="card-sub">Currently open for subscription or listing over the next few days - Name, Subscription Period, Price Band, Listing Date, Market Cap, Subscription, PE, ROCE.</p></div>
+            </div>
             <div id="upcoming-ipos-table" class="data-table"><div class="skel-line"></div></div>
+          </div>
+
+          <div class="card folder-panel hidden" data-ipo-panel="recent">
+            <div class="card-head">
+              <div><h3>Recent IPOs</h3><p class="card-sub">Listed in the last 3 years, newest first - Name, Listing Date, IPO Market Cap, IPO Price, Current Price, % Change since listing.</p></div>
+            </div>
+            <div class="table-toolbar">
+              <div class="search-box">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+                <input id="ipo-search" placeholder="Search IPO by name..." />
+              </div>
+            </div>
+            <div id="ipos-table" class="data-table"><div class="skel-line"></div></div>
           </div>
         </section>
 
