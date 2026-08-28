@@ -1833,6 +1833,13 @@ async function refreshVolumeShockers() {
 // every page in the app - the old behaviour ran all of this, every 20s,
 // regardless of which single page was actually visible.
 const VIEW_FETCHERS = {
+  // refreshScanner() populates more than just the F&O Scanner page's own
+  // table/summary: renderScannerBottomPanels() (called from inside it) also
+  // fills the Dashboard's Top Gainers / Top Losers / High Volume mini-lists
+  // (#dash-top-gainers etc.) - scannerData is their only source. Dashboard
+  // has to stay in this map too, not just the two F&O-specific views, or
+  // those three panels are permanently empty on the Dashboard.
+  dashboard: [refreshScanner],
   scanner: [refreshScanner],
   fogainerslosers: [refreshScanner],
   scanners: [refreshScannersTab],
