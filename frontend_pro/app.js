@@ -412,13 +412,14 @@ function sectorTileHtml(tiles) {
 
 function renderMiniSectors(sorted) {
   // Rendered in several places, deliberately at different sizes:
-  // - Dashboard (#dash-mini-sectors) and Market Breadth (#breadth-mini-sectors):
-  //   the FULL list, all 23 sectors - same count as the dedicated Sector
-  //   Heatmap page, just a different (compact-tile) style.
-  // - F&O Scanner (#mini-sectors) and F&O Gainers & Losers (#fogl-mini-sectors):
-  //   genuinely "mini" widgets - top 5 + bottom 5 only, not just "however
-  //   the first 10 happened to sort" (which, on a broadly red day, used to
-  //   hide the actual worst decliners entirely).
+  // - Dashboard (#dash-mini-sectors), Market Breadth (#breadth-mini-sectors),
+  //   and F&O Scanner (#mini-sectors): the FULL list, all 23 sectors - same
+  //   count as the dedicated Sector Heatmap page, just a different
+  //   (compact-tile) style.
+  // - F&O Gainers & Losers (#fogl-mini-sectors): a genuinely "mini" widget -
+  //   top 5 + bottom 5 only, not just "however the first 10 happened to
+  //   sort" (which, on a broadly red day, used to hide the actual worst
+  //   decliners entirely).
   // Every tile opens that sector's constituent-stock drawer, same as the
   // full Sector Heatmap page - these are NSE's raw sectoral-index names
   // (HEATMAP_SECTOR_SYMBOLS, e.g. "NIFTY IT"), a deliberately separate
@@ -428,7 +429,7 @@ function renderMiniSectors(sorted) {
   const targets = [
     { el: $("#dash-mini-sectors"), full: true },
     { el: $("#breadth-mini-sectors"), full: true },
-    { el: $("#mini-sectors"), full: false },
+    { el: $("#mini-sectors"), full: true },
     { el: $("#fogl-mini-sectors"), full: false },
   ];
   for (const { el, full } of targets) {
