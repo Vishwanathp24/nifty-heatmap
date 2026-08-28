@@ -279,8 +279,17 @@ function renderAdvanceDecline(elId, data, navigateTo) {
     adExpanded[elId] = !adExpanded[elId];
     renderAdvanceDecline(elId, data);
   });
+  if (elId === "breadth-body") {
+    const noFilter = breadthSelectedSectors.size === 0;
+    const hintCount = noFilter ? total : stocks.filter((s) => breadthSelectedSectors.has(s.sector)).length;
+    $("#breadth-sector-hint").textContent = noFilter ? "" : `${hintCount} of ${total} Nifty 50 stocks`;
+  }
   if (expanded) {
     const detailId = `${elId}-detail`;
+    const filteredStocks =
+      elId === "breadth-body" && breadthSelectedSectors.size > 0
+        ? stocks.filter((s) => breadthSelectedSectors.has(s.sector))
+        : stocks;
     const sortState = tableSortState[detailId];
     const sortCols = [
       { key: "open", header: "Open" },
@@ -295,7 +304,7 @@ function renderAdvanceDecline(elId, data, navigateTo) {
       { key: "trend20d", header: "Trend (20D)" },
     ];
     const sortedStocks = sortState
-      ? [...stocks].sort((a, b) => {
+      ? [...filteredStocks].sort((a, b) => {
           let av = a[sortState.key], bv = b[sortState.key];
           if (sortState.key === "trend20d") {
             av = trendRank(av);
@@ -306,7 +315,7 @@ function renderAdvanceDecline(elId, data, navigateTo) {
           if (bv == null) return -1;
           return (av - bv) * sortState.dir;
         })
-      : stocks;
+      : filteredStocks;
     const rows = sortedStocks
       .map(
         (s) => `
@@ -334,9 +343,10 @@ function renderAdvanceDecline(elId, data, navigateTo) {
       })
       .join("");
     const detailEl = $(`#${detailId}`);
-    detailEl.innerHTML = `
-      <table><thead><tr><th>Symbol</th><th class="cell-left">Sector</th>${sortHeadCells}</tr></thead>
-      <tbody>${rows}</tbody></table>`;
+    detailEl.innerHTML = filteredStocks.length
+      ? `<table><thead><tr><th>Symbol</th><th class="cell-left">Sector</th>${sortHeadCells}</tr></thead>
+      <tbody>${rows}</tbody></table>`
+      : `<div class="empty-note">No Nifty 50 stocks in the selected sector${breadthSelectedSectors.size > 1 ? "s" : ""}.</div>`;
     detailEl.querySelectorAll("th.sortable").forEach((th) => {
       th.addEventListener("click", () => {
         const key = th.dataset.sortKey;
@@ -387,22 +397,23 @@ function sectorTileHtml(tiles) {
 }
 
 function renderMiniSectors(sorted) {
-  // Rendered in three places, deliberately at different sizes:
-  // - Dashboard view (#dash-mini-sectors): the FULL list, all 23 sectors -
-  //   same count as the dedicated Sector Heatmap page, just a different
-  //   (compact-tile) style.
-  // - F&O Scanner view (#mini-sectors) and F&O Gainers & Losers view
-  //   (#fogl-mini-sectors): genuinely "mini" widgets - top 5 + bottom 5
-  //   only, not just "however the first 10 happened to sort" (which, on a
-  //   broadly red day, used to hide the actual worst decliners entirely).
+  // Rendered in several places, deliberately at different sizes:
+  // - Dashboard (#dash-mini-sectors) and Market Breadth (#breadth-mini-sectors):
+  //   the FULL list, all 23 sectors - same count as the dedicated Sector
+  //   Heatmap page, just a different (compact-tile) style.
+  // - F&O Scanner (#mini-sectors) and F&O Gainers & Losers (#fogl-mini-sectors):
+  //   genuinely "mini" widgets - top 5 + bottom 5 only, not just "however
+  //   the first 10 happened to sort" (which, on a broadly red day, used to
+  //   hide the actual worst decliners entirely).
   // Every tile opens that sector's constituent-stock drawer, same as the
   // full Sector Heatmap page - these are NSE's raw sectoral-index names
   // (HEATMAP_SECTOR_SYMBOLS, e.g. "NIFTY IT"), a deliberately separate
   // taxonomy from the clean per-stock "sector" field (FO_SECTOR_MAP, e.g.
-  // "IT") that the Gainers/Losers sector filter uses below - the two don't
-  // map 1:1, so a tile click can't also drive that filter.
+  // "IT") that the Gainers/Losers and Market Breadth sector filters use -
+  // the two don't map 1:1, so a tile click can't also drive those filters.
   const targets = [
     { el: $("#dash-mini-sectors"), full: true },
+    { el: $("#breadth-mini-sectors"), full: true },
     { el: $("#mini-sectors"), full: false },
     { el: $("#fogl-mini-sectors"), full: false },
   ];
@@ -1258,60 +1269,84 @@ async function loadSectorFilterOptions(selectEl) {
 // every advancer/decliner in the whole F&O list, not just NSE's top 20.
 // This also matches what the Dashboard's own Top Gainers/Losers mini-lists
 // already do (see renderScannerBottomPanels).
-let foglSelectedSectors = new Set(); // empty = no filter (every sector)
-let foglSectorLabels = [];
+// Generic multi-select "sector" filter dropdown: a checkbox menu (Select
+// all / Clear + one row per sector, from /api/sector-labels) wired to a
+// Set the caller owns, calling back on any change. Used here and by the
+// Market Breadth page below - one implementation, two instances.
+function initSectorMultiSelect({ btnId, menuId, dropdownId, selectedSet, onChange }) {
+  let labels = [];
 
-async function loadFoglSectorMenu() {
-  try {
-    const { labels } = await fetchJSON("/api/sector-labels");
-    foglSectorLabels = labels;
-    renderFoglSectorMenu();
-  } catch {
-    // non-fatal - menu just stays empty; "All Sectors" (no filter) still works
+  function updateButtonLabel() {
+    const btn = $(`#${btnId}`);
+    const n = selectedSet.size;
+    btn.textContent = n === 0 ? "All Sectors" : n === 1 ? [...selectedSet][0] : `${n} sectors selected`;
   }
-}
 
-function renderFoglSectorMenu() {
-  const menu = $("#fogl-sector-menu");
-  menu.innerHTML =
-    `<div class="dropdown-menu-actions">
-      <button type="button" class="link-btn" id="fogl-sector-select-all">Select all</button>
-      <button type="button" class="link-btn" id="fogl-sector-clear">Clear</button>
-    </div>` +
-    foglSectorLabels
-      .map(
-        (label) =>
-          `<label><input type="checkbox" data-sector="${label}" ${foglSelectedSectors.has(label) ? "checked" : ""}/> ${label}</label>`
-      )
-      .join("");
-  menu.querySelectorAll("input[type=checkbox]").forEach((cb) => {
-    cb.addEventListener("change", (e) => {
-      const label = e.target.dataset.sector;
-      if (e.target.checked) foglSelectedSectors.add(label);
-      else foglSelectedSectors.delete(label);
-      updateFoglSectorButtonLabel();
-      renderFoGainersLosers();
+  function renderMenu() {
+    const menu = $(`#${menuId}`);
+    menu.innerHTML =
+      `<div class="dropdown-menu-actions">
+        <button type="button" class="link-btn" data-action="all">Select all</button>
+        <button type="button" class="link-btn" data-action="clear">Clear</button>
+      </div>` +
+      labels
+        .map(
+          (label) =>
+            `<label><input type="checkbox" data-sector="${label}" ${selectedSet.has(label) ? "checked" : ""}/> ${label}</label>`
+        )
+        .join("");
+    menu.querySelectorAll("input[type=checkbox]").forEach((cb) => {
+      cb.addEventListener("change", (e) => {
+        const label = e.target.dataset.sector;
+        if (e.target.checked) selectedSet.add(label);
+        else selectedSet.delete(label);
+        updateButtonLabel();
+        onChange();
+      });
     });
+    menu.querySelector('[data-action="all"]').addEventListener("click", () => {
+      selectedSet.clear();
+      labels.forEach((l) => selectedSet.add(l));
+      renderMenu();
+      updateButtonLabel();
+      onChange();
+    });
+    menu.querySelector('[data-action="clear"]').addEventListener("click", () => {
+      selectedSet.clear();
+      renderMenu();
+      updateButtonLabel();
+      onChange();
+    });
+  }
+
+  $(`#${btnId}`).addEventListener("click", () => {
+    $(`#${menuId}`).classList.toggle("hidden");
   });
-  $("#fogl-sector-select-all").addEventListener("click", () => {
-    foglSelectedSectors = new Set(foglSectorLabels);
-    renderFoglSectorMenu();
-    updateFoglSectorButtonLabel();
-    renderFoGainersLosers();
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest(`#${dropdownId}`)) $(`#${menuId}`).classList.add("hidden");
   });
-  $("#fogl-sector-clear").addEventListener("click", () => {
-    foglSelectedSectors = new Set();
-    renderFoglSectorMenu();
-    updateFoglSectorButtonLabel();
-    renderFoGainersLosers();
-  });
+
+  return {
+    async load() {
+      try {
+        const res = await fetchJSON("/api/sector-labels");
+        labels = res.labels;
+        renderMenu();
+      } catch {
+        // non-fatal - menu just stays empty; "All Sectors" (no filter) still works
+      }
+    },
+  };
 }
 
-function updateFoglSectorButtonLabel() {
-  const btn = $("#fogl-sector-btn");
-  const n = foglSelectedSectors.size;
-  btn.textContent = n === 0 ? "All Sectors" : n === 1 ? [...foglSelectedSectors][0] : `${n} sectors selected`;
-}
+let foglSelectedSectors = new Set(); // empty = no filter (every sector)
+const foglSectorControl = initSectorMultiSelect({
+  btnId: "fogl-sector-btn",
+  menuId: "fogl-sector-menu",
+  dropdownId: "fogl-sector-dropdown",
+  selectedSet: foglSelectedSectors,
+  onChange: renderFoGainersLosers,
+});
 
 function renderFoGainersLosers() {
   if (!scannerData) return;
@@ -1326,6 +1361,27 @@ function renderFoGainersLosers() {
   renderMoversTable($("#fogl-losers"), losers, { emptyText: `No F&O losers${suffix} right now.` });
   $("#fogl-sector-hint").textContent = noFilter ? "" : `${gainers.length} gainers · ${losers.length} losers`;
 }
+
+// -- Market Breadth: multi-select sector filter -------------------------
+//
+// Uses the same generic initSectorMultiSelect() as F&O Gainers & Losers
+// above. Nifty 50 is only 50 stocks, so several sectors will legitimately
+// have zero members here even though they're well-represented in the full
+// F&O universe - that's correct, not a bug (same caveat as the Gainers/
+// Losers fix). Only the expanded stock-detail table is filtered; the
+// headline advances/declines/unchanged counts and bar stay whole-Nifty-50
+// always, since those are the actual "market breadth" summary, not a
+// filtered view.
+let breadthSelectedSectors = new Set();
+const breadthSectorControl = initSectorMultiSelect({
+  btnId: "breadth-sector-btn",
+  menuId: "breadth-sector-menu",
+  dropdownId: "breadth-sector-dropdown",
+  selectedSet: breadthSelectedSectors,
+  onChange: () => {
+    if (latestAdSummary) renderAdvanceDecline("breadth-body", latestAdSummary);
+  },
+});
 
 async function refreshScanner() {
   try {
@@ -1543,13 +1599,8 @@ function init() {
   });
 
   loadSectorFilterOptions($("#f-sector"));
-  loadFoglSectorMenu();
-  $("#fogl-sector-btn").addEventListener("click", () => {
-    $("#fogl-sector-menu").classList.toggle("hidden");
-  });
-  document.addEventListener("click", (e) => {
-    if (!e.target.closest("#fogl-sector-dropdown")) $("#fogl-sector-menu").classList.add("hidden");
-  });
+  foglSectorControl.load();
+  breadthSectorControl.load();
   refreshAll();
   startAutoRefresh();
   setInterval(tickClock, 1000);

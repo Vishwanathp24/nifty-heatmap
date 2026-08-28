@@ -345,6 +345,23 @@
             <h2>Market Breadth</h2>
             <p class="view-sub">Nifty 50 advance / decline vs today's open</p>
           </div>
+
+          <div class="card">
+            <div class="card-head"><div><h3>Sectors Heatmap</h3><p class="card-sub">All F&amp;O sectors, self-grouped</p></div></div>
+            <div id="breadth-mini-sectors" class="mini-sector-grid"></div>
+          </div>
+
+          <div class="filter-row">
+            <div class="filter-field">
+              <label>Sector</label>
+              <div class="dropdown" id="breadth-sector-dropdown">
+                <button class="btn-ghost" id="breadth-sector-btn" type="button">All Sectors</button>
+                <div class="dropdown-menu scrollable hidden" id="breadth-sector-menu"></div>
+              </div>
+            </div>
+            <span id="breadth-sector-hint" class="card-sub"></span>
+          </div>
+
           <div class="card">
             <div id="breadth-body" class="ad-body"><div class="skel-line"></div></div>
           </div>
