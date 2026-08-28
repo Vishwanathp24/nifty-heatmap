@@ -469,12 +469,6 @@ class NSEClient:
         self._buysell_first_seen: dict[tuple[str, int], dict[str, str]] = {
             (d, tf): {} for d in FIRST_SEEN_DIRECTIONS for tf in INTRADAY_TIMEFRAMES
         }
-        # Same idea as _buysell_first_seen but keyed on the DAILY leg alone
-        # (not per-timeframe) - the Buy/Sell Scanner table lists every
-        # daily-passing symbol regardless of whether the intraday leg has
-        # caught up yet, so "Since" needs a timestamp that doesn't depend on
-        # full (daily+intraday) qualification. See get_scanner's "dailySince".
-        self._buysell_daily_first_seen: dict[str, dict[str, dict]] = {d: {} for d in FIRST_SEEN_DIRECTIONS}
         self._breakout_first_seen: dict[str, dict[str, str]] = {d: {} for d in FIRST_SEEN_DIRECTIONS}
 
         # Long-lookback daily history (Downtrend Scanner's daily EMA(200)
@@ -630,7 +624,6 @@ class NSEClient:
                 self._buysell_first_seen = {
                     (d, tf): {} for d in FIRST_SEEN_DIRECTIONS for tf in INTRADAY_TIMEFRAMES
                 }
-                self._buysell_daily_first_seen = {d: {} for d in FIRST_SEEN_DIRECTIONS}
                 self._breakout_first_seen = {d: {} for d in FIRST_SEEN_DIRECTIONS}
                 self._first_seen_date = today
 
@@ -773,7 +766,6 @@ class NSEClient:
         buysell_qualifying: dict[tuple[str, int], set[str]] = {
             (d, tf): set() for d in FIRST_SEEN_DIRECTIONS for tf in INTRADAY_TIMEFRAMES
         }
-        buysell_daily_qualifying: dict[str, set[str]] = {d: set() for d in FIRST_SEEN_DIRECTIONS}
         breakout_qualifying: dict[str, set[str]] = {d: set() for d in FIRST_SEEN_DIRECTIONS}
 
         for sym in fo_symbols:
@@ -785,10 +777,6 @@ class NSEClient:
                 )
                 for d in FIRST_SEEN_DIRECTIONS
             }
-            for d in FIRST_SEEN_DIRECTIONS:
-                daily = daily_signals[d]
-                if daily is not None and daily["pass"]:
-                    buysell_daily_qualifying[d].add(sym)
             for tf in INTRADAY_TIMEFRAMES:
                 candles = self._intraday_candles_for(sym, tf)
                 for d in FIRST_SEEN_DIRECTIONS:
@@ -809,8 +797,6 @@ class NSEClient:
         with self._first_seen_lock:
             for key, qualifying in buysell_qualifying.items():
                 self._update_first_seen(self._buysell_first_seen[key], qualifying, now_str, prices, atrs)
-            for d, qualifying in buysell_daily_qualifying.items():
-                self._update_first_seen(self._buysell_daily_first_seen[d], qualifying, now_str, prices, atrs)
             for d, qualifying in breakout_qualifying.items():
                 self._update_first_seen(self._breakout_first_seen[d], qualifying, now_str, prices, atrs)
 
@@ -1546,25 +1532,18 @@ class NSEClient:
         rows = {r.get("symbol"): r for r in self._fo_quote_rows()}
         now = dt.datetime.now(IST)
         today_str = now.date().isoformat()
-        now_str = now.strftime("%H:%M:%S")
-        # The daily leg's pass/fail is fixed for the whole session (a new
-        # EOD candle only appears after that day's close - see
-        # _build_daily_history), so unlike the intraday leg it can't
-        # actually change from one tick to the next. That means the
-        # market-hours-gated background tracker (_track_scanner_entries)
-        # isn't the only valid source of a first-seen time here: the first
-        # moment ANYONE loads this scanner and observes a symbol daily-
-        # passing today is an equally correct "since" - stamped below,
-        # opportunistically, so the Time column never sits on a dash all
-        # day just because nobody happened to view the page while the
-        # market was open (or the backend restarted after it closed).
-        self._reset_first_seen_if_new_day(now.date())
+        # The daily leg's pass/fail is fixed for the whole session - it's
+        # computed purely from EOD (Bhavcopy) candles, and a new one only
+        # appears after that day's close (see _build_daily_history), so it
+        # can't actually change between market open and close. That makes
+        # "when did this symbol first pass the daily leg today" a
+        # deterministic constant, not something that needs live tracking:
+        # if it's passing right now, it's been passing since market open.
+        daily_since_str = f"{MARKET_OPEN_HOUR:02d}:{MARKET_OPEN_MINUTE:02d}:00"
         with self._first_seen_lock:
             first_seen = dict(self._buysell_first_seen.get((direction, timeframe), {}))
-            daily_first_seen = dict(self._buysell_daily_first_seen.get(direction, {}))
 
         results = []
-        newly_seen_daily = set()
         for sym in fo_symbols:
             row = rows.get(sym)
             if row is None:
@@ -1592,9 +1571,6 @@ class NSEClient:
             )
             qualifies = bool(daily["pass"] and intraday and intraday["pass"])
             entry = first_seen.get(sym) if qualifies else None
-            daily_entry = daily_first_seen.get(sym) if daily["pass"] else None
-            if daily["pass"] and daily_entry is None:
-                newly_seen_daily.add(sym)
             results.append(
                 {
                     "symbol": sym,
@@ -1605,15 +1581,11 @@ class NSEClient:
                     "dailySma20": daily["sma"],
                     "dailyRsi14": daily["rsi"],
                     "dailyPass": daily["pass"],
-                    # "HH:MM:SS" IST this symbol first started passing the
-                    # DAILY leg today (independent of the intraday leg/
-                    # timeframe) - every row in this table is a daily-pass
-                    # row, so this is the "listed in this scanner since" time
-                    # the frontend's Time column shows. None only if the
-                    # first-seen tracker hasn't caught up yet (just after a
-                    # restart) - see the newly_seen_daily stamping below,
-                    # which fixes that from the very next call onward.
-                    "dailySince": daily_entry.get("time") if daily_entry else (now_str if daily["pass"] else None),
+                    # Market open ("HH:MM:SS" IST) - see daily_since_str
+                    # above for why that's the correct, deterministic value
+                    # whenever this row is daily-passing. The frontend's
+                    # Time column shows this.
+                    "dailySince": daily_since_str if daily["pass"] else None,
                     "intradayReady": intraday is not None,
                     "intradayClose": intraday["close"] if intraday else None,
                     "intradaySma20": intraday["sma"] if intraday else None,
@@ -1628,12 +1600,6 @@ class NSEClient:
                     **self._entry_metrics(entry, row.get("lastPrice")),
                 }
             )
-
-        if newly_seen_daily:
-            with self._first_seen_lock:
-                bucket = self._buysell_daily_first_seen[direction]
-                for sym in newly_seen_daily:
-                    bucket.setdefault(sym, {"time": now_str})
 
         results.sort(key=lambda r: (not r["qualifies"], not r["dailyPass"], -abs(r.get("pChange") or 0)))
         return {
