@@ -215,7 +215,7 @@ a { color: inherit; }
 /* Section-level tabs (IPO: Upcoming/Recent) - own design in this app's
    own language (pill buttons, purple accent) rather than copying any
    particular reference's folder-tab shape/colors. */
-.folder-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+.folder-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
 .folder-tab {
   font: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
   padding: 9px 18px; border-radius: var(--radius-sm); border: 1px solid var(--border);

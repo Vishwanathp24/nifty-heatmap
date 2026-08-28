@@ -300,7 +300,14 @@
             <p class="view-sub">For technical research, not a trading recommendation.</p>
           </div>
 
-          <div class="scanner-section" data-group="orb">
+          <div class="folder-tabs" id="scanners-tabs">
+            <button class="folder-tab active" data-scanners-tab="orb">Opening Range Breakout</button>
+            <button class="folder-tab" data-scanners-tab="buysell">Buy / Sell (Bullish / Bearish)</button>
+            <button class="folder-tab" data-scanners-tab="breakout15">15-Min Breakout</button>
+            <button class="folder-tab" data-scanners-tab="downtrend">Downtrend Scanner</button>
+          </div>
+
+          <div class="scanner-section folder-panel" data-group="orb" data-scanners-panel="orb">
             <h3 class="scanner-section-title">Opening Range Breakout</h3>
             <p class="view-sub">Range forms in the first N minutes after 09:15 IST; a later break above/below it is flagged here.</p>
             <div id="orb-tabs" class="qf-chips">
@@ -314,7 +321,7 @@
             <div id="orb-table" class="data-table"><div class="skel-line"></div></div>
           </div>
 
-          <div class="scanner-section" data-group="buysell">
+          <div class="scanner-section folder-panel hidden" data-group="buysell" data-scanners-panel="buysell">
             <h3 class="scanner-section-title">Buy / Sell (Bullish / Bearish)</h3>
             <p class="view-sub">
               Daily and intraday, each: Close vs SMA(20) &middot; Close vs each of the last 5 bars' High/Low &middot; RSI(14) vs 60 (buy) / 40 (sell).
@@ -334,7 +341,7 @@
             <div id="buysell-table" class="data-table"><div class="skel-line"></div></div>
           </div>
 
-          <div class="scanner-section" data-group="breakout15">
+          <div class="scanner-section folder-panel hidden" data-group="breakout15" data-scanners-panel="breakout15">
             <h3 class="scanner-section-title">15-Min Breakout</h3>
             <p class="view-sub">
               Pure 15-min, independent of the scanner above: Close breaks above/below the prior bar's rolling 20-period Close high,
@@ -348,7 +355,7 @@
             <div id="breakout-table" class="data-table"><div class="skel-line"></div></div>
           </div>
 
-          <div class="scanner-section" data-group="downtrend">
+          <div class="scanner-section folder-panel hidden" data-group="downtrend" data-scanners-panel="downtrend">
             <h3 class="scanner-section-title">Downtrend Scanner</h3>
             <p class="view-sub">
               Daily: Close &lt; EMA20 &lt; EMA50 &lt; EMA200, RSI(14) &lt; 45, ADX(14) &gt; 20 &mdash; real NSE daily candles.

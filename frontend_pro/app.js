@@ -1866,6 +1866,16 @@ function initSwingTabs() {
   });
 }
 
+function initScannersGroupTabs() {
+  $("#scanners-tabs").addEventListener("click", (e) => {
+    const btn = e.target.closest(".folder-tab[data-scanners-tab]");
+    if (!btn) return;
+    const tab = btn.dataset.scannersTab;
+    $$("#scanners-tabs .folder-tab[data-scanners-tab]").forEach((b) => b.classList.toggle("active", b.dataset.scannersTab === tab));
+    $$(".folder-panel[data-scanners-panel]").forEach((p) => p.classList.toggle("hidden", p.dataset.scannersPanel !== tab));
+  });
+}
+
 // Companies currently open for subscription or listing over the next few
 // days (screener.in/ipo/) - a separate, much smaller page from Recent
 // IPOs above (already-listed). See ScreenerClient.get_upcoming_ipos.
@@ -2182,6 +2192,7 @@ function init() {
   initIpoTabs();
   initMoversTabs();
   initSwingTabs();
+  initScannersGroupTabs();
 
   $("#drawer-close").addEventListener("click", closeDrawer);
   $("#drawer-backdrop").addEventListener("click", closeDrawer);
