@@ -1,21 +1,26 @@
 :root {
-  --bg: #0b0e17;
-  --bg-alt: #0f1320;
-  --panel: #131728;
-  --panel-alt: #171c30;
-  --border: #232a41;
-  --ink: #e7e9f5;
-  --muted: #8891ab;
-  --muted-2: #5c6480;
-  --purple: #7c5cff;
-  --purple-dark: #5f3fe0;
-  --purple-glow: rgba(124, 92, 255, 0.18);
-  --up: #22c55e;
-  --up-bg: rgba(34, 197, 94, 0.12);
-  --down: #f04a5e;
-  --down-bg: rgba(240, 74, 94, 0.12);
-  --amber: #f5a623;
-  --amber-bg: rgba(245, 166, 35, 0.14);
+  /* Cool navy-black neutral ramp (oklch, hue 265 throughout) plus four
+     accents sharing chroma/lightness and varying only hue: purple 290
+     (brand), green 150 (up), red 25 (down), amber 75 (flat/neutral-warn).
+     Same custom-property names as before the redesign, so every existing
+     var(--x) usage picks these up without needing to change. */
+  --bg: oklch(16% 0.025 265);
+  --bg-alt: oklch(19% 0.028 265);
+  --panel: oklch(21% 0.03 265);
+  --panel-alt: oklch(24.5% 0.032 265);
+  --border: oklch(30% 0.03 265);
+  --ink: oklch(94% 0.012 265);
+  --muted: oklch(68% 0.02 265);
+  --muted-2: oklch(50% 0.02 265);
+  --purple: oklch(65% 0.19 290);
+  --purple-dark: oklch(55% 0.19 290);
+  --purple-glow: oklch(65% 0.19 290 / 18%);
+  --up: oklch(72% 0.19 150);
+  --up-bg: oklch(72% 0.19 150 / 12%);
+  --down: oklch(65% 0.22 25);
+  --down-bg: oklch(65% 0.22 25 / 12%);
+  --amber: oklch(78% 0.17 75);
+  --amber-bg: oklch(78% 0.17 75 / 14%);
   --radius: 12px;
   --radius-sm: 8px;
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
@@ -150,7 +155,7 @@ a { color: inherit; }
    "24,311.00" at 19px bold can run wider than the tile; ellipsis is a
    safety net, but .cue-grid's wider floor below is the real fix. */
 .idx-name { font-size: 11px; font-weight: 700; color: var(--muted); letter-spacing: 0.03em; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.idx-val { font-size: 18px; font-weight: 800; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.idx-val { font-size: 19px; font-weight: 800; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .idx-chg { font-size: 12px; font-weight: 700; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .idx-time { font-size: 15px; font-weight: 700; margin-top: 4px; }
 .idx-date { font-size: 12px; color: var(--muted); margin-top: 2px; }
@@ -195,18 +200,23 @@ a { color: inherit; }
 .card-head h3 { margin: 0; font-size: 14.5px; display: flex; align-items: center; gap: 8px; }
 .card-sub { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-/* align-items: start (not the grid default stretch) - the Market Bias +
-   Nifty 50 Breadth stack and FII/DII Activity/Put-Call Ratio are all
-   naturally different heights (their sub-cards stack to different
-   degrees). stretch would force the shorter ones to grow and match the
-   tallest, leaving dead space at their own bottom; start just lets each
-   column sit at its own real height. */
-.three-col { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; align-items: start; }
+/* Grid default (stretch): the Market Bias + Nifty 50 Breadth stack and
+   FII/DII Activity/Put-Call Ratio are naturally different heights, so
+   every column stretches to match the tallest one - each card then
+   centers its OWN content in that extra height (below) instead of
+   leaving a blank gap after it, so however the three balance out,
+   nothing is ever a stretched, mostly-empty box. */
+.three-col { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 14px; }
+.three-col > .card { display: flex; flex-direction: column; margin-bottom: 0; }
+.card-stack > .card { display: flex; flex-direction: column; }
 /* Market Bias + Nifty 50 Breadth sharing one column of .three-col -
-   plain flow stacking (own gap, no absolute positioning), each card
-   keeps its own natural compact size instead of stretching taller. */
-.card-stack { display: flex; flex-direction: column; gap: 14px; }
+   plain flow stacking (own gap, no absolute positioning). space-between
+   is what happens if THIS column is the one that ends up stretched. */
+.card-stack { display: flex; flex-direction: column; gap: 14px; justify-content: space-between; }
 .card-stack .card { margin-bottom: 0; }
+#bias-factors { flex: 1; justify-content: center; }
+#dash-ad-body { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+.three-col .summary-cards.stacked { flex: 1; align-content: center; }
 .stub-card { color: var(--muted); font-size: 13.5px; line-height: 1.6; }
 
 .dot-up, .dot-down, .dot-vol { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
@@ -240,7 +250,12 @@ a { color: inherit; }
 .ad-counts .dec-c { color: var(--down); }
 .ad-toggle {
   margin-top: 10px; font: inherit; font-size: 12px; font-weight: 700; color: var(--purple);
-  background: none; border: none; cursor: pointer; padding: 0;
+  background: none; border: none; cursor: pointer; padding: 0; text-align: left;
+  /* #dash-ad-body is a flex column (see .three-col's centering rules) -
+     a <button> defaults to align-self: stretch there, which combined
+     with the browser's own default button text-align: center made this
+     render centered instead of left-aligned like the rest of the card. */
+  align-self: flex-start;
 }
 
 /* ------------------------------------------------------------ data tables */
@@ -549,13 +564,13 @@ select:disabled { opacity: 0.6; }
 /* ------------------------------------------------------------------ light */
 
 :root[data-theme="light"] {
-  --bg: #f4f5fa;
-  --bg-alt: #ffffff;
-  --panel: #ffffff;
-  --panel-alt: #f0f1f8;
-  --border: #e2e4ef;
-  --ink: #171a2b;
-  --muted: #6a7189;
-  --muted-2: #9297ac;
+  --bg: oklch(97% 0.006 265);
+  --bg-alt: oklch(100% 0 0);
+  --panel: oklch(100% 0 0);
+  --panel-alt: oklch(96% 0.008 265);
+  --border: oklch(91% 0.01 265);
+  --ink: oklch(20% 0.02 265);
+  --muted: oklch(48% 0.02 265);
+  --muted-2: oklch(60% 0.015 265);
   --shadow: 0 4px 16px rgba(20, 20, 50, 0.06);
 }
