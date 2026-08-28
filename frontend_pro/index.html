@@ -499,6 +499,7 @@
           <div class="folder-tabs" id="swing-tabs">
             <button class="folder-tab active" data-swing-tab="stocks">Stocks (NIFTY 500)</button>
             <button class="folder-tab" data-swing-tab="etf">ETFs (all NSE ETFs)</button>
+            <button class="folder-tab" data-swing-tab="intlEtf">International ETFs</button>
           </div>
 
           <div class="folder-panel" data-swing-panel="stocks">
@@ -530,6 +531,15 @@
               <div id="swing-etf-top5" class="data-table"><div class="skel-line"></div></div>
               <p class="status-note">Typical swing-trade holding period: Short swing trade 2&ndash;5 trading days &middot; Normal swing trade 1&ndash;3 weeks &middot; Longer swing trade 3&ndash;8 weeks.</p>
               <p class="status-note">Stock selection time: check the market between 3:00 PM and 3:30 PM.</p>
+            </div>
+          </div>
+
+          <div class="folder-panel hidden" data-swing-panel="intlEtf">
+            <p class="view-sub">NSE-listed ETFs tracking an international benchmark (Hang Seng, Hang Seng TECH, Nasdaq Q-50, Nasdaq100, NYSE FANG+, S&amp;P 500 Top 50) - CMP, 20 DMA, % change (20 DMA vs CMP), and 30-day average daily volume, sorted most-discounted-vs-20-DMA first.</p>
+            <p id="swing-intl-etf-status-note" class="status-note"></p>
+
+            <div class="card">
+              <div id="swing-intl-etf-table" class="data-table"><div class="skel-line"></div></div>
             </div>
           </div>
         </section>

@@ -2182,6 +2182,41 @@ class NSEClient:
             "stocks": results,
         }
 
+    # -- Swing ETF Trading - International (NSE-listed ETFs tracking a
+    # foreign index/benchmark, rather than a domestic NIFTY sector one) ------
+    #
+    # NSE's /api/etf feed has no "domestic vs international" flag to filter
+    # on, so this is an explicit symbol whitelist (verified live against
+    # each one's underlyingAsset text) rather than a keyword match - safer
+    # than guessing off asset-name substrings like "500" or "100", which
+    # would also match plenty of domestic NIFTY variants.
+    INTERNATIONAL_ETF_SYMBOLS = frozenset(
+        {
+            "HNGSNGBEES",  # Hang Seng Index
+            "MAHKTECH",  # Hang Seng TECH Total Return Index
+            "MONQ50",  # Nasdaq Q-50 Total Return Index
+            "MON100",  # Nasdaq100
+            "MAFANG",  # NYSE FANG+ Total Return Index
+            "MASPTOP50",  # S&P 500 Top 50 Total Return Index
+        }
+    )
+
+    def get_swing_international_etf_list(self) -> dict:
+        """The same computation as get_swing_etf_list(), filtered down to
+        INTERNATIONAL_ETF_SYMBOLS - CMP/20 DMA/volume for NSE-listed ETFs
+        that track a foreign benchmark instead of a domestic NIFTY sector
+        index. None of these six share an underlying asset with each other,
+        so all of them survive get_swing_etf_list()'s own de-dup step
+        (verified live) and this is a pure filter, not a re-computation."""
+        full = self.get_swing_etf_list()
+        stocks = [r for r in full["stocks"] if r["symbol"] in self.INTERNATIONAL_ETF_SYMBOLS]
+        return {
+            "totalEtfSymbols": len(self.INTERNATIONAL_ETF_SYMBOLS),
+            "symbolsWithData": sum(1 for r in stocks if r["dma20"] is not None),
+            "status": full["status"],
+            "stocks": stocks,
+        }
+
     # -- Stock Verdict ("smart summary") -------------------------------------
     # No external AI call - just combines the signals this app already
     # computes elsewhere (Trend 20D, the Buy/Sell Scanner's daily+60-min

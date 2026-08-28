@@ -404,7 +404,7 @@ tbody tr:hover { background: var(--panel-alt); }
 .scanner-section { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border); }
 .scanner-section:first-of-type { margin-top: 14px; padding-top: 0; border-top: none; }
 .scanner-section-title { font-size: 15px; font-weight: 700; margin: 0 0 4px; color: var(--ink); }
-.status-note { font-size: 12px; color: var(--muted); margin: 10px 0 0; }
+.status-note { font-size: 12px; color: var(--muted); margin: 10px 0 12px; }
 /* Swing Trading's status note sits directly above a card (not immediately
    inside one, like the other scanners' status notes do) - extra breathing
    room so it doesn't read as glued to the card below it. */

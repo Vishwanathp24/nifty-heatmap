@@ -282,6 +282,15 @@ def swing_etf():
     return _wrap(client.get_swing_etf_list)
 
 
+@app.get("/api/swing-etf/international")
+def swing_etf_international():
+    """Same columns as /api/swing-etf, filtered to NSE-listed ETFs that
+    track an international benchmark (Hang Seng, Hang Seng TECH, Nasdaq
+    Q-50, Nasdaq100, NYSE FANG+, S&P 500 Top 50) rather than a domestic
+    NIFTY sector index. See NSEClient.get_swing_international_etf_list."""
+    return _wrap(client.get_swing_international_etf_list)
+
+
 @app.get("/api/recent-ipos")
 def recent_ipos():
     """Recent IPOs (last 3 years, newest listing first) scraped from

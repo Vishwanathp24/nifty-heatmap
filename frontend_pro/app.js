@@ -1963,6 +1963,25 @@ async function refreshSwingEtf() {
   }
 }
 
+// Fixed 6-symbol whitelist (see backend/nse_client.py's
+// INTERNATIONAL_ETF_SYMBOLS) - small enough that a separate Top 5 sub-
+// panel wouldn't add anything over the one always-visible table.
+async function refreshSwingInternationalEtf() {
+  try {
+    const data = await fetchJSON("/api/swing-etf/international");
+    const status = data.status;
+    $("#swing-intl-etf-status-note").textContent = status.ready
+      ? `Ready (${status.barsAvailable} real trading days of history) - ${data.symbolsWithData} of ${data.totalEtfSymbols} international ETFs have 20 DMA data.`
+      : `Building (${status.barsAvailable}/${status.barsNeeded} real trading days) - the one-time ETF history backfill can take a few minutes right after a fresh deploy.`;
+    renderMoversTable($("#swing-intl-etf-table"), data.stocks, {
+      emptyText: "No international ETF data available yet.",
+      columns: SWING_ETF_COLUMNS,
+    });
+  } catch (err) {
+    $("#swing-intl-etf-table").innerHTML = `<div class="empty-note">Couldn't load international ETF data: ${err.message}</div>`;
+  }
+}
+
 async function refreshScanner() {
   try {
     scannerData = await fetchJSON("/api/fo-scanner");
@@ -2121,7 +2140,7 @@ const VIEW_FETCHERS = {
   scanners: [refreshScannersTab],
   movers: [refreshTopMovers, refresh52Week, refreshVolumeShockers],
   ipos: [refreshRecentIpos, refreshUpcomingIpos],
-  swing: [refreshSwingTrading, refreshSwingEtf],
+  swing: [refreshSwingTrading, refreshSwingEtf, refreshSwingInternationalEtf],
 };
 
 async function refreshAll() {
