@@ -204,6 +204,14 @@ function initNav() {
 let latestIndices = [];
 let latestAdSummary = null;
 let latestBias = null;
+let latestFiiDii = null;
+let latestPcr = [];
+
+// index-strip symbol ("NIFTY 50"/"NIFTY BANK") -> matching PCR index name
+// ("NIFTY"/"BANKNIFTY") - the two are named differently across NSE's own
+// endpoints, so renderIndexStrip() needs this to fold a PCR line into the
+// right card.
+const PCR_INDEX_MAP = { "NIFTY 50": "NIFTY", "NIFTY BANK": "BANKNIFTY" };
 
 function biasClassFor(label) {
   const lower = label.toLowerCase();
@@ -212,15 +220,21 @@ function biasClassFor(label) {
 
 function renderIndexStrip() {
   const el = $("#index-strip");
+  const pcrByIndex = {};
+  for (const r of latestPcr) pcrByIndex[r.index] = r;
+
   const cards = latestIndices
-    .map(
-      (idx) => `
+    .map((idx) => {
+      const pcr = pcrByIndex[PCR_INDEX_MAP[idx.symbol]];
+      const pcrLine = pcr && pcr.pcrOi != null ? `<div class="idx-extra">PCR (OI) ${fmtNum(pcr.pcrOi, 2)}</div>` : "";
+      return `
     <div class="idx-card">
       <div class="idx-name">${idx.symbol}</div>
       <div class="idx-val">${fmtNum(idx.last, 2)}</div>
       <div class="idx-chg ${chgClass(idx.pChange)}">${sign(idx.change)}${fmtNum(idx.change, 2)} (${sign(idx.pChange)}${fmtNum(idx.pChange, 2)}%)</div>
-    </div>`
-    )
+      ${pcrLine}
+    </div>`;
+    })
     .join("");
 
   const adCard = latestAdSummary
@@ -240,10 +254,20 @@ function renderIndexStrip() {
     </div>`
     : `<div class="idx-card"><div class="idx-name">Market Bias</div><div class="idx-val">&mdash;</div></div>`;
 
+  const fiiLine = (label, row) =>
+    row && row.netValueCr != null ? `${label} ${sign(row.netValueCr)}${fmtNum(row.netValueCr, 0)}` : `${label} --`;
+  const fiiDiiCard = `
+    <div class="idx-card">
+      <div class="idx-name">FII / DII (&#8377; Cr)</div>
+      <div class="idx-val ${latestFiiDii?.fii?.netValueCr != null ? chgClass(latestFiiDii.fii.netValueCr) : "flat"}">${fiiLine("FII", latestFiiDii?.fii)}</div>
+      <div class="idx-chg ${latestFiiDii?.dii?.netValueCr != null ? chgClass(latestFiiDii.dii.netValueCr) : "flat"}">${fiiLine("DII", latestFiiDii?.dii)}</div>
+    </div>`;
+
   el.innerHTML =
     cards +
     adCard +
     biasCard +
+    fiiDiiCard +
     `<div class="idx-card">
       <div class="idx-name">Time</div>
       <div class="idx-time" id="idx-time-value">&mdash;</div>
@@ -263,10 +287,14 @@ function tickClock() {
 
 // ---------------------------------------------------------------- global cues / FII-DII
 
-// Dashboard-only "before the bell" context, both from a different upstream
-// source than the rest of the app (Yahoo Finance for global indices, NSE's
-// own once-a-day FII/DII report) - self-contained try/catch matching the
-// other per-view refreshers, not part of the always-on core fetch.
+// "Before the bell" context, from different upstream sources than the
+// rest of the app (Yahoo Finance for global indices, NSE's own once-a-day
+// FII/DII report, NSE's option-chain endpoint for PCR). Global Cues stays
+// Dashboard-only; FII/DII and PCR also feed the always-visible index strip
+// (see renderIndexStrip) so they're fetched every core cycle regardless of
+// which page is open, not gated by VIEW_FETCHERS like the rest of this
+// section - self-contained try/catch either way, same as the per-view
+// refreshers.
 function renderGlobalCues(indices) {
   const el = $("#global-cues-grid");
   if (!indices.length) {
@@ -332,9 +360,11 @@ function renderFiiDii(data) {
 async function refreshFiiDii() {
   try {
     const data = await fetchJSON("/api/fii-dii");
+    latestFiiDii = data; // renderIndexStrip() (called at the end of refreshAll, after this settles) reads this
     renderFiiDii(data);
   } catch (err) {
     $("#fii-dii-summary").innerHTML = `<div class="empty-note">Couldn't load FII/DII data: ${err.message}</div>`;
+    // leave latestFiiDii as whatever it was - the index-strip card just shows the last-known figure
   }
 }
 
@@ -370,9 +400,11 @@ function renderPcr(indices) {
 async function refreshPcr() {
   try {
     const data = await fetchJSON("/api/pcr");
-    renderPcr(data.indices);
+    latestPcr = data.indices; // renderIndexStrip() (called at the end of refreshAll, after this settles) reads this
+    renderPcr(latestPcr);
   } catch (err) {
     $("#pcr-summary").innerHTML = `<div class="empty-note">Couldn't load PCR: ${err.message}</div>`;
+    // leave latestPcr as whatever it was - the index-strip cards just show the last-known figure
   }
 }
 
@@ -1954,7 +1986,12 @@ const VIEW_FETCHERS = {
   // (#dash-top-gainers etc.) - scannerData is their only source. Dashboard
   // has to stay in this map too, not just the two F&O-specific views, or
   // those three panels are permanently empty on the Dashboard.
-  dashboard: [refreshScanner, refreshGlobalCues, refreshFiiDii, refreshPcr],
+  // refreshFiiDii/refreshPcr are NOT listed here even though their detail
+  // cards live on the Dashboard - they're fetched unconditionally as part
+  // of refreshAll()'s core batch instead (see there), since they also feed
+  // the index strip's FII/DII card and NIFTY 50/NIFTY BANK PCR lines, both
+  // shown on every page.
+  dashboard: [refreshScanner, refreshGlobalCues],
   scanner: [refreshScanner],
   fogainerslosers: [refreshScanner],
   scanners: [refreshScannersTab],
@@ -1983,6 +2020,14 @@ async function refreshAll() {
     fetchJSON("/api/market-overview"),
     fetchJSON("/api/heatmap"),
     fetchJSON("/api/advance-decline"),
+    // Unconditional (every page, every cycle), not gated by currentView
+    // like the rest of this batch - both feed the always-visible index
+    // strip (FII/DII card, NIFTY 50/NIFTY BANK PCR lines), on top of their
+    // own Dashboard detail cards. Each is self-contained (own try/catch,
+    // own stale-on-error fallback), so it doesn't need a slot in the
+    // destructured results below the way the three core fetches above do.
+    refreshFiiDii(),
+    refreshPcr(),
     ...(VIEW_FETCHERS[currentView] || []).map((fn) => fn()),
   ]);
   const [overviewRes, heatmapRes, advDeclRes] = results;
