@@ -363,10 +363,25 @@ LONG_DAILY_HISTORY_PATH = str(DATA_DIR / "long_daily_history.json")
 # "Entered at" tracking - what clock-time a stock first started qualifying
 # for a scanner today, so the UI can show e.g. "since 10:05" instead of just
 # a pass/fail flag (a signal that's been true for 2 hours reads very
-# differently from one that just turned true). Recomputed every ~20s tick in
-# _track_scanner_entries below, using the exact same pass/fail logic the
-# get_orb / get_scanner / get_breakout_scanner methods use, so the timestamp
-# always matches what the API is actually reporting.
+# differently from one that just turned true).
+#
+# Two different mechanisms produce this, depending on whether it can be
+# recovered from data alone:
+#   - ORB and 15-Min Breakout (get_orb / get_breakout_scanner): recomputed
+#     every ~20s tick in _track_scanner_entries below, using the exact same
+#     pass/fail logic those methods use, and stamped into the
+#     *_first_seen dicts below. In-memory only, reset at day-rollover - NOT
+#     persisted to disk like the intraday candle history is. A backend
+#     restart during market hours loses today's "first seen" clocks (and
+#     their entry price/ATR snapshots) and they start fresh from the
+#     restart time.
+#   - Buy/Sell Scanner (get_scanner): the daily leg can't change within a
+#     session (see _build_daily_history), so once a symbol is daily-
+#     passing, "since" only depends on the intraday leg - which IS fully
+#     recoverable from persisted candle data, since the same candles always
+#     produce the same pass/fail. See _first_intraday_pass_today: it walks
+#     today's candles and finds the earliest one that passes, so unlike the
+#     tick-based approach above it survives a same-day restart correctly.
 #
 # Each entry also snapshots the LTP (and daily ATR(14)) at the moment the
 # stock first qualified, so the API can additionally report:
@@ -378,12 +393,6 @@ LONG_DAILY_HISTORY_PATH = str(DATA_DIR / "long_daily_history.json")
 #     for sell/bearish signals) - a bearish stock that kept falling shows a
 #     negative signalPct/rFactor, matching how these numbers read on the
 #     third-party scanners this was modeled after.
-#
-# In-memory only, reset at day-rollover - NOT persisted to disk like the
-# intraday candle history is. A backend restart during market hours loses
-# today's "first seen" clocks (and their entry price/ATR snapshots) and they
-# start fresh from the restart time; a lower-stakes gap than losing candle
-# history, so not worth the extra persistence machinery.
 FIRST_SEEN_DIRECTIONS = ("buy", "sell")
 
 # ---------------------------------------------------------------------------
@@ -466,9 +475,6 @@ class NSEClient:
         self._first_seen_lock = threading.Lock()
         self._first_seen_date: dt.date | None = None
         self._orb_first_seen: dict[int, dict[str, str]] = {w: {} for w in ORB_WINDOWS_MIN}
-        self._buysell_first_seen: dict[tuple[str, int], dict[str, str]] = {
-            (d, tf): {} for d in FIRST_SEEN_DIRECTIONS for tf in INTRADAY_TIMEFRAMES
-        }
         self._breakout_first_seen: dict[str, dict[str, str]] = {d: {} for d in FIRST_SEEN_DIRECTIONS}
 
         # Long-lookback daily history (Downtrend Scanner's daily EMA(200)
@@ -621,9 +627,6 @@ class NSEClient:
         with self._first_seen_lock:
             if self._first_seen_date != today:
                 self._orb_first_seen = {w: {} for w in ORB_WINDOWS_MIN}
-                self._buysell_first_seen = {
-                    (d, tf): {} for d in FIRST_SEEN_DIRECTIONS for tf in INTRADAY_TIMEFRAMES
-                }
                 self._breakout_first_seen = {d: {} for d in FIRST_SEEN_DIRECTIONS}
                 self._first_seen_date = today
 
@@ -736,10 +739,13 @@ class NSEClient:
 
     def _track_scanner_entries(self, now: dt.datetime, rows: dict[str, dict]):
         """Runs every ~20s tick (see _orb_tick) - recomputes which symbols
-        currently qualify for the ORB / Buy-Sell / 15-Min Breakout scanners,
-        using the exact same pass/fail logic get_orb / get_scanner /
-        get_breakout_scanner use below, and records the first clock-time
-        each one started qualifying today."""
+        currently qualify for the ORB / 15-Min Breakout scanners, using the
+        exact same pass/fail logic get_orb / get_breakout_scanner use below,
+        and records the first clock-time each one started qualifying today.
+        (The Buy/Sell Scanner's own "since" is computed differently - see
+        get_scanner's _first_intraday_pass_today - since unlike ORB/
+        Breakout it can be derived directly from persisted candle data,
+        which survives a restart; a live-only tracker like this one can't.)"""
         self._reset_first_seen_if_new_day(now.date())
         now_str = now.strftime("%H:%M:%S")
         prices = {sym: row.get("lastPrice") for sym, row in rows.items() if row.get("lastPrice") is not None}
@@ -761,42 +767,20 @@ class NSEClient:
                         qualifying.add(sym)
                 self._update_first_seen(self._orb_first_seen[w], qualifying, now_str, prices, atrs)
 
-        # -- Buy/Sell + 15-Min Breakout: share the same per-timeframe candles -
+        # -- 15-Min Breakout ---------------------------------------------------
         fo_symbols = self._fo_universe()
-        buysell_qualifying: dict[tuple[str, int], set[str]] = {
-            (d, tf): set() for d in FIRST_SEEN_DIRECTIONS for tf in INTRADAY_TIMEFRAMES
-        }
         breakout_qualifying: dict[str, set[str]] = {d: set() for d in FIRST_SEEN_DIRECTIONS}
 
         for sym in fo_symbols:
             if sym not in rows:
                 continue
-            daily_signals = {
-                d: self._timeframe_signal(
-                    daily_history.get(sym, []), d, DAILY_SMA_PERIOD, DAILY_RSI_PERIOD, DAILY_LOOKBACK_DAYS
-                )
-                for d in FIRST_SEEN_DIRECTIONS
-            }
-            for tf in INTRADAY_TIMEFRAMES:
-                candles = self._intraday_candles_for(sym, tf)
-                for d in FIRST_SEEN_DIRECTIONS:
-                    daily = daily_signals[d]
-                    if daily is None or not daily["pass"]:
-                        continue
-                    intraday = self._timeframe_signal(
-                        candles, d, INTRADAY_SMA_PERIOD, INTRADAY_RSI_PERIOD, INTRADAY_LOOKBACK_BARS
-                    )
-                    if intraday is not None and intraday["pass"]:
-                        buysell_qualifying[(d, tf)].add(sym)
-                if tf == BREAKOUT_TIMEFRAME_MIN:
-                    for d in FIRST_SEEN_DIRECTIONS:
-                        signal = self._breakout_signal(candles, d, BREAKOUT_LOOKBACK_PERIOD)
-                        if signal is not None and signal["pass"]:
-                            breakout_qualifying[d].add(sym)
+            candles = self._intraday_candles_for(sym, BREAKOUT_TIMEFRAME_MIN)
+            for d in FIRST_SEEN_DIRECTIONS:
+                signal = self._breakout_signal(candles, d, BREAKOUT_LOOKBACK_PERIOD)
+                if signal is not None and signal["pass"]:
+                    breakout_qualifying[d].add(sym)
 
         with self._first_seen_lock:
-            for key, qualifying in buysell_qualifying.items():
-                self._update_first_seen(self._buysell_first_seen[key], qualifying, now_str, prices, atrs)
             for d, qualifying in breakout_qualifying.items():
                 self._update_first_seen(self._breakout_first_seen[d], qualifying, now_str, prices, atrs)
 
@@ -1456,21 +1440,29 @@ class NSEClient:
         }
 
     def _intraday_candles_for(self, symbol: str, tf: int) -> list[dict]:
-        """Persisted history at timeframe `tf` plus today's freshly-rebuilt
-        candles (persistence lags the live tick data by up to one ~20s tick)."""
+        """Persisted history at timeframe `tf` - including any of TODAY's
+        candles a previous run already saved to disk - plus whatever the
+        live tick buffer has bucketed that isn't on disk yet (persistence
+        lags the live tick data by up to one ~20s tick), deduplicated by
+        idx. Today's persisted candles used to be dropped here entirely and
+        rebuilt purely from the live tick buffer; since that buffer is
+        in-memory only, a restart mid-session made the app "forget" real,
+        already-persisted candles for today until new ticks refilled it -
+        this is what let a fully-tracked trading day's candles go unused
+        by a scanner running after a same-day restart."""
         now = dt.datetime.now(IST)
         today_str = now.date().isoformat()
         market_open = now.replace(
             hour=MARKET_OPEN_HOUR, minute=MARKET_OPEN_MINUTE, second=0, microsecond=0
         )
         with self._intraday_lock:
-            history = [
-                c for c in self._intraday_history[tf].get(symbol, []) if c.get("date") != today_str
-            ]
+            history = list(self._intraday_history[tf].get(symbol, []))
         with self._tick_lock:
             ticks = list(self._tick_history.get(symbol, []))
-        todays = self._bucket_candles(ticks, tf, market_open.timestamp())
-        return history + [{"date": today_str, **c} for c in todays]
+        live_today = self._bucket_candles(ticks, tf, market_open.timestamp())
+        persisted_today_idxs = {c["idx"] for c in history if c.get("date") == today_str}
+        new_today = [{"date": today_str, **c} for c in live_today if c["idx"] not in persisted_today_idxs]
+        return history + new_today
 
     @staticmethod
     def _intraday_leg_is_current(candles: list[dict], today_str: str) -> bool:
@@ -1485,6 +1477,43 @@ class NSEClient:
         right after the open, since the last candle of any bucket size on a
         given day always closes at that day's very last traded price."""
         return bool(candles) and candles[-1].get("date") == today_str
+
+    def _first_intraday_pass_today(
+        self,
+        candles: list[dict],
+        direction: str,
+        sma_period: int,
+        rsi_period: int,
+        lookback: int,
+        tf_minutes: int,
+        today_str: str,
+    ) -> dict | None:
+        """Walk `candles` (as returned by _intraday_candles_for, ascending/
+        oldest-first) and find the EARLIEST of today's candles at which the
+        intraday leg first passes - i.e. the actual clock time this
+        timeframe's chart broke out today, computed directly from candle
+        data rather than a live "catch it in the act" tracker. That matters
+        because the signal itself is deterministic (same candles always
+        produce the same pass/fail), so this gives the correct time
+        regardless of when the backend happens to be running - unlike a
+        live tracker, which only records a time if it was actually polling
+        at the moment the signal turned true, and loses everything on a
+        restart. Returns {"time": "HH:MM:SS", "price": <that candle's
+        close>} for the first passing candle, or None if the leg hasn't
+        passed today (yet, or at all)."""
+        needed = max(sma_period, rsi_period) + 1
+        for i, c in enumerate(candles):
+            if c.get("date") != today_str:
+                continue
+            window = candles[: i + 1]
+            if len(window) < needed or len(window) < lookback + 1:
+                continue
+            signal = self._timeframe_signal(window, direction, sma_period, rsi_period, lookback)
+            if signal and signal["pass"]:
+                close_minute = MARKET_OPEN_HOUR * 60 + MARKET_OPEN_MINUTE + (c["idx"] + 1) * tf_minutes
+                h, m = divmod(close_minute, 60)
+                return {"time": f"{h:02d}:{m:02d}:00", "price": c["close"]}
+        return None
 
     def get_scanner_status(self) -> dict:
         """How far along the daily (Bhavcopy-backed, ready almost
@@ -1531,8 +1560,6 @@ class NSEClient:
         fo_symbols = self._fo_universe()
         rows = {r.get("symbol"): r for r in self._fo_quote_rows()}
         today_str = dt.datetime.now(IST).date().isoformat()
-        with self._first_seen_lock:
-            first_seen = dict(self._buysell_first_seen.get((direction, timeframe), {}))
 
         results = []
         for sym in fo_symbols:
@@ -1561,7 +1588,23 @@ class NSEClient:
                 else None
             )
             qualifies = bool(daily["pass"] and intraday and intraday["pass"])
-            entry = first_seen.get(sym) if qualifies else None
+            entry = None
+            if qualifies:
+                first_pass = self._first_intraday_pass_today(
+                    intraday_candles,
+                    direction,
+                    INTRADAY_SMA_PERIOD,
+                    INTRADAY_RSI_PERIOD,
+                    INTRADAY_LOOKBACK_BARS,
+                    timeframe,
+                    today_str,
+                )
+                if first_pass is not None:
+                    entry = {
+                        "time": first_pass["time"],
+                        "entryPrice": first_pass["price"],
+                        "entryAtr": self._atr(daily_history.get(sym, []), DAILY_ATR_PERIOD),
+                    }
             results.append(
                 {
                     "symbol": sym,
@@ -1578,11 +1621,14 @@ class NSEClient:
                     "intradayRsi14": intraday["rsi"] if intraday else None,
                     "intradayPass": intraday["pass"] if intraday else None,
                     "qualifies": qualifies,
-                    # "since" ("HH:MM:SS" IST this symbol first qualified today,
-                    # both legs passing), "signalPct" (% move since then) and
-                    # "rFactor" (that move in daily-ATR(14) units) - see the
-                    # FIRST_SEEN_DIRECTIONS comment above. All None if not
-                    # currently qualifying or the tracker hasn't caught up yet.
+                    # "since" ("HH:MM:SS" IST this symbol first qualified
+                    # today, both legs passing - computed above from
+                    # persisted candle data via _first_intraday_pass_today,
+                    # not a live tracker, so it's correct even after a
+                    # same-day restart), "signalPct" (% move since then) and
+                    # "rFactor" (that move in daily-ATR(14) units). All None
+                    # if not currently qualifying, or the candle history
+                    # isn't deep enough yet to evaluate the earliest bars.
                     # The frontend only ever renders rows with dailyPass
                     # true (it filters on that before display), and for
                     # those rows "qualifies" reduces to "intraday passes"
