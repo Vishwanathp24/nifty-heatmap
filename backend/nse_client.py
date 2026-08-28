@@ -18,6 +18,7 @@ import io
 import json
 import os
 import pathlib
+import re
 import threading
 import time
 from typing import Any
@@ -1213,6 +1214,25 @@ class NSEClient:
         except (TypeError, ValueError):
             return None
 
+    @staticmethod
+    def _normalize_underlying_asset(asset: str | None) -> str:
+        """/api/etf's free-text "assets" field names the SAME index
+        inconsistently across fund houses - confirmed live: "Nifty FMCG
+        Index", "Nifty FMCG Index (TRI)", and "NIFTY FMCG INDEX" all refer
+        to one index, but a plain exact-string dedup key treats all three
+        as different underlying assets and lets every one of them through.
+        Lowercases, strips a trailing "(TRI)"/"Total Return Index" (Total
+        Return Index vs price-return index is a real, separate concept in
+        general, but NSE's own ETF pages use both labels for what's
+        otherwise the identical underlying benchmark here), and collapses
+        whitespace, so the dedup groups these together correctly."""
+        if not asset:
+            return ""
+        text = asset.strip().lower()
+        text = re.sub(r"\s*\(tri\)\s*$", "", text)
+        text = re.sub(r"\s*total return index\s*$", "", text)
+        return re.sub(r"\s+", " ", text).strip()
+
     def _build_long_daily_history_incremental(self) -> dict[str, list[dict]]:
         """Like _build_daily_history, but incremental: reuses whatever is
         already in self._long_daily_history (loaded from disk, or built by
@@ -1979,11 +1999,14 @@ class NSEClient:
         total_etf_symbols = len(results)
 
         # De-dup by underlying asset - keep the highest-turnover row per
-        # group. Blank/missing underlying-asset text doesn't collapse
-        # different ETFs together (each is its own group, keyed by symbol).
+        # group. Grouping key is normalized (see _normalize_underlying_asset)
+        # so e.g. "Nifty FMCG Index" and "Nifty FMCG Index (TRI)" collapse
+        # into one group instead of both surviving as "unique" assets.
+        # Blank/missing underlying-asset text doesn't collapse different
+        # ETFs together (each is its own group, keyed by symbol).
         best_by_asset: dict[str, dict] = {}
         for r in results:
-            key = r["underlyingAsset"] or f"__{r['symbol']}"
+            key = self._normalize_underlying_asset(r["underlyingAsset"]) or f"__{r['symbol']}"
             current = best_by_asset.get(key)
             if current is None or (r["turnoverValueCr"] or -1) > (current["turnoverValueCr"] or -1):
                 best_by_asset[key] = r
