@@ -161,7 +161,7 @@ const VIEW_TITLES = {
   movers: "Top Movers",
   fiftytwo: "52-Week High / Low",
   volume: "Volume Shockers",
-  ipos: "IPO",
+  ipos: "IPO (Initial Public Offering)",
   swing: "Swing Trading",
   swingetf: "Swing ETF Trading",
   watchlist: "Watchlist",
