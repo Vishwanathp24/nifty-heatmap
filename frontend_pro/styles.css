@@ -355,6 +355,7 @@ tbody tr:hover { background: var(--panel-alt); }
 .hm-tile .chg { font-size: 12px; font-weight: 700; }
 
 .mini-sector-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+.mini-sector-grid.collapsed { display: none; }
 .mini-sector-tile {
   border-radius: var(--radius-sm); padding: 8px 10px; font-size: 11.5px; font-weight: 700;
   cursor: pointer; border: 1px solid transparent; transition: border-color 0.12s;

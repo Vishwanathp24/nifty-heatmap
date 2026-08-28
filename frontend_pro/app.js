@@ -1994,6 +1994,26 @@ async function refreshScanner() {
   }
 }
 
+// Sectors Heatmap card on F&O Scanner starts collapsed on mobile (all 23
+// sectors' tiles otherwise push the actual stock table well below the
+// fold on a small screen) but expanded on desktop, where there's room.
+// Matches the app's own mobile breakpoint (styles.css's 860px - where the
+// sidebar itself switches to an overlay). A manual toggle always works
+// either way; it just doesn't re-collapse on window resize.
+const SCANNER_SECTORS_MOBILE_BREAKPOINT = 860;
+
+function initScannerSectorsCollapse() {
+  const grid = $("#mini-sectors");
+  const toggle = $("#scanner-sectors-toggle");
+  const setCollapsed = (collapsed) => {
+    grid.classList.toggle("collapsed", collapsed);
+    toggle.textContent = collapsed ? "Show" : "Hide";
+    toggle.setAttribute("aria-expanded", String(!collapsed));
+  };
+  setCollapsed(window.innerWidth <= SCANNER_SECTORS_MOBILE_BREAKPOINT);
+  toggle.addEventListener("click", () => setCollapsed(!grid.classList.contains("collapsed")));
+}
+
 function initScannerControls() {
   $("#qf-chips").addEventListener("click", (e) => {
     const btn = e.target.closest(".qf-chip");
@@ -2213,6 +2233,7 @@ function stopAutoRefresh() {
 function init() {
   initTheme();
   initNav();
+  initScannerSectorsCollapse();
   initScannerControls();
   initScannersTabControls();
   initIpoSearch();
