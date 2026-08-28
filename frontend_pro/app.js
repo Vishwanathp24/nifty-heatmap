@@ -553,7 +553,7 @@ function initVerdictTriggers() {
 // ---------------------------------------------------------------- generic movers table
 
 const DEFAULT_COLUMNS = [
-  { header: "Symbol", render: (r) => symbolLink(r.symbol) },
+  { header: "Symbol", render: (r) => symbolLink(r.symbol), cls: "cell-left" },
   { header: "Sector", render: (r) => sectorLabel(r.sector), cls: "cell-left" },
   { header: "LTP", render: (r) => fmtNum(r.lastPrice ?? r.ltp), sortKey: "lastPrice" },
   {
