@@ -21,6 +21,7 @@ import pathlib
 import re
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -1111,6 +1112,31 @@ class NSEClient:
             return None
         return {"date": real_date, "rows": rows}
 
+    # Bounded by the session's own HTTPAdapter pool size (pool_maxsize=20 -
+    # see __init__), so a batch can't starve/queue connections meant for
+    # concurrent request-handling threads elsewhere in the app.
+    BHAVCOPY_BACKFILL_WORKERS = 15
+
+    def _fetch_bhavcopy_days(self, days: list[dt.date]) -> dict[str, dict]:
+        """Fetch several Bhavcopy days concurrently (bounded by
+        BHAVCOPY_BACKFILL_WORKERS) instead of one at a time - the daily-
+        history walk below can need dozens to hundreds of sequential
+        fetches (weekends/holidays don't publish a file, so the walk
+        checks more calendar days than it needs trading days), and at
+        even a modest per-request latency that added up to a genuinely
+        slow first build. Returns {date_str: rows} for every day that
+        returned real data (skips weekends/holidays/not-yet-published
+        days, same as _fetch_bhavcopy_day - those just don't appear in
+        the result)."""
+        results: dict[str, dict] = {}
+        with ThreadPoolExecutor(max_workers=self.BHAVCOPY_BACKFILL_WORKERS) as pool:
+            futures = [pool.submit(self._fetch_bhavcopy_day, day) for day in days]
+            for future in as_completed(futures):
+                result = future.result()
+                if result and result["date"] not in results:
+                    results[result["date"]] = result["rows"]
+        return results
+
     def _build_daily_history(self) -> dict[str, list[dict]]:
         """symbol -> ascending list of real daily candles (oldest first),
         built from up to DAILY_HISTORY_MAX_CHECKED calendar days of Bhavcopy
@@ -1122,11 +1148,12 @@ class NSEClient:
         day = dt.datetime.now(IST).date()
         checked = 0
         while len(by_date) < DAILY_HISTORY_TARGET_DAYS and checked < DAILY_HISTORY_MAX_CHECKED:
-            result = self._fetch_bhavcopy_day(day)
-            checked += 1
-            if result and result["date"] not in by_date:
-                by_date[result["date"]] = result["rows"]
-            day -= dt.timedelta(days=1)
+            batch = [day - dt.timedelta(days=i) for i in range(min(self.BHAVCOPY_BACKFILL_WORKERS, DAILY_HISTORY_MAX_CHECKED - checked))]
+            checked += len(batch)
+            day -= dt.timedelta(days=len(batch))
+            for date_str, rows in self._fetch_bhavcopy_days(batch).items():
+                if date_str not in by_date:
+                    by_date[date_str] = rows
 
         def parse_date(s: str) -> dt.date:
             return dt.datetime.strptime(s, "%d-%b-%Y").date()
@@ -1325,9 +1352,13 @@ class NSEClient:
         an earlier cycle of this same loop) and only fetches Bhavcopy days
         newer than the newest date already held, instead of re-walking the
         full LONG_DAILY_HISTORY_TARGET_DAYS window from scratch every cycle.
-        That full walk (up to LONG_DAILY_HISTORY_MAX_CHECKED sequential
-        archive fetches) is expensive and should only normally happen once -
-        the first time this app runs with no on-disk cache yet.
+        That full walk (up to LONG_DAILY_HISTORY_MAX_CHECKED archive
+        fetches, done in concurrent batches - see _fetch_bhavcopy_days) is
+        still the most expensive thing this app does and should only
+        normally happen once - the first time this app runs with no on-
+        disk cache yet (or after any deploy that doesn't persist the
+        cache file across restarts, e.g. Render's default ephemeral disk -
+        every such deploy re-triggers this from scratch).
 
         Tracks the UNION of the F&O universe (Downtrend Scanner's daily
         EMA200 leg), the NIFTY 500 universe (Swing Trading's DMA/52-week
@@ -1370,13 +1401,18 @@ class NSEClient:
         day = dt.datetime.now(IST).date()
         checked = 0
         while len(by_date) < target_days and checked < max_checked:
-            if walk_cutoff is not None and day <= walk_cutoff:
-                break  # caught up to what we already have on disk
-            result = self._fetch_bhavcopy_day(day)
-            checked += 1
-            if result and result["date"] not in by_date:
-                by_date[result["date"]] = result["rows"]
-            day -= dt.timedelta(days=1)
+            batch = []
+            for _ in range(min(self.BHAVCOPY_BACKFILL_WORKERS, max_checked - checked)):
+                if walk_cutoff is not None and day <= walk_cutoff:
+                    break  # caught up to what we already have on disk
+                batch.append(day)
+                day -= dt.timedelta(days=1)
+            if not batch:
+                break
+            checked += len(batch)
+            for date_str, rows in self._fetch_bhavcopy_days(batch).items():
+                if date_str not in by_date:
+                    by_date[date_str] = rows
 
         if not by_date:
             return existing  # nothing new yet (e.g. today's session hasn't closed/published)
