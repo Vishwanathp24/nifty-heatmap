@@ -1453,6 +1453,29 @@ const SWING_COLUMNS = [
   { header: "BOH + DMA BO Score", render: (r) => (r.bohDmaBreakoutScore ?? "--"), sortKey: "bohDmaBreakoutScore" },
 ];
 
+// A compact subset of SWING_COLUMNS for the "Top 5 to Invest / Track
+// Today" highlight card - the same combined score the full table is
+// already sorted by, just the 5 best Consolidating candidates surfaced
+// up front instead of making the user scroll/sort to find them.
+const SWING_TOP5_COLUMNS = [
+  { header: "Symbol", render: (r) => symbolLink(r.symbol) },
+  { header: "Sector", render: (r) => sectorLabel(r.sector), cls: "cell-left" },
+  { header: "LTP", render: (r) => fmtNum(r.ltp) },
+  {
+    header: "Chg %",
+    render: (r) => `<span class="${chgClass(r.pChange)}">${sign(r.pChange)}${fmtNum(r.pChange)}%</span>`,
+  },
+  {
+    header: "CMP % from 52WH",
+    render: (r) =>
+      r.cmpDistanceFromHighPct != null
+        ? `<span class="${chgClass(r.cmpDistanceFromHighPct)}">${sign(r.cmpDistanceFromHighPct)}${fmtNum(r.cmpDistanceFromHighPct)}%</span>`
+        : "--",
+  },
+  { header: "DMA Breakout Score", render: (r) => (r.dmaBreakoutScore ?? "--") },
+  { header: "BOH + DMA BO Score", render: (r) => (r.bohDmaBreakoutScore ?? "--") },
+];
+
 async function refreshSwingTrading() {
   try {
     const data = await fetchJSON("/api/swing-trading");
@@ -1460,11 +1483,19 @@ async function refreshSwingTrading() {
     $("#swing-status-note").textContent = status.ready
       ? `Ready (${status.barsAvailable} real trading days of history) - ${data.symbolsWithData} of ${data.totalNifty500Symbols} NIFTY 500 stocks have data, ${data.consolidatingCount} Consolidating.`
       : `Building (${status.barsAvailable}/${status.barsNeeded} real trading days) - the one-time NIFTY 500 history backfill can take a few minutes right after a fresh deploy.`;
+    // data.stocks is already sorted best-candidate-first server-side, so
+    // the first 5 Consolidating rows ARE the top 5 by combined score.
+    const top5 = data.stocks.filter((r) => r.consolidating === "Consolidating").slice(0, 5);
+    renderMoversTable($("#swing-top5"), top5, {
+      emptyText: "No Consolidating candidates right now.",
+      columns: SWING_TOP5_COLUMNS,
+    });
     renderMoversTable($("#swing-table"), data.stocks, {
       emptyText: "No NIFTY 500 stocks have enough history yet.",
       columns: SWING_COLUMNS,
     });
   } catch (err) {
+    $("#swing-top5").innerHTML = `<div class="empty-note">Couldn't load Swing Trading data: ${err.message}</div>`;
     $("#swing-table").innerHTML = `<div class="empty-note">Couldn't load Swing Trading data: ${err.message}</div>`;
   }
 }

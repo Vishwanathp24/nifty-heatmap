@@ -328,6 +328,10 @@ tbody tr:hover { background: var(--panel-alt); }
 .scanner-section:first-of-type { margin-top: 14px; padding-top: 0; border-top: none; }
 .scanner-section-title { font-size: 15px; font-weight: 700; margin: 0 0 4px; color: var(--ink); }
 .status-note { font-size: 12px; color: var(--muted); margin: 10px 0 0; }
+/* Swing Trading's status note sits directly above a card (not immediately
+   inside one, like the other scanners' status notes do) - extra breathing
+   room so it doesn't read as glued to the card below it. */
+#swing-status-note { margin-bottom: 16px; }
 .breakout-up { color: var(--up); font-weight: 700; }
 .breakout-down { color: var(--down); font-weight: 700; }
 .breakout-none { color: var(--muted); }
