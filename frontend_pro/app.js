@@ -1619,16 +1619,34 @@ const IPO_COLUMNS = [
   },
 ];
 
+let recentIposData = [];
+let ipoSearch = "";
+
+function renderIposTable() {
+  const q = ipoSearch.toLowerCase();
+  const rows = q ? recentIposData.filter((r) => r.name.toLowerCase().includes(q)) : recentIposData;
+  renderMoversTable($("#ipos-table"), rows, {
+    emptyText: q ? `No IPO matching "${ipoSearch}".` : "No recent IPO data available.",
+    columns: IPO_COLUMNS,
+  });
+}
+
 async function refreshRecentIpos() {
   try {
     const data = await fetchJSON("/api/recent-ipos");
-    renderMoversTable($("#ipos-table"), data.ipos, {
-      emptyText: "No recent IPO data available.",
-      columns: IPO_COLUMNS,
-    });
+    recentIposData = data.ipos;
+    renderIposTable();
   } catch (err) {
     $("#ipos-table").innerHTML = `<div class="empty-note">Couldn't load Recent IPOs: ${err.message}</div>`;
   }
+}
+
+function initIpoSearch() {
+  $("#ipo-search").addEventListener("input", (e) => {
+    ipoSearch = e.target.value.trim();
+    tablePageState["ipos-table"] = 0; // new filter - back to page 1
+    renderIposTable();
+  });
 }
 
 async function refreshSwingEtf() {
@@ -1855,6 +1873,7 @@ function init() {
   initNav();
   initScannerControls();
   initScannersTabControls();
+  initIpoSearch();
 
   $("#drawer-close").addEventListener("click", closeDrawer);
   $("#drawer-backdrop").addEventListener("click", closeDrawer);

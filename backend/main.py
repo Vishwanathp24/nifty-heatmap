@@ -251,7 +251,7 @@ def swing_etf():
 
 @app.get("/api/recent-ipos")
 def recent_ipos():
-    """Recent IPOs (~50 most recent, newest listing first) scraped from
+    """Recent IPOs (last 3 years, newest listing first) scraped from
     screener.in/ipo/recent/ - a different site from NSE, no session/bot-
     protection dance needed there (confirmed live). Name, Listing Date,
     IPO Market Cap, IPO Price, Current Price, % Change since listing;

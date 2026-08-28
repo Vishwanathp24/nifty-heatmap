@@ -451,7 +451,13 @@
         <section class="view" data-view="ipos">
           <div class="view-head">
             <h2>Recent IPOs</h2>
-            <p class="view-sub">~50 most recent NSE/BSE IPOs, newest listing first - Name, Listing Date, IPO Market Cap, IPO Price, Current Price, % Change since listing.</p>
+            <p class="view-sub">NSE/BSE IPOs listed in the last 3 years, newest first - Name, Listing Date, IPO Market Cap, IPO Price, Current Price, % Change since listing.</p>
+          </div>
+          <div class="table-toolbar">
+            <div class="search-box">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+              <input id="ipo-search" placeholder="Search IPO by name..." />
+            </div>
           </div>
           <div class="card">
             <div id="ipos-table" class="data-table"><div class="skel-line"></div></div>
