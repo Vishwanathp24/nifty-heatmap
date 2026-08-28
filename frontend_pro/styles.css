@@ -196,6 +196,21 @@ a { color: inherit; }
 .card-sub { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .four-col { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+
+/* Market Bias / Nifty 50 Breadth / [FII-DII + PCR collage] in one row.
+   The collage pair stays in normal flow (stacked, full-height, nothing
+   clipped or covered) - the "collage" look is a small independent tilt
+   on each card plus a stronger shadow/accent border on the front one,
+   not an overlap. A first attempt used absolute positioning to actually
+   overlap them, which looked closer to the reference photo but hid part
+   of the back card's real numbers - not acceptable for data that has to
+   stay readable, so this is the non-occluding version instead. */
+.dash-trio { display: grid; grid-template-columns: 1.2fr 1.2fr 1fr; gap: 14px; margin-bottom: 14px; }
+.collage-stack { display: flex; flex-direction: column; gap: 22px; padding: 6px 4px; }
+.collage-card { margin: 0; }
+.collage-card-back { transform: rotate(-1.4deg); }
+.collage-card-front { transform: rotate(1.1deg); box-shadow: 0 14px 28px rgba(0, 0, 0, 0.5); border-color: var(--purple); }
+
 .stub-card { color: var(--muted); font-size: 13.5px; line-height: 1.6; }
 
 .dot-up, .dot-down, .dot-vol { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
@@ -520,6 +535,10 @@ select:disabled { opacity: 0.6; }
 @media (max-width: 860px) {
   .two-col { grid-template-columns: 1fr; }
   .four-col { grid-template-columns: 1fr; }
+  /* Drop the tilt on a narrow/mobile column - it reads as a nice touch
+     with room to breathe, cramped when the cards are already full-width. */
+  .dash-trio { grid-template-columns: 1fr; }
+  .collage-card-back, .collage-card-front { transform: none; box-shadow: var(--shadow); }
   .sidebar-burger { display: inline-flex; }
   .sidebar {
     position: fixed; left: 0; top: 0; transform: translateX(-100%);
