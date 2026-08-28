@@ -391,7 +391,7 @@ select:disabled { opacity: 0.6; }
 .summary-cards.stacked { grid-template-columns: 1fr; }
 .summary-card {
   background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0;
+  padding: 14px 16px; display: flex; align-items: center; justify-content: flex-start; gap: 12px; min-width: 0;
 }
 /* The label/value/sub wrapper div is a flex item too - without this it
    defaults to min-width: auto (its text's natural width), which blocks
