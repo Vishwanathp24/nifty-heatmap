@@ -912,6 +912,10 @@ const BUYSELL_DAILY_COLUMNS = [
   { header: "Chg %", render: (r) => `<span class="${chgClass(r.pChange)}">${sign(r.pChange)}${fmtNum(r.pChange)}%</span>` },
   { header: "Daily RSI(14)", render: (r) => fmtNum(r.dailyRsi14) },
   { header: "Daily vs SMA20", render: (r) => `${fmtNum(r.dailyClose)} / ${fmtNum(r.dailySma20)}` },
+  // When this symbol first started passing the daily leg today - shown
+  // regardless of intraday readiness, since every row here is already a
+  // daily-pass row (see backend/nse_client.py's get_scanner "dailySince").
+  { header: "Time", render: (r) => fmtSince(r.dailySince) },
 ];
 // Intraday-leg columns - only worth showing once the selected timeframe's
 // self-tracked candle history is ready; before that, every row reads

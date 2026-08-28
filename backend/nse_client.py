@@ -469,6 +469,12 @@ class NSEClient:
         self._buysell_first_seen: dict[tuple[str, int], dict[str, str]] = {
             (d, tf): {} for d in FIRST_SEEN_DIRECTIONS for tf in INTRADAY_TIMEFRAMES
         }
+        # Same idea as _buysell_first_seen but keyed on the DAILY leg alone
+        # (not per-timeframe) - the Buy/Sell Scanner table lists every
+        # daily-passing symbol regardless of whether the intraday leg has
+        # caught up yet, so "Since" needs a timestamp that doesn't depend on
+        # full (daily+intraday) qualification. See get_scanner's "dailySince".
+        self._buysell_daily_first_seen: dict[str, dict[str, dict]] = {d: {} for d in FIRST_SEEN_DIRECTIONS}
         self._breakout_first_seen: dict[str, dict[str, str]] = {d: {} for d in FIRST_SEEN_DIRECTIONS}
 
         # Long-lookback daily history (Downtrend Scanner's daily EMA(200)
@@ -624,6 +630,7 @@ class NSEClient:
                 self._buysell_first_seen = {
                     (d, tf): {} for d in FIRST_SEEN_DIRECTIONS for tf in INTRADAY_TIMEFRAMES
                 }
+                self._buysell_daily_first_seen = {d: {} for d in FIRST_SEEN_DIRECTIONS}
                 self._breakout_first_seen = {d: {} for d in FIRST_SEEN_DIRECTIONS}
                 self._first_seen_date = today
 
@@ -766,6 +773,7 @@ class NSEClient:
         buysell_qualifying: dict[tuple[str, int], set[str]] = {
             (d, tf): set() for d in FIRST_SEEN_DIRECTIONS for tf in INTRADAY_TIMEFRAMES
         }
+        buysell_daily_qualifying: dict[str, set[str]] = {d: set() for d in FIRST_SEEN_DIRECTIONS}
         breakout_qualifying: dict[str, set[str]] = {d: set() for d in FIRST_SEEN_DIRECTIONS}
 
         for sym in fo_symbols:
@@ -777,6 +785,10 @@ class NSEClient:
                 )
                 for d in FIRST_SEEN_DIRECTIONS
             }
+            for d in FIRST_SEEN_DIRECTIONS:
+                daily = daily_signals[d]
+                if daily is not None and daily["pass"]:
+                    buysell_daily_qualifying[d].add(sym)
             for tf in INTRADAY_TIMEFRAMES:
                 candles = self._intraday_candles_for(sym, tf)
                 for d in FIRST_SEEN_DIRECTIONS:
@@ -797,6 +809,8 @@ class NSEClient:
         with self._first_seen_lock:
             for key, qualifying in buysell_qualifying.items():
                 self._update_first_seen(self._buysell_first_seen[key], qualifying, now_str, prices, atrs)
+            for d, qualifying in buysell_daily_qualifying.items():
+                self._update_first_seen(self._buysell_daily_first_seen[d], qualifying, now_str, prices, atrs)
             for d, qualifying in breakout_qualifying.items():
                 self._update_first_seen(self._breakout_first_seen[d], qualifying, now_str, prices, atrs)
 
@@ -1533,6 +1547,7 @@ class NSEClient:
         today_str = dt.datetime.now(IST).date().isoformat()
         with self._first_seen_lock:
             first_seen = dict(self._buysell_first_seen.get((direction, timeframe), {}))
+            daily_first_seen = dict(self._buysell_daily_first_seen.get(direction, {}))
 
         results = []
         for sym in fo_symbols:
@@ -1562,6 +1577,7 @@ class NSEClient:
             )
             qualifies = bool(daily["pass"] and intraday and intraday["pass"])
             entry = first_seen.get(sym) if qualifies else None
+            daily_entry = daily_first_seen.get(sym) if daily["pass"] else None
             results.append(
                 {
                     "symbol": sym,
@@ -1572,6 +1588,14 @@ class NSEClient:
                     "dailySma20": daily["sma"],
                     "dailyRsi14": daily["rsi"],
                     "dailyPass": daily["pass"],
+                    # "HH:MM:SS" IST this symbol first started passing the
+                    # DAILY leg today (independent of the intraday leg/
+                    # timeframe) - every row in this table is a daily-pass
+                    # row, so this is the "listed in this scanner since" time
+                    # the frontend's Time column shows. None only if the
+                    # first-seen tracker hasn't caught up yet (just after a
+                    # restart).
+                    "dailySince": daily_entry.get("time") if daily_entry else None,
                     "intradayReady": intraday is not None,
                     "intradayClose": intraday["close"] if intraday else None,
                     "intradaySma20": intraday["sma"] if intraday else None,
