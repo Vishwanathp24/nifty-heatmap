@@ -2880,14 +2880,15 @@ class NSEClient:
 
         This is NOT a prediction of what the market will do - it's a
         breadth/sentiment summary of the current/most recent session,
-        clearly labelled as such in the UI. SENSEX is deliberately left out
-        (BSE has no public JSON API the way NSE does). Global indices
-        ("global cues") turned out to be gettable after all - see
-        GlobalMarketsClient/get_global_cues - Yahoo Finance's quote API
-        rate-limits query1.finance.yahoo.com for anonymous requests, but
-        query2.finance.yahoo.com (same API) doesn't; that's a separate
-        endpoint (/api/global-cues) rather than folded into this one, since
-        it's a different upstream source with its own failure mode.
+        clearly labelled as such in the UI. SENSEX isn't part of THIS
+        payload (BSE has no public JSON API the way NSE does), but it
+        turned out to be gettable after all via Yahoo Finance - see
+        GlobalMarketsClient.get_sensex/get_global_cues; Yahoo Finance's
+        quote API rate-limits query1.finance.yahoo.com for anonymous
+        requests, but query2.finance.yahoo.com (same API) doesn't. Those
+        are separate endpoints (/api/sensex, /api/global-cues) rather than
+        folded into this one, since it's a different upstream source with
+        its own failure mode.
         """
         rows = self._all_indices()
         by_symbol = {row.get("indexSymbol"): row for row in rows}

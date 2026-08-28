@@ -72,6 +72,13 @@ def global_cues():
     return {"indices": _wrap(global_markets_client.get_global_cues)}
 
 
+@app.get("/api/sensex")
+def sensex():
+    """SENSEX (BSE's benchmark index) - via Yahoo Finance, since BSE has
+    no public JSON API of its own. See GlobalMarketsClient.get_sensex."""
+    return _wrap(global_markets_client.get_sensex)
+
+
 @app.get("/api/fii-dii")
 def fii_dii():
     """FII/DII cash-market buy/sell/net activity (Rs Cr) for the most

@@ -72,6 +72,7 @@ class GlobalMarketsClient:
         self._session = requests.Session()
         self._session.headers.update(HEADERS)
         self._cache: tuple[float, list[dict]] | None = None
+        self._sensex_cache: tuple[float, dict] | None = None
 
     def _fetch_gift_nifty(self) -> dict:
         payload = {
@@ -140,6 +141,21 @@ class GlobalMarketsClient:
 
         self._cache = (time.time(), rows)
         return rows
+
+    def get_sensex(self) -> dict:
+        """SENSEX (BSE's benchmark index, ^BSESN on Yahoo). BSE has no
+        public JSON API of its own the way NSE does (see
+        NSEClient.get_market_overview's docstring), but it's just another
+        symbol on the same Yahoo Finance chart API this file already uses
+        for the rest of Global Cues - a separate cache slot from that list
+        since a caller only wanting Sensex shouldn't force-refresh it."""
+        if self._sensex_cache is not None:
+            ts, cached_row = self._sensex_cache
+            if time.time() - ts < CACHE_TTL_SEC:
+                return cached_row
+        row = self._fetch_one("^BSESN", "Sensex")
+        self._sensex_cache = (time.time(), row)
+        return row
 
 
 client = GlobalMarketsClient()

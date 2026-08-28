@@ -204,6 +204,7 @@ function initNav() {
 let latestIndices = [];
 let latestAdSummary = null;
 let latestBias = null;
+let latestSensex = null;
 
 function biasClassFor(label) {
   const lower = label.toLowerCase();
@@ -212,7 +213,28 @@ function biasClassFor(label) {
 
 function renderIndexStrip() {
   const el = $("#index-strip");
+
+  // INDIA VIX gets its own bullish/bearish read (same logic Market Bias's
+  // own VIX factor uses: falling VIX = bullish) and sits right after
+  // Market Bias - pulled out of latestIndices separately so it doesn't
+  // just fall wherever NSE's own ordering (NIFTY 50, NIFTY BANK, INDIA
+  // VIX) puts it.
+  const vix = latestIndices.find((idx) => idx.symbol === "INDIA VIX");
+  const vixLabel = vix == null ? null : vix.pChange < 0 ? "Bullish" : vix.pChange > 0 ? "Bearish" : "Flat";
+  const vixCard = vix
+    ? `
+    <div class="idx-card">
+      <div class="idx-name-row">
+        <div class="idx-name">India VIX</div>
+        ${vixLabel ? `<span class="idx-extra ${biasClassFor(vixLabel)}">${vixLabel}</span>` : ""}
+      </div>
+      <div class="idx-val">${fmtNum(vix.last, 2)}</div>
+      <div class="idx-chg ${chgClass(vix.pChange)}">${sign(vix.change)}${fmtNum(vix.change, 2)} (${sign(vix.pChange)}${fmtNum(vix.pChange, 2)}%)</div>
+    </div>`
+    : `<div class="idx-card"><div class="idx-name">India VIX</div><div class="idx-val">&mdash;</div></div>`;
+
   const cards = latestIndices
+    .filter((idx) => idx.symbol !== "INDIA VIX")
     .map(
       (idx) => `
     <div class="idx-card">
@@ -222,6 +244,17 @@ function renderIndexStrip() {
     </div>`
     )
     .join("");
+
+  // Yahoo Finance-sourced (BSE has no public JSON API of its own - see
+  // refreshSensex) rather than NSE like the rest of this strip.
+  const sensexCard = latestSensex
+    ? `
+    <div class="idx-card">
+      <div class="idx-name">Sensex</div>
+      <div class="idx-val">${fmtNum(latestSensex.last, 2)}</div>
+      <div class="idx-chg ${chgClass(latestSensex.pChange)}">${sign(latestSensex.change)}${fmtNum(latestSensex.change, 2)} (${sign(latestSensex.pChange)}${fmtNum(latestSensex.pChange, 2)}%)</div>
+    </div>`
+    : `<div class="idx-card"><div class="idx-name">Sensex</div><div class="idx-val">&mdash;</div></div>`;
 
   const adCard = latestAdSummary
     ? `
@@ -254,7 +287,9 @@ function renderIndexStrip() {
 
   el.innerHTML =
     biasCard +
+    vixCard +
     cards +
+    sensexCard +
     adCard +
     sectorsCard +
     `<div class="idx-card">
@@ -305,6 +340,17 @@ async function refreshGlobalCues() {
     renderGlobalCues(data.indices);
   } catch (err) {
     $("#global-cues-grid").innerHTML = `<div class="empty-note">Couldn't load Global Cues: ${err.message}</div>`;
+  }
+}
+
+// Unconditional (every page, every cycle) rather than gated by
+// VIEW_FETCHERS like refreshGlobalCues above - Sensex feeds the
+// always-visible index strip, not a Dashboard-only card.
+async function refreshSensex() {
+  try {
+    latestSensex = await fetchJSON("/api/sensex");
+  } catch (err) {
+    // leave latestSensex as whatever it was - the index-strip card just shows the last-known figure
   }
 }
 
@@ -1997,6 +2043,10 @@ async function refreshAll() {
     fetchJSON("/api/market-overview"),
     fetchJSON("/api/heatmap"),
     fetchJSON("/api/advance-decline"),
+    // Self-contained (own try/catch, own stale-on-error fallback, no slot
+    // in the destructured results below) - feeds the index strip's
+    // Sensex card, shown on every page, not just the Dashboard.
+    refreshSensex(),
     ...(VIEW_FETCHERS[currentView] || []).map((fn) => fn()),
   ]);
   const [overviewRes, heatmapRes, advDeclRes] = results;
