@@ -1246,26 +1246,85 @@ async function loadSectorFilterOptions(selectEl) {
   }
 }
 
-// -- F&O Gainers & Losers: sector filter -------------------------------------
+// -- F&O Gainers & Losers: multi-select sector filter, full F&O universe ----
+//
+// NSE's own "variations" endpoint (what /api/fo/gainers-losers used to
+// source this from) is a fixed top-20-each official list, not the full
+// ~210-stock F&O universe - most sectors had nothing in it at any given
+// moment, making the sector filter often look "broken" (correctly showing
+// 0 results for a sector NSE's list just didn't include). Fixed by
+// deriving gainers/losers from the SAME full-universe data the F&O
+// Scanner table already fetches (scannerData, /api/fo-scanner) instead -
+// every advancer/decliner in the whole F&O list, not just NSE's top 20.
+// This also matches what the Dashboard's own Top Gainers/Losers mini-lists
+// already do (see renderScannerBottomPanels).
+let foglSelectedSectors = new Set(); // empty = no filter (every sector)
+let foglSectorLabels = [];
 
-let foglSelectedSector = "ALL";
-let latestFoGainers = [];
-let latestFoLosers = [];
+async function loadFoglSectorMenu() {
+  try {
+    const { labels } = await fetchJSON("/api/sector-labels");
+    foglSectorLabels = labels;
+    renderFoglSectorMenu();
+  } catch {
+    // non-fatal - menu just stays empty; "All Sectors" (no filter) still works
+  }
+}
+
+function renderFoglSectorMenu() {
+  const menu = $("#fogl-sector-menu");
+  menu.innerHTML =
+    `<div class="dropdown-menu-actions">
+      <button type="button" class="link-btn" id="fogl-sector-select-all">Select all</button>
+      <button type="button" class="link-btn" id="fogl-sector-clear">Clear</button>
+    </div>` +
+    foglSectorLabels
+      .map(
+        (label) =>
+          `<label><input type="checkbox" data-sector="${label}" ${foglSelectedSectors.has(label) ? "checked" : ""}/> ${label}</label>`
+      )
+      .join("");
+  menu.querySelectorAll("input[type=checkbox]").forEach((cb) => {
+    cb.addEventListener("change", (e) => {
+      const label = e.target.dataset.sector;
+      if (e.target.checked) foglSelectedSectors.add(label);
+      else foglSelectedSectors.delete(label);
+      updateFoglSectorButtonLabel();
+      renderFoGainersLosers();
+    });
+  });
+  $("#fogl-sector-select-all").addEventListener("click", () => {
+    foglSelectedSectors = new Set(foglSectorLabels);
+    renderFoglSectorMenu();
+    updateFoglSectorButtonLabel();
+    renderFoGainersLosers();
+  });
+  $("#fogl-sector-clear").addEventListener("click", () => {
+    foglSelectedSectors = new Set();
+    renderFoglSectorMenu();
+    updateFoglSectorButtonLabel();
+    renderFoGainersLosers();
+  });
+}
+
+function updateFoglSectorButtonLabel() {
+  const btn = $("#fogl-sector-btn");
+  const n = foglSelectedSectors.size;
+  btn.textContent = n === 0 ? "All Sectors" : n === 1 ? [...foglSelectedSectors][0] : `${n} sectors selected`;
+}
 
 function renderFoGainersLosers() {
-  const gainers =
-    foglSelectedSector === "ALL"
-      ? latestFoGainers
-      : latestFoGainers.filter((r) => r.sector === foglSelectedSector);
-  const losers =
-    foglSelectedSector === "ALL"
-      ? latestFoLosers
-      : latestFoLosers.filter((r) => r.sector === foglSelectedSector);
-  const suffix = foglSelectedSector === "ALL" ? "" : ` for ${foglSelectedSector}`;
+  if (!scannerData) return;
+  const rows = scannerData.stocks;
+  const allGainers = [...rows].filter((r) => r.pChange > 0).sort((a, b) => b.pChange - a.pChange);
+  const allLosers = [...rows].filter((r) => r.pChange < 0).sort((a, b) => a.pChange - b.pChange);
+  const noFilter = foglSelectedSectors.size === 0;
+  const gainers = noFilter ? allGainers : allGainers.filter((r) => foglSelectedSectors.has(r.sector));
+  const losers = noFilter ? allLosers : allLosers.filter((r) => foglSelectedSectors.has(r.sector));
+  const suffix = noFilter ? "" : ` for the selected sector${foglSelectedSectors.size > 1 ? "s" : ""}`;
   renderMoversTable($("#fogl-gainers"), gainers, { emptyText: `No F&O gainers${suffix} right now.` });
   renderMoversTable($("#fogl-losers"), losers, { emptyText: `No F&O losers${suffix} right now.` });
-  $("#fogl-sector-hint").textContent =
-    foglSelectedSector === "ALL" ? "" : `${gainers.length} gainers · ${losers.length} losers`;
+  $("#fogl-sector-hint").textContent = noFilter ? "" : `${gainers.length} gainers · ${losers.length} losers`;
 }
 
 async function refreshScanner() {
@@ -1274,6 +1333,7 @@ async function refreshScanner() {
     renderScannerSummary();
     renderScannerTable();
     renderScannerBottomPanels();
+    renderFoGainersLosers();
   } catch (err) {
     $("#scanner-table").innerHTML = `<div class="empty-note">Couldn't load F&amp;O scanner data: ${err.message}</div>`;
   }
@@ -1352,7 +1412,6 @@ async function refreshAll() {
     fetchJSON("/api/market-overview"),
     fetchJSON("/api/heatmap"),
     fetchJSON("/api/advance-decline"),
-    fetchJSON("/api/fo/gainers-losers"),
     fetchJSON("/api/most-active"),
     fetchJSON("/api/52-week"),
     fetchJSON("/api/volume-gainers"),
@@ -1365,7 +1424,6 @@ async function refreshAll() {
     overviewRes,
     heatmapRes,
     advDeclRes,
-    foRes,
     activeRes,
     week52Res,
     volRes,
@@ -1394,11 +1452,10 @@ async function refreshAll() {
   }
   renderIndexStrip();
 
-  if (foRes.status === "fulfilled") {
-    latestFoGainers = foRes.value.gainers;
-    latestFoLosers = foRes.value.losers;
-    renderFoGainersLosers();
-  }
+  // F&O Gainers & Losers (fogl-gainers/fogl-losers) are rendered inside
+  // refreshScanner() above, not here - see renderFoGainersLosers()'s
+  // comment for why (full F&O universe via scannerData, not a separate
+  // capped NSE feed).
   if (activeRes.status === "fulfilled") {
     renderMoversTable($("#movers-active-volume"), activeRes.value.byVolume, {
       emptyText: "No F&O names in NSE's Most Active (By Volume) list right now.",
@@ -1486,10 +1543,12 @@ function init() {
   });
 
   loadSectorFilterOptions($("#f-sector"));
-  loadSectorFilterOptions($("#fogl-sector"));
-  $("#fogl-sector").addEventListener("change", (e) => {
-    foglSelectedSector = e.target.value;
-    renderFoGainersLosers();
+  loadFoglSectorMenu();
+  $("#fogl-sector-btn").addEventListener("click", () => {
+    $("#fogl-sector-menu").classList.toggle("hidden");
+  });
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest("#fogl-sector-dropdown")) $("#fogl-sector-menu").classList.add("hidden");
   });
   refreshAll();
   startAutoRefresh();
