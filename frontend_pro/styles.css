@@ -351,15 +351,7 @@ select:disabled { opacity: 0.6; }
 
 /* auto-fit (not a fixed 5-across) since this now sits in a half-width
    .two-col column alongside Sectors Heatmap, not the full page width. */
-/* Wrapped in a .card (summary-cards-card) so this side of the two-col row
-   gets the same bordered chrome as its Sectors Heatmap sibling - .two-col
-   stretches both to equal height by default, but without a visible border
-   here that equal height just read as a dangling gap under a shorter,
-   borderless block instead of two aligned cards. align-content: center
-   (was start) then centers the 2-row grid within that stretched height
-   instead of pinning it to the top. */
-.summary-cards-card { display: flex; }
-.summary-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; align-content: center; width: 100%; }
+.summary-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; align-content: start; margin-bottom: 14px; }
 .summary-card {
   background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
   padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0;
