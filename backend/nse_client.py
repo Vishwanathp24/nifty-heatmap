@@ -1530,16 +1530,7 @@ class NSEClient:
         daily_history = self._get_daily_history()
         fo_symbols = self._fo_universe()
         rows = {r.get("symbol"): r for r in self._fo_quote_rows()}
-        now = dt.datetime.now(IST)
-        today_str = now.date().isoformat()
-        # The daily leg's pass/fail is fixed for the whole session - it's
-        # computed purely from EOD (Bhavcopy) candles, and a new one only
-        # appears after that day's close (see _build_daily_history), so it
-        # can't actually change between market open and close. That makes
-        # "when did this symbol first pass the daily leg today" a
-        # deterministic constant, not something that needs live tracking:
-        # if it's passing right now, it's been passing since market open.
-        daily_since_str = f"{MARKET_OPEN_HOUR:02d}:{MARKET_OPEN_MINUTE:02d}:00"
+        today_str = dt.datetime.now(IST).date().isoformat()
         with self._first_seen_lock:
             first_seen = dict(self._buysell_first_seen.get((direction, timeframe), {}))
 
@@ -1581,11 +1572,6 @@ class NSEClient:
                     "dailySma20": daily["sma"],
                     "dailyRsi14": daily["rsi"],
                     "dailyPass": daily["pass"],
-                    # Market open ("HH:MM:SS" IST) - see daily_since_str
-                    # above for why that's the correct, deterministic value
-                    # whenever this row is daily-passing. The frontend's
-                    # Time column shows this.
-                    "dailySince": daily_since_str if daily["pass"] else None,
                     "intradayReady": intraday is not None,
                     "intradayClose": intraday["close"] if intraday else None,
                     "intradaySma20": intraday["sma"] if intraday else None,
@@ -1597,6 +1583,13 @@ class NSEClient:
                     # "rFactor" (that move in daily-ATR(14) units) - see the
                     # FIRST_SEEN_DIRECTIONS comment above. All None if not
                     # currently qualifying or the tracker hasn't caught up yet.
+                    # The frontend only ever renders rows with dailyPass
+                    # true (it filters on that before display), and for
+                    # those rows "qualifies" reduces to "intraday passes"
+                    # since daily already does - so "since" there is
+                    # effectively "when this timeframe's intraday leg
+                    # itself first broke out". The frontend's Time column
+                    # shows exactly this.
                     **self._entry_metrics(entry, row.get("lastPrice")),
                 }
             )

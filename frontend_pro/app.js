@@ -912,10 +912,15 @@ const BUYSELL_DAILY_COLUMNS = [
   { header: "Chg %", render: (r) => `<span class="${chgClass(r.pChange)}">${sign(r.pChange)}${fmtNum(r.pChange)}%</span>` },
   { header: "Daily RSI(14)", render: (r) => fmtNum(r.dailyRsi14) },
   { header: "Daily vs SMA20", render: (r) => `${fmtNum(r.dailyClose)} / ${fmtNum(r.dailySma20)}` },
-  // When this symbol first started passing the daily leg today - shown
-  // regardless of intraday readiness, since every row here is already a
-  // daily-pass row (see backend/nse_client.py's get_scanner "dailySince").
-  { header: "Time", render: (r) => fmtSince(r.dailySince) },
+  // Every row here is already a daily-pass row (see refreshBuySellScanner's
+  // dailyPass filter below), so "qualifies"/"since" - which needs both legs
+  // to pass - reduces to "does the intraday leg pass" for these rows: this
+  // is the actual per-stock breakout moment on the selected timeframe's
+  // chart (e.g. a stock whose first 15-min candle already broke out shows
+  // ~09:31; one that only broke out on the 5th candle shows ~10:31). Shown
+  // regardless of intradayReady/BUYSELL_INTRADAY_COLUMNS below - it's just
+  // a dash until the intraday leg actually starts passing.
+  { header: "Time", render: (r) => fmtSince(r.since) },
 ];
 // Intraday-leg columns - only worth showing once the selected timeframe's
 // self-tracked candle history is ready; before that, every row reads
@@ -932,7 +937,6 @@ const BUYSELL_INTRADAY_COLUMNS = [
         ? `<span class="up">✓ Qualified (daily + intraday)</span>`
         : `<span class="flat">Daily only</span>`,
   },
-  { header: "Since", render: (r) => fmtSince(r.since) },
   {
     header: "Signal %",
     render: (r) => `<span class="${chgClass(r.signalPct)}">${sign(r.signalPct)}${fmtNum(r.signalPct)}%</span>`,
