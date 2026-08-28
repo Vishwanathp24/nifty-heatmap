@@ -2476,12 +2476,27 @@ class NSEClient:
 
     # -- session handling ---------------------------------------------------
 
+    # NSE's classic API (bot-protected, no SLA) is the one upstream this app
+    # can't control - and it does sometimes go slow/unresponsive for a
+    # given path from a given IP without actually erroring out, rather than
+    # failing fast. _get_json's own retry-with-forced-bootstrap loop means
+    # a single dashboard fetch can chain up to 4 of these requests
+    # (bootstrap, attempt, re-bootstrap, retry) - at the old 15s timeout
+    # that's a worst case of a full minute before the frontend's error
+    # banner even shows, which is what "the site is loading very slowly"
+    # (as opposed to "the site is down") actually looks like from a user's
+    # side. 8s keeps enough headroom for NSE's normal (sub-2s, per
+    # observed local response times) latency while cutting that worst case
+    # roughly in half - failing fast surfaces the retrying-in-background
+    # banner sooner instead of leaving the page looking stuck.
+    _NSE_REQUEST_TIMEOUT = 8
+
     def _bootstrap(self, force: bool = False):
         with self._lock:
             if not force and (time.time() - self._bootstrapped_at) < 240:
                 return
             try:
-                resp = self._session.get(BOOTSTRAP_URL, timeout=15)
+                resp = self._session.get(BOOTSTRAP_URL, timeout=self._NSE_REQUEST_TIMEOUT)
                 if resp.status_code != 200:
                     raise NSEFetchError(
                         f"bootstrap failed: HTTP {resp.status_code}"
@@ -2496,7 +2511,7 @@ class NSEClient:
         last_exc: Exception | None = None
         for attempt in range(2):
             try:
-                resp = self._session.get(url, params=params, timeout=15)
+                resp = self._session.get(url, params=params, timeout=self._NSE_REQUEST_TIMEOUT)
                 if resp.status_code in (401, 403) or resp.status_code >= 500:
                     self._bootstrap(force=True)
                     continue
