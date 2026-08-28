@@ -1544,12 +1544,27 @@ class NSEClient:
         daily_history = self._get_daily_history()
         fo_symbols = self._fo_universe()
         rows = {r.get("symbol"): r for r in self._fo_quote_rows()}
-        today_str = dt.datetime.now(IST).date().isoformat()
+        now = dt.datetime.now(IST)
+        today_str = now.date().isoformat()
+        now_str = now.strftime("%H:%M:%S")
+        # The daily leg's pass/fail is fixed for the whole session (a new
+        # EOD candle only appears after that day's close - see
+        # _build_daily_history), so unlike the intraday leg it can't
+        # actually change from one tick to the next. That means the
+        # market-hours-gated background tracker (_track_scanner_entries)
+        # isn't the only valid source of a first-seen time here: the first
+        # moment ANYONE loads this scanner and observes a symbol daily-
+        # passing today is an equally correct "since" - stamped below,
+        # opportunistically, so the Time column never sits on a dash all
+        # day just because nobody happened to view the page while the
+        # market was open (or the backend restarted after it closed).
+        self._reset_first_seen_if_new_day(now.date())
         with self._first_seen_lock:
             first_seen = dict(self._buysell_first_seen.get((direction, timeframe), {}))
             daily_first_seen = dict(self._buysell_daily_first_seen.get(direction, {}))
 
         results = []
+        newly_seen_daily = set()
         for sym in fo_symbols:
             row = rows.get(sym)
             if row is None:
@@ -1578,6 +1593,8 @@ class NSEClient:
             qualifies = bool(daily["pass"] and intraday and intraday["pass"])
             entry = first_seen.get(sym) if qualifies else None
             daily_entry = daily_first_seen.get(sym) if daily["pass"] else None
+            if daily["pass"] and daily_entry is None:
+                newly_seen_daily.add(sym)
             results.append(
                 {
                     "symbol": sym,
@@ -1594,8 +1611,9 @@ class NSEClient:
                     # row, so this is the "listed in this scanner since" time
                     # the frontend's Time column shows. None only if the
                     # first-seen tracker hasn't caught up yet (just after a
-                    # restart).
-                    "dailySince": daily_entry.get("time") if daily_entry else None,
+                    # restart) - see the newly_seen_daily stamping below,
+                    # which fixes that from the very next call onward.
+                    "dailySince": daily_entry.get("time") if daily_entry else (now_str if daily["pass"] else None),
                     "intradayReady": intraday is not None,
                     "intradayClose": intraday["close"] if intraday else None,
                     "intradaySma20": intraday["sma"] if intraday else None,
@@ -1610,6 +1628,12 @@ class NSEClient:
                     **self._entry_metrics(entry, row.get("lastPrice")),
                 }
             )
+
+        if newly_seen_daily:
+            with self._first_seen_lock:
+                bucket = self._buysell_daily_first_seen[direction]
+                for sym in newly_seen_daily:
+                    bucket.setdefault(sym, {"time": now_str})
 
         results.sort(key=lambda r: (not r["qualifies"], not r["dailyPass"], -abs(r.get("pChange") or 0)))
         return {
