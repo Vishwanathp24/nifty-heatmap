@@ -17,6 +17,8 @@ from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import fyers_client
+from .global_markets_client import GlobalMarketsFetchError
+from .global_markets_client import client as global_markets_client
 from .nse_client import HEATMAP_SECTOR_SYMBOLS, SECTOR_LIST, NSEFetchError, client
 from .screener_client import ScreenerFetchError
 from .screener_client import client as screener_client
@@ -47,7 +49,7 @@ async def _no_cache(request, call_next):
 def _wrap(fn, *args, **kwargs):
     try:
         return fn(*args, **kwargs)
-    except (NSEFetchError, ScreenerFetchError) as exc:
+    except (NSEFetchError, ScreenerFetchError, GlobalMarketsFetchError) as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
@@ -59,6 +61,23 @@ def market_overview():
 @app.get("/api/heatmap")
 def heatmap():
     return {"sectors": _wrap(client.get_heatmap)}
+
+
+@app.get("/api/global-cues")
+def global_cues():
+    """"Before the bell" context: the overnight US session plus the
+    same-morning Asian session (Dow, Nasdaq, S&P 500, Nikkei 225, Hang
+    Seng, Shanghai Composite). See GlobalMarketsClient.get_global_cues -
+    a different (non-NSE) data source from the rest of this app."""
+    return {"indices": _wrap(global_markets_client.get_global_cues)}
+
+
+@app.get("/api/fii-dii")
+def fii_dii():
+    """FII/DII cash-market buy/sell/net activity (Rs Cr) for the most
+    recently published session - a standard companion to F&O breadth for
+    reading same-session sentiment. See NSEClient.get_fii_dii."""
+    return _wrap(client.get_fii_dii)
 
 
 @app.get("/api/sector")

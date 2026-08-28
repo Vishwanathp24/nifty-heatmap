@@ -150,6 +150,10 @@ a { color: inherit; }
 .idx-chg { font-size: 12.5px; font-weight: 700; margin-top: 2px; }
 .idx-time { font-size: 15px; font-weight: 700; margin-top: 4px; }
 .idx-date { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+/* Global Cues card (Dashboard) - same .idx-card tiles as the topbar index
+   strip, just in a card-width-constrained grid instead of the full-page one. */
+.cue-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; }
 .up { color: var(--up); }
 .down { color: var(--down); }
 .flat { color: var(--muted); }

@@ -261,6 +261,83 @@ function tickClock() {
   if (dateEl) dateEl.textContent = ist.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+// ---------------------------------------------------------------- global cues / FII-DII
+
+// Dashboard-only "before the bell" context, both from a different upstream
+// source than the rest of the app (Yahoo Finance for global indices, NSE's
+// own once-a-day FII/DII report) - self-contained try/catch matching the
+// other per-view refreshers, not part of the always-on core fetch.
+function renderGlobalCues(indices) {
+  const el = $("#global-cues-grid");
+  if (!indices.length) {
+    el.innerHTML = `<div class="empty-note">Global market data unavailable right now.</div>`;
+    return;
+  }
+  el.innerHTML = indices
+    .map(
+      (idx) => `
+    <div class="idx-card">
+      <div class="idx-name">${idx.name}</div>
+      <div class="idx-val">${fmtNum(idx.last, 2)}</div>
+      <div class="idx-chg ${chgClass(idx.pChange)}">${sign(idx.change)}${fmtNum(idx.change, 2)} (${sign(idx.pChange)}${fmtNum(idx.pChange, 2)}%)</div>
+    </div>`
+    )
+    .join("");
+}
+
+async function refreshGlobalCues() {
+  try {
+    const data = await fetchJSON("/api/global-cues");
+    renderGlobalCues(data.indices);
+  } catch (err) {
+    $("#global-cues-grid").innerHTML = `<div class="empty-note">Couldn't load Global Cues: ${err.message}</div>`;
+  }
+}
+
+const FII_DII_ICONS = {
+  up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 15l-6-6-6 6"/></svg>',
+  down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>',
+  flat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/></svg>',
+};
+
+function renderFiiDii(data) {
+  const el = $("#fii-dii-summary");
+  const { fii, dii } = data;
+  if (!fii && !dii) {
+    el.innerHTML = `<div class="empty-note">FII/DII data unavailable right now.</div>`;
+    return;
+  }
+  const sessionDate = fii?.date || dii?.date;
+  $("#fii-dii-sub").textContent = sessionDate ? `Cash market (₹ Cr) · session ${sessionDate}` : "Cash market (₹ Cr)";
+
+  const card = (label, row) => {
+    if (!row || row.netValueCr == null) {
+      return `<div class="summary-card flat"><span class="sc-icon">${FII_DII_ICONS.flat}</span><div><div class="sc-label">${label}</div><div class="sc-value">--</div></div></div>`;
+    }
+    const cls = chgClass(row.netValueCr);
+    const action = row.netValueCr > 0 ? "Net Buy" : row.netValueCr < 0 ? "Net Sell" : "Flat";
+    return `
+    <div class="summary-card ${cls}">
+      <span class="sc-icon">${FII_DII_ICONS[cls]}</span>
+      <div>
+        <div class="sc-label">${label}</div>
+        <div class="sc-value">${sign(row.netValueCr)}${fmtNum(row.netValueCr, 2)}</div>
+        <div class="sc-sub">${action} &middot; Buy ${fmtNum(row.buyValueCr, 0)} / Sell ${fmtNum(row.sellValueCr, 0)}</div>
+      </div>
+    </div>`;
+  };
+  el.innerHTML = card("FII / FPI", fii) + card("DII", dii);
+}
+
+async function refreshFiiDii() {
+  try {
+    const data = await fetchJSON("/api/fii-dii");
+    renderFiiDii(data);
+  } catch (err) {
+    $("#fii-dii-summary").innerHTML = `<div class="empty-note">Couldn't load FII/DII data: ${err.message}</div>`;
+  }
+}
+
 // ---------------------------------------------------------------- market bias
 
 function renderMarketBias(bias) {
@@ -1839,7 +1916,7 @@ const VIEW_FETCHERS = {
   // (#dash-top-gainers etc.) - scannerData is their only source. Dashboard
   // has to stay in this map too, not just the two F&O-specific views, or
   // those three panels are permanently empty on the Dashboard.
-  dashboard: [refreshScanner],
+  dashboard: [refreshScanner, refreshGlobalCues, refreshFiiDii],
   scanner: [refreshScanner],
   fogainerslosers: [refreshScanner],
   scanners: [refreshScannersTab],

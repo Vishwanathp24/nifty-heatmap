@@ -1201,14 +1201,44 @@ class NSEClient:
         classic endpoints this app already relies on."""
         return self._cached("etf", 15.0, lambda: self._get_json("/api/etf")["data"])
 
+    def _fii_dii_rows(self) -> list[dict]:
+        """NSE's own daily FII/DII (Foreign/Domestic Institutional Investor)
+        cash-market buy/sell/net figures, in Rs Cr - the classic
+        /api/fiidiiTradeReact endpoint, same session-bootstrap tier as the
+        other classic endpoints this app relies on. This is a once-a-day
+        provisional figure (the most recently completed session's), not
+        an intraday/live feed - a long TTL avoids re-fetching it on every
+        refresh cycle for data that won't have changed."""
+        return self._cached("fiiDii", 6 * 3600.0, lambda: self._get_json("/api/fiidiiTradeReact"))
+
+    def get_fii_dii(self) -> dict:
+        """FII and DII net cash-market activity for the most recently
+        published session - a standard companion to F&O breadth for
+        reading same-session sentiment (foreign selling + domestic buying
+        absorbing it is a very common pattern worth seeing at a glance)."""
+        by_category: dict[str, dict] = {}
+        for row in self._fii_dii_rows():
+            category = (row.get("category") or "").strip().upper()
+            key = "fii" if category.startswith("FII") else "dii" if category.startswith("DII") else None
+            if key is None:
+                continue
+            by_category[key] = {
+                "date": row.get("date"),
+                "buyValueCr": self._to_float(row.get("buyValue")),
+                "sellValueCr": self._to_float(row.get("sellValue")),
+                "netValueCr": self._to_float(row.get("netValue")),
+            }
+        return by_category
+
     def _etf_universe(self) -> set[str]:
         return {r.get("symbol") for r in self._etf_rows() if r.get("symbol")}
 
     @staticmethod
-    def _etf_float(v) -> float | None:
-        """/api/etf returns its numeric fields as strings (unlike most of
-        NSE's other JSON endpoints) - e.g. "230.12", sometimes "-" for a
-        genuinely missing value."""
+    def _to_float(v) -> float | None:
+        """A handful of classic NSE endpoints (/api/etf, /api/fiidiiTradeReact,
+        ...) return their numeric fields as strings, unlike most of NSE's
+        other JSON endpoints - e.g. "230.12", sometimes "-" for a genuinely
+        missing value."""
         try:
             return float(v)
         except (TypeError, ValueError):
@@ -1969,7 +1999,7 @@ class NSEClient:
 
         results = []
         for sym, row in etf_rows.items():
-            cmp_ = self._etf_float(row.get("ltP"))
+            cmp_ = self._to_float(row.get("ltP"))
             if cmp_ is None:
                 continue
             candles = daily_history.get(sym, [])
@@ -2778,12 +2808,14 @@ class NSEClient:
 
         This is NOT a prediction of what the market will do - it's a
         breadth/sentiment summary of the current/most recent session,
-        clearly labelled as such in the UI. Two things a real pre-market
-        view would normally include are deliberately left out because
-        there's no reliable free source for them: SENSEX (BSE has no
-        public JSON API the way NSE does) and global indices (Yahoo
-        Finance's quote API is currently rate-limiting anonymous
-        requests; no other free source was found).
+        clearly labelled as such in the UI. SENSEX is deliberately left out
+        (BSE has no public JSON API the way NSE does). Global indices
+        ("global cues") turned out to be gettable after all - see
+        GlobalMarketsClient/get_global_cues - Yahoo Finance's quote API
+        rate-limits query1.finance.yahoo.com for anonymous requests, but
+        query2.finance.yahoo.com (same API) doesn't; that's a separate
+        endpoint (/api/global-cues) rather than folded into this one, since
+        it's a different upstream source with its own failure mode.
         """
         rows = self._all_indices()
         by_symbol = {row.get("indexSymbol"): row for row in rows}
