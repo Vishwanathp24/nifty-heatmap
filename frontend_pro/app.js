@@ -1994,24 +1994,34 @@ async function refreshScanner() {
   }
 }
 
-// Sectors Heatmap card on F&O Scanner starts collapsed on mobile (all 23
-// sectors' tiles otherwise push the actual stock table well below the
-// fold on a small screen) but expanded on desktop, where there's room.
-// Matches the app's own mobile breakpoint (styles.css's 860px - where the
-// sidebar itself switches to an overlay). A manual toggle always works
-// either way; it just doesn't re-collapse on window resize.
-const SCANNER_SECTORS_MOBILE_BREAKPOINT = 860;
+// Every "Sectors Heatmap" card (Dashboard, F&O Scanner, F&O Gainers &
+// Losers, Market Breadth) starts collapsed on mobile - all 23 sectors'
+// tiles otherwise push the actual content below well below the fold on a
+// small screen - but expanded on desktop, where there's room. Matches the
+// app's own mobile breakpoint (styles.css's 860px - where the sidebar
+// itself switches to an overlay). A manual toggle always works either
+// way; it just doesn't re-collapse on window resize.
+const SECTORS_HEATMAP_MOBILE_BREAKPOINT = 860;
+const SECTORS_HEATMAP_TOGGLES = [
+  { gridId: "dash-mini-sectors", toggleId: "dash-sectors-toggle" },
+  { gridId: "mini-sectors", toggleId: "scanner-sectors-toggle" },
+  { gridId: "fogl-mini-sectors", toggleId: "fogl-sectors-toggle" },
+  { gridId: "breadth-mini-sectors", toggleId: "breadth-sectors-toggle" },
+];
 
-function initScannerSectorsCollapse() {
-  const grid = $("#mini-sectors");
-  const toggle = $("#scanner-sectors-toggle");
-  const setCollapsed = (collapsed) => {
-    grid.classList.toggle("collapsed", collapsed);
-    toggle.textContent = collapsed ? "Show" : "Hide";
-    toggle.setAttribute("aria-expanded", String(!collapsed));
-  };
-  setCollapsed(window.innerWidth <= SCANNER_SECTORS_MOBILE_BREAKPOINT);
-  toggle.addEventListener("click", () => setCollapsed(!grid.classList.contains("collapsed")));
+function initSectorsHeatmapCollapse() {
+  const mobile = window.innerWidth <= SECTORS_HEATMAP_MOBILE_BREAKPOINT;
+  SECTORS_HEATMAP_TOGGLES.forEach(({ gridId, toggleId }) => {
+    const grid = $(`#${gridId}`);
+    const toggle = $(`#${toggleId}`);
+    const setCollapsed = (collapsed) => {
+      grid.classList.toggle("collapsed", collapsed);
+      toggle.textContent = collapsed ? "Show" : "Hide";
+      toggle.setAttribute("aria-expanded", String(!collapsed));
+    };
+    setCollapsed(mobile);
+    toggle.addEventListener("click", () => setCollapsed(!grid.classList.contains("collapsed")));
+  });
 }
 
 function initScannerControls() {
@@ -2233,7 +2243,7 @@ function stopAutoRefresh() {
 function init() {
   initTheme();
   initNav();
-  initScannerSectorsCollapse();
+  initSectorsHeatmapCollapse();
   initScannerControls();
   initScannersTabControls();
   initIpoSearch();
