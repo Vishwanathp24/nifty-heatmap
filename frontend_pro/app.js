@@ -226,7 +226,7 @@ function renderIndexStrip() {
   const cards = latestIndices
     .map((idx) => {
       const pcr = pcrByIndex[PCR_INDEX_MAP[idx.symbol]];
-      const pcrLine = pcr && pcr.pcrOi != null ? `<div class="idx-extra">PCR (OI) ${fmtNum(pcr.pcrOi, 2)}</div>` : "";
+      const pcrLine = pcr && pcr.pcrOi != null ? `<div class="idx-val">PCR (OI) ${fmtNum(pcr.pcrOi, 2)}</div>` : "";
       return `
     <div class="idx-card">
       <div class="idx-name">${idx.symbol}</div>
