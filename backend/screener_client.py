@@ -126,6 +126,7 @@ class ScreenerClient:
         self._session.headers.update(HEADERS)
         self._lock = threading.Lock()
         self._cache: list[dict] = []  # last completed 3-year walk; empty until the first one finishes
+        self._cold_lock = threading.Lock()  # serializes cold-start attempts - see get_recent_ipos
         self._last_cold_attempt = 0.0
         self._last_cold_error: ScreenerFetchError | None = None
         threading.Thread(target=self._refresh_loop, daemon=True, name="screener-ipo-refresh").start()
@@ -231,21 +232,34 @@ class ScreenerClient:
         # yet (can take a minute or more, paced to avoid screener.in's rate
         # limit). Serve just the first page synchronously so the page isn't
         # empty in the meantime; the background thread fills in the rest.
-        # Rate-limited to once per COLD_START_RETRY_INTERVAL_SEC regardless
-        # of how often the frontend polls, so repeated auto-refreshes don't
-        # each retry a multi-attempt backoff sequence against screener.in
-        # while it's already refusing us.
-        now = time.time()
-        if now - self._last_cold_attempt < COLD_START_RETRY_INTERVAL_SEC and self._last_cold_error is not None:
-            raise self._last_cold_error
-        self._last_cold_attempt = now
+        #
+        # A single attempt already takes up to ~60s once its own 429/timeout
+        # retries are counted, and the frontend polls every 20s while this
+        # view is open - without _cold_lock, a second poll landing mid-retry
+        # would start its own overlapping attempt (self._last_cold_error is
+        # still None until the first one finishes), doubling load on
+        # screener.in for every concurrent viewer. _cold_lock serializes
+        # that: a request that arrives while one is already in flight gets
+        # the last known outcome immediately instead of piling on another
+        # retry sequence.
+        if not self._cold_lock.acquire(blocking=False):
+            if self._last_cold_error is not None:
+                raise self._last_cold_error
+            raise ScreenerFetchError("Recent IPOs data is still loading - try again in a moment.")
         try:
-            rows = self._fetch_page(1)
-        except ScreenerFetchError as exc:
-            self._last_cold_error = exc
-            raise
-        self._last_cold_error = None
-        return rows
+            now = time.time()
+            if now - self._last_cold_attempt < COLD_START_RETRY_INTERVAL_SEC and self._last_cold_error is not None:
+                raise self._last_cold_error
+            self._last_cold_attempt = now
+            try:
+                rows = self._fetch_page(1)
+            except ScreenerFetchError as exc:
+                self._last_cold_error = exc
+                raise
+            self._last_cold_error = None
+            return rows
+        finally:
+            self._cold_lock.release()
 
 
 client = ScreenerClient()

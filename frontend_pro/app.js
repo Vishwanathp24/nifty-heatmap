@@ -168,11 +168,24 @@ const VIEW_TITLES = {
   settings: "Settings",
 };
 
+// The view active on first paint (matches index.html's default
+// class="view active" / class="nav-item active" on data-view="dashboard").
+let currentView = "dashboard";
+
 function switchView(view) {
   $$(".nav-item[data-view]").forEach((b) => b.classList.toggle("active", b.dataset.view === view));
   $$(".view[data-view]").forEach((s) => s.classList.toggle("active", s.dataset.view === view));
   $("#page-title").textContent = VIEW_TITLES[view] || view;
   $(".sidebar").classList.remove("open");
+  if (view !== currentView) {
+    currentView = view;
+    // Fetch this view's own data right away instead of waiting for the
+    // next REFRESH_MS auto-refresh tick. VIEW_FETCHERS is declared further
+    // down this file, but this function only ever runs from a nav click
+    // after the whole script (and init()) has already executed once, so
+    // it's always defined by the time a click reaches here.
+    (VIEW_FETCHERS[view] || []).forEach((fn) => fn());
+  }
 }
 
 function initNav() {
@@ -414,34 +427,25 @@ function sectorTileHtml(tiles) {
 }
 
 function renderMiniSectors(sorted) {
-  // Rendered in several places, deliberately at different sizes:
-  // - Dashboard (#dash-mini-sectors), Market Breadth (#breadth-mini-sectors),
-  //   and F&O Scanner (#mini-sectors): the FULL list, all 23 sectors - same
-  //   count as the dedicated Sector Heatmap page, just a different
-  //   (compact-tile) style. F&O Scanner's is now its own full-width card
-  //   above the F&O Stocks (Live) table - NOT side-by-side with the
-  //   summary-cards row, which is what caused a height mismatch the two
-  //   previous times this was tried there.
-  // - F&O Gainers & Losers (#fogl-mini-sectors): a genuinely "mini" widget -
-  //   top 5 + bottom 5 only, not just "however the first 10 happened to
-  //   sort" (which, on a broadly red day, used to hide the actual worst
-  //   decliners entirely).
+  // Rendered in several places, all now showing the FULL sector list (all
+  // 23 sectors) - same count as the dedicated Sector Heatmap page, just a
+  // different (compact-tile) style: Dashboard (#dash-mini-sectors), Market
+  // Breadth (#breadth-mini-sectors), F&O Scanner (#mini-sectors, its own
+  // full-width card above the F&O Stocks (Live) table - NOT side-by-side
+  // with the summary-cards row, which is what caused a height mismatch the
+  // two previous times this was tried there), and F&O Gainers & Losers
+  // (#fogl-mini-sectors - used to be a top-5/bottom-5 "mini" widget, now
+  // shows every sector per request).
   // Every tile opens that sector's constituent-stock drawer, same as the
   // full Sector Heatmap page - these are NSE's raw sectoral-index names
   // (HEATMAP_SECTOR_SYMBOLS, e.g. "NIFTY IT"), a deliberately separate
   // taxonomy from the clean per-stock "sector" field (FO_SECTOR_MAP, e.g.
   // "IT") that the Gainers/Losers and Market Breadth sector filters use -
   // the two don't map 1:1, so a tile click can't also drive those filters.
-  const targets = [
-    { el: $("#dash-mini-sectors"), full: true },
-    { el: $("#breadth-mini-sectors"), full: true },
-    { el: $("#mini-sectors"), full: true },
-    { el: $("#fogl-mini-sectors"), full: false },
-  ];
-  for (const { el, full } of targets) {
+  const targets = [$("#dash-mini-sectors"), $("#breadth-mini-sectors"), $("#mini-sectors"), $("#fogl-mini-sectors")];
+  for (const el of targets) {
     if (!el) continue;
-    const tiles = full || sorted.length <= 10 ? sorted : [...sorted.slice(0, 5), ...sorted.slice(-5)];
-    el.innerHTML = sectorTileHtml(tiles);
+    el.innerHTML = sectorTileHtml(sorted);
     el.querySelectorAll(".mini-sector-tile").forEach((tile) => {
       tile.addEventListener("click", () => openDrawer(tile.dataset.symbol));
     });
@@ -1562,7 +1566,7 @@ const SWING_ETF_TOP5_COLUMNS = [
 // company page rather than TradingView - IPO company names here don't
 // reliably map to NSE trading symbols, so guessing one risks a wrong/
 // dead link, unlike every other symbolLink() in this app.
-// Full breakdown, e.g. "2 yrs, 1 month, 2 days" - years and months treated
+// Full breakdown, e.g. "2 yrs, 1 mo, 2 days" - years and months treated
 // as fixed 365/30-day blocks (a plain-English age, not a calendar-accurate
 // one), zero-valued units dropped.
 function formatListingAge(days) {
@@ -1574,7 +1578,7 @@ function formatListingAge(days) {
   const remDays = afterYears % 30;
   const parts = [];
   if (years > 0) parts.push(`${years} yr${years === 1 ? "" : "s"}`);
-  if (months > 0) parts.push(`${months} month${months === 1 ? "" : "s"}`);
+  if (months > 0) parts.push(`${months} mo`);
   if (remDays > 0) parts.push(`${remDays} day${remDays === 1 ? "" : "s"}`);
   return parts.join(", ");
 }
@@ -1741,11 +1745,100 @@ function initScannerControls() {
 
 let refreshTimer = null;
 
+// Top Movers / 52W High-Low / Volume Shockers each render into their own
+// table(s) and swallow their own fetch errors (matching refreshScanner()'s
+// pattern) so a failure there just shows inline in that table instead of
+// tripping the shared top-of-page error banner, which is now reserved for
+// the always-on core data every page depends on (see refreshAll).
+async function refreshTopMovers() {
+  try {
+    const [active, dayLevel] = await Promise.all([fetchJSON("/api/most-active"), fetchJSON("/api/day-level-stocks")]);
+    renderMoversTable($("#movers-active-volume"), active.byVolume, {
+      emptyText: "No F&O names in NSE's Most Active (By Volume) list right now.",
+      columns: [...DEFAULT_COLUMNS, { header: "Volume", render: (r) => fmtInt(r.totalTradedVolume), sortKey: "totalTradedVolume" }],
+    });
+    renderMoversTable($("#movers-active-value"), active.byValue, {
+      emptyText: "No F&O names in NSE's Most Active (By Value) list right now.",
+      columns: [...DEFAULT_COLUMNS, { header: "Value (₹)", render: (r) => fmtInt(r.totalTradedValue), sortKey: "totalTradedValue" }],
+    });
+    // Backend rows use "ltp" (not "lastPrice") - remap the shared column.
+    const ltpColumns = DEFAULT_COLUMNS.map((c) => (c.sortKey === "lastPrice" ? { ...c, render: (r) => fmtNum(r.ltp), sortKey: "ltp" } : c));
+    renderMoversTable($("#movers-day-high"), dayLevel.high, {
+      emptyText: "No F&O stock day-high data right now.",
+      columns: [...ltpColumns, { header: "Day High", render: (r) => fmtNum(r.dayHigh), sortKey: "dayHigh" }, { header: "Diff from High", render: (r) => fmtNum(r.diff), sortKey: "diff" }],
+    });
+    renderMoversTable($("#movers-day-low"), dayLevel.low, {
+      emptyText: "No F&O stock day-low data right now.",
+      columns: [...ltpColumns, { header: "Day Low", render: (r) => fmtNum(r.dayLow), sortKey: "dayLow" }, { header: "Diff from Low", render: (r) => fmtNum(r.diff), sortKey: "diff" }],
+    });
+  } catch (err) {
+    const msg = `<div class="empty-note">Couldn't load Top Movers: ${err.message}</div>`;
+    $("#movers-active-volume").innerHTML = msg;
+    $("#movers-active-value").innerHTML = msg;
+    $("#movers-day-high").innerHTML = msg;
+    $("#movers-day-low").innerHTML = msg;
+  }
+}
+
+async function refresh52Week() {
+  try {
+    const data = await fetchJSON("/api/52-week");
+    renderMoversTable($("#week52-high"), data.high, {
+      emptyText: "No F&O stocks hit a fresh 52-week high today.",
+      columns: [...DEFAULT_COLUMNS.map((c) => (c.sortKey === "lastPrice" ? { ...c, render: (r) => fmtNum(r.ltp) } : c))],
+    });
+    renderMoversTable($("#week52-low"), data.low, {
+      emptyText: "No F&O stocks hit a fresh 52-week low today.",
+      columns: [...DEFAULT_COLUMNS.map((c) => (c.sortKey === "lastPrice" ? { ...c, render: (r) => fmtNum(r.ltp) } : c))],
+    });
+  } catch (err) {
+    const msg = `<div class="empty-note">Couldn't load 52W High/Low: ${err.message}</div>`;
+    $("#week52-high").innerHTML = msg;
+    $("#week52-low").innerHTML = msg;
+  }
+}
+
+async function refreshVolumeShockers() {
+  try {
+    const data = await fetchJSON("/api/volume-gainers");
+    renderMoversTable($("#volume-shockers"), data.stocks, {
+      emptyText: "None of today's NSE volume-spurt names are in the F&O list right now.",
+      columns: [
+        ...DEFAULT_COLUMNS,
+        { header: "Volume", render: (r) => fmtInt(r.volume), sortKey: "volume" },
+        { header: "1wk Avg Vol", render: (r) => fmtInt(r.week1AvgVolume), sortKey: "week1AvgVolume" },
+      ],
+    });
+  } catch (err) {
+    $("#volume-shockers").innerHTML = `<div class="empty-note">Couldn't load Volume Shockers: ${err.message}</div>`;
+  }
+}
+
+// Maps a nav view to the extra data it needs beyond the always-on core
+// (index strip, market bias, advance/decline, sectors heatmap - shown, or
+// relied on for sector labels/bias badges, on every page). Only the active
+// view's own data is fetched: switching pages fetches it immediately (see
+// switchView) instead of waiting for the next auto-refresh tick, and the
+// tick itself only re-fetches whatever's currently on screen instead of
+// every page in the app - the old behaviour ran all of this, every 20s,
+// regardless of which single page was actually visible.
+const VIEW_FETCHERS = {
+  scanner: [refreshScanner],
+  fogainerslosers: [refreshScanner],
+  scanners: [refreshScannersTab],
+  movers: [refreshTopMovers],
+  fiftytwo: [refresh52Week],
+  volume: [refreshVolumeShockers],
+  ipos: [refreshRecentIpos],
+  swing: [refreshSwingTrading],
+  swingetf: [refreshSwingEtf],
+};
+
 async function refreshAll() {
   // Fetched (and applied to the `sectorBias` global) before the main batch
-  // below so every sectorLabel() call this cycle - inside refreshScanner()/
-  // refreshScannersTab(), which run concurrently in that batch - sees the
-  // freshest data rather than racing it.
+  // below so every sectorLabel() call this cycle - inside whichever view
+  // fetcher runs concurrently in that batch - sees the freshest data
+  // rather than racing it.
   try {
     const { sectors } = await fetchJSON("/api/sector-bias");
     sectorBias = sectors || {};
@@ -1758,27 +1851,10 @@ async function refreshAll() {
     fetchJSON("/api/market-overview"),
     fetchJSON("/api/heatmap"),
     fetchJSON("/api/advance-decline"),
-    fetchJSON("/api/most-active"),
-    fetchJSON("/api/52-week"),
-    fetchJSON("/api/volume-gainers"),
-    fetchJSON("/api/day-level-stocks"),
-    refreshScanner(),
-    refreshScannersTab(),
-    refreshSwingTrading(),
-    refreshSwingEtf(),
-    refreshRecentIpos(),
+    ...(VIEW_FETCHERS[currentView] || []).map((fn) => fn()),
   ]);
-
-  const [
-    overviewRes,
-    heatmapRes,
-    advDeclRes,
-    activeRes,
-    week52Res,
-    volRes,
-    dayLevelRes,
-  ] = results;
-  const failures = results.filter((r) => r.status === "rejected");
+  const [overviewRes, heatmapRes, advDeclRes] = results;
+  const failures = [overviewRes, heatmapRes, advDeclRes].filter((r) => r.status === "rejected");
 
   if (overviewRes.status === "fulfilled") {
     latestIndices = overviewRes.value.indices;
@@ -1788,10 +1864,11 @@ async function refreshAll() {
   }
   if (heatmapRes.status === "fulfilled") {
     renderHeatmap(heatmapRes.value.sectors);
-    // refreshScanner() (above, inside the same Promise.allSettled batch)
-    // already painted the summary cards using whatever latestSectors was
-    // BEFORE this line updated it - repaint now so the Sectors Up/Down
-    // card isn't a cycle stale.
+    // refreshScanner() (when it's part of the batch above, i.e. the F&O
+    // Scanner or F&O Gainers & Losers view is active) already painted the
+    // summary cards using whatever latestSectors was BEFORE this line
+    // updated it - repaint now so the Sectors Up/Down card isn't a cycle
+    // stale.
     if (scannerData) renderScannerSummary();
   }
   if (advDeclRes.status === "fulfilled") {
@@ -1800,54 +1877,6 @@ async function refreshAll() {
     renderAdvanceDecline("breadth-body", advDeclRes.value);
   }
   renderIndexStrip();
-
-  // F&O Gainers & Losers (fogl-gainers/fogl-losers) are rendered inside
-  // refreshScanner() above, not here - see renderFoGainersLosers()'s
-  // comment for why (full F&O universe via scannerData, not a separate
-  // capped NSE feed).
-  if (activeRes.status === "fulfilled") {
-    renderMoversTable($("#movers-active-volume"), activeRes.value.byVolume, {
-      emptyText: "No F&O names in NSE's Most Active (By Volume) list right now.",
-      columns: [...DEFAULT_COLUMNS, { header: "Volume", render: (r) => fmtInt(r.totalTradedVolume), sortKey: "totalTradedVolume" }],
-    });
-    renderMoversTable($("#movers-active-value"), activeRes.value.byValue, {
-      emptyText: "No F&O names in NSE's Most Active (By Value) list right now.",
-      columns: [...DEFAULT_COLUMNS, { header: "Value (₹)", render: (r) => fmtInt(r.totalTradedValue), sortKey: "totalTradedValue" }],
-    });
-  }
-  if (week52Res.status === "fulfilled") {
-    renderMoversTable($("#week52-high"), week52Res.value.high, {
-      emptyText: "No F&O stocks hit a fresh 52-week high today.",
-      columns: [...DEFAULT_COLUMNS.map((c) => (c.sortKey === "lastPrice" ? { ...c, render: (r) => fmtNum(r.ltp) } : c))],
-    });
-    renderMoversTable($("#week52-low"), week52Res.value.low, {
-      emptyText: "No F&O stocks hit a fresh 52-week low today.",
-      columns: [...DEFAULT_COLUMNS.map((c) => (c.sortKey === "lastPrice" ? { ...c, render: (r) => fmtNum(r.ltp) } : c))],
-    });
-  }
-  if (volRes.status === "fulfilled") {
-    renderMoversTable($("#volume-shockers"), volRes.value.stocks, {
-      emptyText: "None of today's NSE volume-spurt names are in the F&O list right now.",
-      columns: [
-        ...DEFAULT_COLUMNS,
-        { header: "Volume", render: (r) => fmtInt(r.volume), sortKey: "volume" },
-        { header: "1wk Avg Vol", render: (r) => fmtInt(r.week1AvgVolume), sortKey: "week1AvgVolume" },
-      ],
-    });
-  }
-  if (dayLevelRes.status === "fulfilled") {
-    // Backend rows use "ltp" (not "lastPrice") - same convention as the
-    // 52-week high/low remap just above.
-    const ltpColumns = DEFAULT_COLUMNS.map((c) => (c.sortKey === "lastPrice" ? { ...c, render: (r) => fmtNum(r.ltp), sortKey: "ltp" } : c));
-    renderMoversTable($("#movers-day-high"), dayLevelRes.value.high, {
-      emptyText: "No F&O stock day-high data right now.",
-      columns: [...ltpColumns, { header: "Day High", render: (r) => fmtNum(r.dayHigh), sortKey: "dayHigh" }, { header: "Diff from High", render: (r) => fmtNum(r.diff), sortKey: "diff" }],
-    });
-    renderMoversTable($("#movers-day-low"), dayLevelRes.value.low, {
-      emptyText: "No F&O stock day-low data right now.",
-      columns: [...ltpColumns, { header: "Day Low", render: (r) => fmtNum(r.dayLow), sortKey: "dayLow" }, { header: "Diff from Low", render: (r) => fmtNum(r.diff), sortKey: "diff" }],
-    });
-  }
 
   if (failures.length) showError(failures[0].reason?.message || "Some data failed to load");
   else clearError();
