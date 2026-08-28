@@ -1404,10 +1404,18 @@ const breadthSectorControl = initSectorMultiSelect({
 
 // -- Swing Trading (NIFTY 500) -----------------------------------------------
 //
-// Phase 1: raw data table only (5/20/50/100/200-day moving averages,
-// 52-week high/low + the date each occurred) - no stock-selection logic
-// yet, that comes as a separate follow-up once this data's confirmed
-// correct. All computed server-side from real daily Bhavcopy history.
+// Raw data (5/20/50/100/200-day moving averages, 52-week high/low + the
+// date each occurred) plus the user's own stock-selection scoring,
+// translated 1:1 from their Google Sheet ARRAYFORMULA logic:
+// - Consolidating?: CMP within +/-5% of every one of the 5 DMAs.
+// - BOH Eligible: 52-week low happened after the 52-week high (a "base
+//   over high" setup) and both dates/the low itself are real data.
+// - DMA Breakout Score: how many of the 5 DMAs sit below CMP (0-5) -
+//   only meaningful for "Consolidating" rows, blank otherwise.
+// - BOH + DMA BO Score: the two combined - what the table is sorted by,
+//   best candidates first (server-side; the sortable headers below still
+//   let any other ordering be picked interactively).
+// All computed server-side from real daily Bhavcopy history.
 const SWING_COLUMNS = [
   { header: "Symbol", render: (r) => symbolLink(r.symbol) },
   { header: "Sector", render: (r) => sectorLabel(r.sector), cls: "cell-left" },
@@ -1427,6 +1435,22 @@ const SWING_COLUMNS = [
   { header: "52 Week High Date", render: (r) => r.week52HighDate || "--" },
   { header: "52 Week Low", render: (r) => fmtNum(r.week52Low), sortKey: "week52Low" },
   { header: "52 Week Low Date", render: (r) => r.week52LowDate || "--" },
+  {
+    header: "Consolidating?",
+    render: (r) =>
+      r.consolidating === "Consolidating" ? `<span class="up">Consolidating</span>` : `<span class="flat">Avoid</span>`,
+  },
+  {
+    header: "CMP % from 52WH",
+    render: (r) =>
+      r.cmpDistanceFromHighPct != null
+        ? `<span class="${chgClass(r.cmpDistanceFromHighPct)}">${sign(r.cmpDistanceFromHighPct)}${fmtNum(r.cmpDistanceFromHighPct)}%</span>`
+        : "--",
+    sortKey: "cmpDistanceFromHighPct",
+  },
+  { header: "BOH Eligible", render: (r) => (r.bohEligible === 1 ? "✓" : "--"), sortKey: "bohEligible" },
+  { header: "DMA Breakout Score", render: (r) => (r.dmaBreakoutScore ?? "--"), sortKey: "dmaBreakoutScore" },
+  { header: "BOH + DMA BO Score", render: (r) => (r.bohDmaBreakoutScore ?? "--"), sortKey: "bohDmaBreakoutScore" },
 ];
 
 async function refreshSwingTrading() {
@@ -1434,7 +1458,7 @@ async function refreshSwingTrading() {
     const data = await fetchJSON("/api/swing-trading");
     const status = data.status;
     $("#swing-status-note").textContent = status.ready
-      ? `Ready (${status.barsAvailable} real trading days of history) - ${data.symbolsWithData} of ${data.totalNifty500Symbols} NIFTY 500 stocks have data.`
+      ? `Ready (${status.barsAvailable} real trading days of history) - ${data.symbolsWithData} of ${data.totalNifty500Symbols} NIFTY 500 stocks have data, ${data.consolidatingCount} Consolidating.`
       : `Building (${status.barsAvailable}/${status.barsNeeded} real trading days) - the one-time NIFTY 500 history backfill can take a few minutes right after a fresh deploy.`;
     renderMoversTable($("#swing-table"), data.stocks, {
       emptyText: "No NIFTY 500 stocks have enough history yet.",

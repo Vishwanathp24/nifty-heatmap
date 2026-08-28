@@ -1691,12 +1691,14 @@ class NSEClient:
             "stocks": results,
         }
 
-    # -- Swing Trading (NIFTY 500, DMA + 52-week high/low) ---------------------
+    # -- Swing Trading (NIFTY 500, DMA + 52-week high/low + selection score) --
     #
-    # Phase 1 per explicit scope: just the raw data table (5/20/50/100/200-day
-    # moving averages, 52-week high/low + the date each occurred) for the
-    # NIFTY 500 universe - no stock-selection/screening logic yet, that's a
-    # separate follow-up once this data is confirmed correct.
+    # Phase 1 (raw data: 5/20/50/100/200-day moving averages, 52-week high/
+    # low + the date each occurred, for the NIFTY 500 universe) shipped
+    # first and was confirmed correct; the stock-selection scoring below
+    # (_swing_selection - Consolidating/Avoid, BOH eligibility, DMA
+    # Breakout Score, combined score) was supplied afterward, translated
+    # 1:1 from the user's own Google Sheet ARRAYFORMULA logic.
     #
     # The user's reference was NSE's own "Live Equity Market" page
     # (nseindia.com/market-data/live-equity-market), which turned out to be
@@ -1742,6 +1744,76 @@ class NSEClient:
             "week52LowDate": week52_low_date,
         }
 
+    @staticmethod
+    def _parse_nse_date(s: str | None) -> dt.date | None:
+        if not s:
+            return None
+        try:
+            return dt.datetime.strptime(s, "%d-%b-%Y").date()
+        except ValueError:
+            return None
+
+    @staticmethod
+    def _swing_selection(ltp: float | None, metrics: dict) -> dict:
+        """Stock-selection scoring on top of _swing_metrics' raw DMA/52-week
+        numbers - exact logic supplied by the user (originally a Google
+        Sheet with ARRAYFORMULAs, translated 1:1 here):
+
+        - consolidating: CMP sits within +/-5% of EVERY one of the 5 DMAs -
+          price and all its moving averages have converged into a tight
+          band. "Consolidating" or "Avoid" (matching the sheet's own
+          labels), not a boolean, since that's what the frontend shows.
+        - bohEligible ("Base Over High" eligible): 1 if both 52-week
+          high/low dates are known AND the low happened AFTER the high
+          (price made a high, then later made a lower low - a base-over-
+          high setup) AND the 52-week low isn't a data glitch (non-zero).
+          None (blank, like the sheet) if not eligible - not 0, so it
+          doesn't visually read as a real "0 score".
+        - dmaBreakoutScore: how many of the 5 DMAs sit below CMP (0-5) -
+          the sheet only computes this for "Consolidating" rows (a
+          trending stock doesn't need a breakout score), so it's None for
+          "Avoid" rows here too.
+        - bohDmaBreakoutScore: bohEligible + dmaBreakoutScore, again only
+          for "Consolidating" rows - the combined ranking score this whole
+          screen sorts by.
+        - cmpDistanceFromHighPct: how far CMP sits below (negative) or
+          above (positive) the 52-week high, as a percentage.
+        """
+        dmas = [metrics["dma5"], metrics["dma20"], metrics["dma50"], metrics["dma100"], metrics["dma200"]]
+
+        consolidating = ltp is not None and all(
+            d is not None and ltp * 0.95 < d < ltp * 1.05 for d in dmas
+        )
+
+        high_date = NSEClient._parse_nse_date(metrics["week52HighDate"])
+        low_date = NSEClient._parse_nse_date(metrics["week52LowDate"])
+        week52_low = metrics["week52Low"]
+        boh_eligible = bool(
+            high_date is not None
+            and low_date is not None
+            and low_date > high_date
+            and week52_low not in (None, 0)
+        )
+
+        dma_breakout_score = None
+        boh_dma_breakout_score = None
+        if consolidating:
+            dma_breakout_score = sum(1 for d in dmas if d is not None and d < ltp)
+            boh_dma_breakout_score = (1 if boh_eligible else 0) + dma_breakout_score
+
+        week52_high = metrics["week52High"]
+        cmp_distance_from_high = (
+            (ltp / week52_high - 1) * 100 if ltp is not None and week52_high else None
+        )
+
+        return {
+            "consolidating": "Consolidating" if consolidating else "Avoid",
+            "bohEligible": 1 if boh_eligible else None,
+            "dmaBreakoutScore": dma_breakout_score,
+            "bohDmaBreakoutScore": boh_dma_breakout_score,
+            "cmpDistanceFromHighPct": round(cmp_distance_from_high, 2) if cmp_distance_from_high is not None else None,
+        }
+
     def get_swing_trading_status(self) -> dict:
         with self._long_daily_lock:
             bars = max((len(v) for v in self._long_daily_history.values()), default=0)
@@ -1751,12 +1823,15 @@ class NSEClient:
 
     def get_swing_trading_list(self) -> dict:
         """NIFTY 500 universe, one row per symbol with data available:
-        symbol/sector/ltp/pChange/volume plus the DMA and 52-week columns
-        above. Rows with no Bhavcopy history yet (freshly listed, or the
-        one-time NIFTY 500 backfill hasn't completed - see
-        _build_long_daily_history_incremental) are simply omitted rather
-        than shown with all-null columns; `symbolsWithData` vs
-        `totalNifty500Symbols` shows how many that currently is."""
+        symbol/sector/ltp/pChange/volume, the DMA/52-week columns from
+        _swing_metrics, and the selection scoring from _swing_selection.
+        Sorted best-candidate-first by the combined score. Rows with no
+        Bhavcopy history yet (freshly listed, or the one-time NIFTY 500
+        backfill hasn't completed - see _build_long_daily_history_incremental)
+        are simply omitted rather than shown with all-null columns;
+        `symbolsWithData` vs `totalNifty500Symbols` shows how many that
+        currently is; `consolidatingCount` is how many pass the
+        Consolidating check specifically."""
         nifty500_symbols = self._nifty500_universe()
         rows = {r.get("symbol"): r for r in self._fo_quote_rows()}  # NIFTY 500 live quote snapshot
         with self._long_daily_lock:
@@ -1768,20 +1843,35 @@ class NSEClient:
             candles = daily_history.get(sym, [])
             if row is None or not candles:
                 continue
+            ltp = row.get("lastPrice")
+            metrics = self._swing_metrics(candles)
             results.append(
                 {
                     "symbol": sym,
                     "sector": self._sector_for(sym),
-                    "ltp": row.get("lastPrice"),
+                    "ltp": ltp,
                     "pChange": row.get("pChange"),
                     "volume": row.get("totalTradedVolume"),
                     "barsAvailable": len(candles),
-                    **self._swing_metrics(candles),
+                    **metrics,
+                    **self._swing_selection(ltp, metrics),
                 }
             )
 
-        results.sort(key=lambda r: r["symbol"])
+        # Best candidates first: ranked by the combined score (None/"Avoid"
+        # rows - nothing to rank - sink to the bottom, alphabetical among
+        # themselves); the frontend's per-column sort still lets any other
+        # ordering be picked interactively.
+        results.sort(
+            key=lambda r: (
+                r["bohDmaBreakoutScore"] is None,
+                -(r["bohDmaBreakoutScore"] or 0),
+                r["symbol"],
+            )
+        )
+        qualifying = sum(1 for r in results if r["consolidating"] == "Consolidating")
         return {
+            "consolidatingCount": qualifying,
             "totalNifty500Symbols": len(nifty500_symbols),
             "symbolsWithData": len(results),
             "status": self.get_swing_trading_status(),

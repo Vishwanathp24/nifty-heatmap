@@ -223,10 +223,11 @@ def swing_trading_status():
 
 @app.get("/api/swing-trading")
 def swing_trading():
-    """NIFTY 500 universe with 5/20/50/100/200-day moving averages and
-    52-week high/low (+ the date each occurred), computed from real daily
-    Bhavcopy history. Phase 1: raw data table only, no stock-selection
-    logic applied yet - see NSEClient.get_swing_trading_list."""
+    """NIFTY 500 universe with 5/20/50/100/200-day moving averages, 52-week
+    high/low (+ the date each occurred), and the user's own stock-
+    selection scoring (Consolidating/Avoid, BOH eligibility, DMA Breakout
+    Score, combined score) - all computed from real daily Bhavcopy
+    history, sorted best-candidate-first. See NSEClient.get_swing_trading_list."""
     return _wrap(client.get_swing_trading_list)
 
 
