@@ -337,7 +337,7 @@ function renderAdvanceDecline(elId, data, navigateTo) {
       .map(
         (s) => `
       <tr>
-        <td>${symbolLink(s.symbol)}</td>
+        <td class="cell-left">${symbolLink(s.symbol)}</td>
         <td class="cell-left">${sectorLabel(s.sector)}</td>
         <td>${fmtNum(s.open)}</td>
         <td>${fmtNum(s.lastPrice)}</td>
@@ -361,7 +361,7 @@ function renderAdvanceDecline(elId, data, navigateTo) {
       .join("");
     const detailEl = $(`#${detailId}`);
     detailEl.innerHTML = filteredStocks.length
-      ? `<table><thead><tr><th>Symbol</th><th class="cell-left">Sector</th>${sortHeadCells}</tr></thead>
+      ? `<table><thead><tr><th class="cell-left">Symbol</th><th class="cell-left">Sector</th>${sortHeadCells}</tr></thead>
       <tbody>${rows}</tbody></table>`
       : `<div class="empty-note">No Nifty 50 stocks in the selected sector${breadthSelectedSectors.size > 1 ? "s" : ""}.</div>`;
     detailEl.querySelectorAll("th.sortable").forEach((th) => {
@@ -470,7 +470,7 @@ function renderDrawerStocks(stocks) {
     .map(
       (s) => `
     <tr>
-      <td>${symbolLink(s.symbol)}</td>
+      <td class="cell-left">${symbolLink(s.symbol)}</td>
       <td>${fmtNum(s.lastPrice)}</td>
       <td class="${chgClass(s.pChange)}">${sign(s.pChange)}${fmtNum(s.pChange)}%</td>
       <td>${fmtNum(s.open)}</td>
@@ -479,7 +479,7 @@ function renderDrawerStocks(stocks) {
     )
     .join("");
   $("#drawer-body").innerHTML = `
-    <table><thead><tr><th>Symbol</th><th>LTP</th><th>Chg %</th><th>Open</th><th>Volume</th></tr></thead>
+    <table><thead><tr><th class="cell-left">Symbol</th><th>LTP</th><th>Chg %</th><th>Open</th><th>Volume</th></tr></thead>
     <tbody>${rows}</tbody></table>`;
 }
 
@@ -654,7 +654,7 @@ let selectedOrbWindow = 5;
 let orbStatusByWindow = {};
 
 const ORB_COLUMNS = [
-  { header: "Symbol", render: (r) => symbolLink(r.symbol) },
+  { header: "Symbol", render: (r) => symbolLink(r.symbol), cls: "cell-left" },
   { header: "Sector", render: (r) => sectorLabel(r.sector), cls: "cell-left" },
   { header: "ORB Time", render: (r) => r.orbTime },
   { header: "ORB High", render: (r) => fmtNum(r.orbHigh) },
@@ -719,7 +719,7 @@ let scannerAutoSync = true; // stays true until the user manually picks buy/sell
 // Daily-leg columns - always shown, meaningfully different per row (real
 // NSE EOD history, ready almost immediately).
 const BUYSELL_DAILY_COLUMNS = [
-  { header: "Symbol", render: (r) => symbolLink(r.symbol) },
+  { header: "Symbol", render: (r) => symbolLink(r.symbol), cls: "cell-left" },
   { header: "Sector", render: (r) => sectorLabel(r.sector), cls: "cell-left" },
   { header: "LTP", render: (r) => fmtNum(r.ltp) },
   { header: "Chg %", render: (r) => `<span class="${chgClass(r.pChange)}">${sign(r.pChange)}${fmtNum(r.pChange)}%</span>` },
@@ -805,7 +805,7 @@ async function refreshBuySellScanner() {
 let selectedBreakoutDirection = "buy";
 
 const BREAKOUT_COLUMNS = [
-  { header: "Symbol", render: (r) => symbolLink(r.symbol) },
+  { header: "Symbol", render: (r) => symbolLink(r.symbol), cls: "cell-left" },
   { header: "Sector", render: (r) => sectorLabel(r.sector), cls: "cell-left" },
   { header: "LTP", render: (r) => fmtNum(r.ltp), sortKey: "ltp" },
   {
@@ -862,7 +862,7 @@ async function refreshBreakoutScanner() {
 let selectedDowntrendMode = "daily";
 
 const DOWNTREND_DAILY_COLUMNS = [
-  { header: "Symbol", render: (r) => symbolLink(r.symbol) },
+  { header: "Symbol", render: (r) => symbolLink(r.symbol), cls: "cell-left" },
   { header: "Sector", render: (r) => sectorLabel(r.sector), cls: "cell-left" },
   { header: "LTP", render: (r) => fmtNum(r.ltp), sortKey: "ltp" },
   {
@@ -884,7 +884,7 @@ const DOWNTREND_DAILY_COLUMNS = [
 ];
 
 const DOWNTREND_INTRADAY_COLUMNS = [
-  { header: "Symbol", render: (r) => symbolLink(r.symbol) },
+  { header: "Symbol", render: (r) => symbolLink(r.symbol), cls: "cell-left" },
   { header: "Sector", render: (r) => sectorLabel(r.sector), cls: "cell-left" },
   { header: "LTP", render: (r) => fmtNum(r.ltp), sortKey: "ltp" },
   {
@@ -1213,14 +1213,14 @@ function renderMiniList(elId, rows, valueHeader, valueFn) {
     .map(
       (r) => `
     <tr>
-      <td>${symbolLink(r.symbol)}</td>
+      <td class="cell-left">${symbolLink(r.symbol)}</td>
       <td class="cell-left">${sectorLabel(r.sector)}</td>
       <td>${fmtNum(r.ltp)}</td>
       <td>${valueFn(r)}</td>
     </tr>`
     )
     .join("");
-  el.innerHTML = `<table><thead><tr><th>Symbol</th><th class="cell-left">Sector</th><th>LTP</th><th>${valueHeader}</th></tr></thead><tbody>${body}</tbody></table>`;
+  el.innerHTML = `<table><thead><tr><th class="cell-left">Symbol</th><th class="cell-left">Sector</th><th>LTP</th><th>${valueHeader}</th></tr></thead><tbody>${body}</tbody></table>`;
 }
 
 function renderScannerBottomPanels() {
@@ -1419,7 +1419,7 @@ const breadthSectorControl = initSectorMultiSelect({
 //   let any other ordering be picked interactively).
 // All computed server-side from real daily Bhavcopy history.
 const SWING_COLUMNS = [
-  { header: "Symbol", render: (r) => symbolLink(r.symbol) },
+  { header: "Symbol", render: (r) => symbolLink(r.symbol), cls: "cell-left" },
   { header: "Sector", render: (r) => sectorLabel(r.sector), cls: "cell-left" },
   { header: "LTP", render: (r) => fmtNum(r.ltp), sortKey: "ltp" },
   {
@@ -1460,7 +1460,7 @@ const SWING_COLUMNS = [
 // already sorted by, just the 5 best Consolidating candidates surfaced
 // up front instead of making the user scroll/sort to find them.
 const SWING_TOP5_COLUMNS = [
-  { header: "Symbol", render: (r) => symbolLink(r.symbol) },
+  { header: "Symbol", render: (r) => symbolLink(r.symbol), cls: "cell-left" },
   { header: "Sector", render: (r) => sectorLabel(r.sector), cls: "cell-left" },
   { header: "LTP", render: (r) => fmtNum(r.ltp) },
   {
@@ -1514,7 +1514,7 @@ async function refreshSwingTrading() {
 // - see NSEClient.get_swing_etf_list). No sector column - not a
 // meaningful concept for ETFs.
 const SWING_ETF_COLUMNS = [
-  { header: "ETF Code", render: (r) => symbolLink(r.symbol) },
+  { header: "ETF Code", render: (r) => symbolLink(r.symbol), cls: "cell-left" },
   { header: "Underlying Asset", render: (r) => r.underlyingAsset || "--", cls: "cell-left" },
   { header: "CMP", render: (r) => fmtNum(r.cmp), sortKey: "cmp" },
   { header: "20 DMA", render: (r) => (r.dma20 != null ? fmtNum(r.dma20) : "--"), sortKey: "dma20" },
@@ -1539,7 +1539,7 @@ const SWING_ETF_COLUMNS = [
 ];
 
 const SWING_ETF_TOP5_COLUMNS = [
-  { header: "ETF Code", render: (r) => symbolLink(r.symbol) },
+  { header: "ETF Code", render: (r) => symbolLink(r.symbol), cls: "cell-left" },
   { header: "Underlying Asset", render: (r) => r.underlyingAsset || "--", cls: "cell-left" },
   { header: "CMP", render: (r) => fmtNum(r.cmp) },
   { header: "20 DMA", render: (r) => (r.dma20 != null ? fmtNum(r.dma20) : "--") },
@@ -1582,6 +1582,7 @@ const IPO_COLUMNS = [
       r.screenerUrl
         ? `<a class="sym-link" href="${r.screenerUrl}" target="_blank" rel="noopener noreferrer" title="Open ${r.name} on screener.in">${r.name}</a>`
         : r.name,
+    cls: "cell-left",
   },
   { header: "Listing Date", render: (r) => r.listingDate || "--" },
   {
