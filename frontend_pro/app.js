@@ -226,11 +226,23 @@ function renderIndexStrip() {
   const adCard = latestAdSummary
     ? `
     <div class="idx-card">
-      <div class="idx-name">Adv / Dec</div>
+      <div class="idx-name">Nifty 50</div>
       <div class="idx-val"><span class="up">${fmtInt(latestAdSummary.advances)}</span> / <span class="down">${fmtInt(latestAdSummary.declines)}</span></div>
       <div class="idx-chg flat">${latestAdSummary.unchanged} unchanged</div>
     </div>`
-    : `<div class="idx-card"><div class="idx-name">Adv / Dec</div><div class="idx-val">&mdash;</div></div>`;
+    : `<div class="idx-card"><div class="idx-name">Nifty 50</div><div class="idx-val">&mdash;</div></div>`;
+
+  // Same up/down count renderScannerSummary()'s "Sectors Up/Down" card uses.
+  const sectorsUp = latestSectors.filter((sec) => (sec.pChange ?? 0) > 0).length;
+  const sectorsDown = latestSectors.filter((sec) => (sec.pChange ?? 0) < 0).length;
+  const sectorsCard = latestSectors.length
+    ? `
+    <div class="idx-card">
+      <div class="idx-name">Sectors Up / Down</div>
+      <div class="idx-val"><span class="up">${sectorsUp}</span> / <span class="down">${sectorsDown}</span></div>
+      <div class="idx-chg flat">of ${latestSectors.length} sectors</div>
+    </div>`
+    : `<div class="idx-card"><div class="idx-name">Sectors Up / Down</div><div class="idx-val">&mdash;</div></div>`;
 
   const biasCard = latestBias
     ? `
@@ -244,6 +256,7 @@ function renderIndexStrip() {
     biasCard +
     cards +
     adCard +
+    sectorsCard +
     `<div class="idx-card">
       <div class="idx-name">Time</div>
       <div class="idx-time" id="idx-time-value">&mdash;</div>
