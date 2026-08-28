@@ -408,9 +408,10 @@ function renderHeatmap(sectors) {
     </div>`
     )
     .join("");
-  grid.querySelectorAll(".hm-tile").forEach((tile) => {
-    tile.addEventListener("click", () => openDrawer(tile.dataset.symbol));
-  });
+  // Click handling is delegated (see initSectorTileTriggers) rather than a
+  // listener per tile re-attached on every refresh cycle - this grid plus
+  // the up-to-4 mini-sector grids below are rebuilt every ~20s, so at 23
+  // sectors each that's 100+ addEventListener calls a cycle avoided.
   renderMiniSectors(sorted);
 }
 
@@ -446,10 +447,19 @@ function renderMiniSectors(sorted) {
   for (const el of targets) {
     if (!el) continue;
     el.innerHTML = sectorTileHtml(sorted);
-    el.querySelectorAll(".mini-sector-tile").forEach((tile) => {
-      tile.addEventListener("click", () => openDrawer(tile.dataset.symbol));
-    });
   }
+}
+
+// One delegated listener for every sector tile (the full heatmap grid and
+// all the mini-sector grids), instead of re-attaching a listener per tile
+// every time renderHeatmap()/renderMiniSectors() rebuilds them (every
+// refresh cycle, ~20s) - same pattern as initVerdictTriggers().
+function initSectorTileTriggers() {
+  document.addEventListener("click", (e) => {
+    const tile = e.target.closest(".hm-tile, .mini-sector-tile");
+    if (!tile) return;
+    openDrawer(tile.dataset.symbol);
+  });
 }
 
 async function openDrawer(symbol) {
@@ -1909,6 +1919,7 @@ function init() {
   $("#verdict-close").addEventListener("click", closeVerdictDrawer);
   $("#verdict-backdrop").addEventListener("click", closeVerdictDrawer);
   initVerdictTriggers();
+  initSectorTileTriggers();
   $("#refresh-btn").addEventListener("click", refreshAll);
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
