@@ -316,16 +316,14 @@ function renderFiiDii(data) {
       return `<div class="summary-card flat"><span class="sc-icon">${FII_DII_ICONS.flat}</span><div><div class="sc-label">${label}</div><div class="sc-value">--</div></div></div>`;
     }
     const cls = chgClass(row.netValueCr);
-    // Buy/Sell only, no "Net Buy"/"Net Sell" prefix - the colored
-    // up/down icon already carries that, and dropping it is what keeps
-    // this line on one row instead of wrapping in the narrow card.
+    const action = row.netValueCr > 0 ? "Net Buy" : row.netValueCr < 0 ? "Net Sell" : "Flat";
     return `
     <div class="summary-card ${cls}">
       <span class="sc-icon">${FII_DII_ICONS[cls]}</span>
       <div>
         <div class="sc-label">${label}</div>
         <div class="sc-value">${sign(row.netValueCr)}${fmtNum(row.netValueCr, 2)}</div>
-        <div class="sc-sub">Buy ${fmtNum(row.buyValueCr, 0)} &middot; Sell ${fmtNum(row.sellValueCr, 0)}</div>
+        <div class="sc-sub">${action} &middot; Buy ${fmtNum(row.buyValueCr, 0)} / Sell ${fmtNum(row.sellValueCr, 0)}</div>
       </div>
     </div>`;
   };
@@ -361,9 +359,9 @@ function renderPcr(indices) {
     <div class="summary-card total">
       <span class="sc-icon">${PCR_ICON}</span>
       <div>
-        <div class="sc-label">${r.index} PCR (OI)</div>
+        <div class="sc-label">${r.index} PCR (OI) &middot; ${r.expiry}</div>
         <div class="sc-value">${r.pcrOi != null ? fmtNum(r.pcrOi, 2) : "--"}</div>
-        <div class="sc-sub">Exp ${r.expiry} &middot; Vol PCR ${r.pcrVolume != null ? fmtNum(r.pcrVolume, 2) : "--"}</div>
+        <div class="sc-sub">Call OI ${fmtInt(r.callOi)} &middot; Put OI ${fmtInt(r.putOi)} &middot; Vol PCR ${r.pcrVolume != null ? fmtNum(r.pcrVolume, 2) : "--"}</div>
       </div>
     </div>`
     )

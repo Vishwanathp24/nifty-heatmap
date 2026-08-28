@@ -383,6 +383,12 @@ select:disabled { opacity: 0.6; }
 /* auto-fit (not a fixed 5-across) since this now sits in a half-width
    .two-col column alongside Sectors Heatmap, not the full page width. */
 .summary-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; align-content: start; margin-bottom: 14px; }
+/* One column, stacked full-width - used where the side-by-side auto-fit
+   above squeezes each card too narrow to show its own text clearly (FII/
+   DII Activity, Put-Call Ratio, both sitting in a card only ~1/4 page
+   width) - the F&O Scanner summary strip stays multi-column, it has the
+   full page width to work with. */
+.summary-cards.stacked { grid-template-columns: 1fr; }
 .summary-card {
   background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
   padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 0;
