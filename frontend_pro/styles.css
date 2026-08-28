@@ -138,7 +138,7 @@ a { color: inherit; }
 /* ------------------------------------------------------------ index strip */
 
 .index-strip {
-  display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 12px;
+  display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px;
   padding: 16px 20px 0;
 }
 .idx-card {

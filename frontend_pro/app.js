@@ -204,8 +204,6 @@ function initNav() {
 let latestIndices = [];
 let latestAdSummary = null;
 let latestBias = null;
-let latestFiiDii = null;
-let latestPcr = [];
 
 function biasClassFor(label) {
   const lower = label.toLowerCase();
@@ -242,37 +240,10 @@ function renderIndexStrip() {
     </div>`
     : `<div class="idx-card"><div class="idx-name">Market Bias</div><div class="idx-val">&mdash;</div></div>`;
 
-  const fiiLine = (label, row) =>
-    row && row.netValueCr != null ? `${label} ${sign(row.netValueCr)}${fmtNum(row.netValueCr, 0)}` : `${label} --`;
-  const fiiDiiCard = `
-    <div class="idx-card">
-      <div class="idx-name">FII / DII (&#8377; Cr)</div>
-      <div class="idx-val ${latestFiiDii?.fii?.netValueCr != null ? chgClass(latestFiiDii.fii.netValueCr) : "flat"}">${fiiLine("FII", latestFiiDii?.fii)}</div>
-      <div class="idx-chg ${latestFiiDii?.dii?.netValueCr != null ? chgClass(latestFiiDii.dii.netValueCr) : "flat"}">${fiiLine("DII", latestFiiDii?.dii)}</div>
-    </div>`;
-
-  // Its own card (like FII/DII, not folded into NIFTY 50/NIFTY BANK -
-  // that read as too cramped) - NIFTY on the .idx-val line, BANKNIFTY on
-  // the .idx-chg line below it, same two-line layout as the FII/DII card.
-  const pcrByIndex = {};
-  for (const r of latestPcr) pcrByIndex[r.index] = r;
-  const pcrLine = (label) => {
-    const r = pcrByIndex[label];
-    return r && r.pcrOi != null ? `${label} ${fmtNum(r.pcrOi, 2)}` : `${label} --`;
-  };
-  const pcrCard = `
-    <div class="idx-card">
-      <div class="idx-name">PCR (OI)</div>
-      <div class="idx-val">${pcrLine("NIFTY")}</div>
-      <div class="idx-chg flat">${pcrLine("BANKNIFTY")}</div>
-    </div>`;
-
   el.innerHTML =
     cards +
     adCard +
     biasCard +
-    fiiDiiCard +
-    pcrCard +
     `<div class="idx-card">
       <div class="idx-name">Time</div>
       <div class="idx-time" id="idx-time-value">&mdash;</div>
@@ -292,14 +263,11 @@ function tickClock() {
 
 // ---------------------------------------------------------------- global cues / FII-DII
 
-// "Before the bell" context, from different upstream sources than the
-// rest of the app (Yahoo Finance for global indices, NSE's own once-a-day
-// FII/DII report, NSE's option-chain endpoint for PCR). Global Cues stays
-// Dashboard-only; FII/DII and PCR also feed the always-visible index strip
-// (see renderIndexStrip) so they're fetched every core cycle regardless of
-// which page is open, not gated by VIEW_FETCHERS like the rest of this
-// section - self-contained try/catch either way, same as the per-view
-// refreshers.
+// Dashboard-only "before the bell" context, all from different upstream
+// sources than the rest of the app (Yahoo Finance for global indices,
+// NSE's own once-a-day FII/DII report, NSE's option-chain endpoint for
+// PCR) - self-contained try/catch matching the other per-view
+// refreshers, not part of the always-on core fetch.
 function renderGlobalCues(indices) {
   const el = $("#global-cues-grid");
   if (!indices.length) {
@@ -365,11 +333,9 @@ function renderFiiDii(data) {
 async function refreshFiiDii() {
   try {
     const data = await fetchJSON("/api/fii-dii");
-    latestFiiDii = data; // renderIndexStrip() (called at the end of refreshAll, after this settles) reads this
     renderFiiDii(data);
   } catch (err) {
     $("#fii-dii-summary").innerHTML = `<div class="empty-note">Couldn't load FII/DII data: ${err.message}</div>`;
-    // leave latestFiiDii as whatever it was - the index-strip card just shows the last-known figure
   }
 }
 
@@ -405,11 +371,9 @@ function renderPcr(indices) {
 async function refreshPcr() {
   try {
     const data = await fetchJSON("/api/pcr");
-    latestPcr = data.indices; // renderIndexStrip() (called at the end of refreshAll, after this settles) reads this
-    renderPcr(latestPcr);
+    renderPcr(data.indices);
   } catch (err) {
     $("#pcr-summary").innerHTML = `<div class="empty-note">Couldn't load PCR: ${err.message}</div>`;
-    // leave latestPcr as whatever it was - the index-strip cards just show the last-known figure
   }
 }
 
@@ -1991,12 +1955,7 @@ const VIEW_FETCHERS = {
   // (#dash-top-gainers etc.) - scannerData is their only source. Dashboard
   // has to stay in this map too, not just the two F&O-specific views, or
   // those three panels are permanently empty on the Dashboard.
-  // refreshFiiDii/refreshPcr are NOT listed here even though their detail
-  // cards live on the Dashboard - they're fetched unconditionally as part
-  // of refreshAll()'s core batch instead (see there), since they also feed
-  // the index strip's FII/DII card and NIFTY 50/NIFTY BANK PCR lines, both
-  // shown on every page.
-  dashboard: [refreshScanner, refreshGlobalCues],
+  dashboard: [refreshScanner, refreshGlobalCues, refreshFiiDii, refreshPcr],
   scanner: [refreshScanner],
   fogainerslosers: [refreshScanner],
   scanners: [refreshScannersTab],
@@ -2025,14 +1984,6 @@ async function refreshAll() {
     fetchJSON("/api/market-overview"),
     fetchJSON("/api/heatmap"),
     fetchJSON("/api/advance-decline"),
-    // Unconditional (every page, every cycle), not gated by currentView
-    // like the rest of this batch - both feed the always-visible index
-    // strip (FII/DII card, NIFTY 50/NIFTY BANK PCR lines), on top of their
-    // own Dashboard detail cards. Each is self-contained (own try/catch,
-    // own stale-on-error fallback), so it doesn't need a slot in the
-    // destructured results below the way the three core fetches above do.
-    refreshFiiDii(),
-    refreshPcr(),
     ...(VIEW_FETCHERS[currentView] || []).map((fn) => fn()),
   ]);
   const [overviewRes, heatmapRes, advDeclRes] = results;
