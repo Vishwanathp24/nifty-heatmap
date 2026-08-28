@@ -49,8 +49,22 @@ function tvLink(symbol) {
   return `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(`NSE:${symbol}`)}`;
 }
 
+// iOS Universal Links / Android App Links (what hands a tap on a
+// tradingview.com link off to the installed TradingView app instead of
+// opening it in the mobile browser) only intercept a top-level, same-tab
+// navigation - a target="_blank" new-tab open bypasses that check
+// entirely and always opens the web page, even with the app installed. So
+// on mobile, drop target/rel and let the tap navigate normally (giving
+// the OS its shot at the handoff); desktop keeps opening a new tab, since
+// there's no "app" to hand off to there and a same-tab navigation would
+// just lose the dashboard.
+function isMobileDevice() {
+  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
+
 function symbolLink(symbol) {
-  return `<span class="sym-cell"><a class="sym-link" href="${tvLink(symbol)}" target="_blank" rel="noopener noreferrer" title="Open ${symbol} chart on TradingView">${symbol}</a><button type="button" class="verdict-trigger" data-symbol="${symbol}" title="Smart summary for ${symbol} - trend, breakout, pivot read">✦</button></span>`;
+  const linkAttrs = isMobileDevice() ? "" : ` target="_blank" rel="noopener noreferrer"`;
+  return `<span class="sym-cell"><a class="sym-link" href="${tvLink(symbol)}"${linkAttrs} title="Open ${symbol} chart on TradingView">${symbol}</a><button type="button" class="verdict-trigger" data-symbol="${symbol}" title="Smart summary for ${symbol} - trend, breakout, pivot read">✦</button></span>`;
 }
 
 // Self-computed bullish/bearish/neutral read per sector, fetched from
