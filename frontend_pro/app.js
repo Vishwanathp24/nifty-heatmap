@@ -158,10 +158,9 @@ const VIEW_TITLES = {
   scanners: "Scanners",
   breadth: "Market Breadth",
   heatmap: "Sector Heatmap",
-  movers: "Top Movers & 52W High/Low",
-  volume: "Volume Shockers",
+  movers: "Market Movers",
   ipos: "IPO (Initial Public Offering)",
-  swing: "Swing Trading (Stocks & ETFs)",
+  swing: "Swing Trading",
   watchlist: "Watchlist",
   settings: "Settings",
 };
@@ -2102,8 +2101,7 @@ const VIEW_FETCHERS = {
   scanner: [refreshScanner],
   fogainerslosers: [refreshScanner],
   scanners: [refreshScannersTab],
-  movers: [refreshTopMovers, refresh52Week],
-  volume: [refreshVolumeShockers],
+  movers: [refreshTopMovers, refresh52Week, refreshVolumeShockers],
   ipos: [refreshRecentIpos, refreshUpcomingIpos],
   swing: [refreshSwingTrading, refreshSwingEtf],
 };

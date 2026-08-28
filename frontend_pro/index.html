@@ -43,11 +43,7 @@
         </button>
         <button class="nav-item" data-view="movers">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 6l-9.5 9.5-5-5L1 18"/><path d="M17 6h6v6"/></svg>
-          Top Movers &amp; 52W High/Low
-        </button>
-        <button class="nav-item" data-view="volume">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
-          Volume Shockers
+          Market Movers
         </button>
         <button class="nav-item" data-view="ipos">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
@@ -55,7 +51,7 @@
         </button>
         <button class="nav-item" data-view="swing">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M17 7h4v4"/></svg>
-          Swing Trading (Stocks &amp; ETFs)
+          Swing Trading
         </button>
         <button class="nav-item" data-view="watchlist">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17.3L18.2 21l-1.6-7.1L22 9.2l-7.2-.6L12 2 9.2 8.6 2 9.2l5.4 4.7L5.8 21z"/></svg>
@@ -399,13 +395,14 @@
         <!-- ============================== Top Movers ============================== -->
         <section class="view" data-view="movers">
           <div class="view-head">
-            <h2>Top Movers &amp; 52W High/Low</h2>
-            <p class="view-sub">F&amp;O gainers/losers, today's most active by volume/value, and fresh 52-week highs/lows.</p>
+            <h2>Market Movers</h2>
+            <p class="view-sub">F&amp;O gainers/losers, today's most active by volume/value, fresh 52-week highs/lows, and volume shockers.</p>
           </div>
 
           <div class="folder-tabs" id="movers-tabs">
             <button class="folder-tab active" data-movers-tab="movers">Top Movers</button>
             <button class="folder-tab" data-movers-tab="fiftytwo">52W High / Low</button>
+            <button class="folder-tab" data-movers-tab="volume">Volume Shockers</button>
           </div>
 
           <div class="folder-panel" data-movers-panel="movers">
@@ -443,16 +440,12 @@
               </div>
             </div>
           </div>
-        </section>
 
-        <!-- ============================== Volume Shockers ============================== -->
-        <section class="view" data-view="volume">
-          <div class="view-head">
-            <h2>Volume Shockers</h2>
-            <p class="view-sub">F&amp;O stocks trading well above their 1-week average volume (NSE's own list)</p>
-          </div>
-          <div class="card">
-            <div id="volume-shockers" class="data-table"><div class="skel-line"></div></div>
+          <div class="folder-panel hidden" data-movers-panel="volume">
+            <div class="card">
+              <div class="card-head"><div><h3>Volume Shockers</h3><p class="card-sub">F&amp;O stocks trading well above their 1-week average volume (NSE's own list)</p></div></div>
+              <div id="volume-shockers" class="data-table"><div class="skel-line"></div></div>
+            </div>
           </div>
         </section>
 
@@ -492,7 +485,7 @@
         <!-- ============================== Swing Trading ============================== -->
         <section class="view" data-view="swing">
           <div class="view-head">
-            <h2>Swing Trading <span class="muted">(Stocks &amp; ETFs)</span></h2>
+            <h2>Swing Trading</h2>
             <p class="view-sub">Moving averages, 52-week high/low, and DMA-based selection scores - from real daily history, sorted best-candidate-first.</p>
           </div>
 
