@@ -227,6 +227,10 @@ a { color: inherit; }
 /* -------------------------------------------------------------- bias */
 
 .bias-value { font-size: 13px; font-weight: 800; padding: 4px 12px; border-radius: 999px; }
+/* Index-strip context only (not the Dashboard Market Bias card's own
+   header badge) - matches .idx-val's size, same as every other card's
+   headline number in that strip. */
+.idx-card .bias-value { font-size: 19px; padding: 4px 10px; }
 .bias-value.bullish { background: var(--up-bg); color: var(--up); }
 .bias-value.bearish { background: var(--down-bg); color: var(--down); }
 .bias-value.neutral { background: var(--amber-bg); color: var(--amber); }

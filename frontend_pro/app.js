@@ -241,9 +241,9 @@ function renderIndexStrip() {
     : `<div class="idx-card"><div class="idx-name">Market Bias</div><div class="idx-val">&mdash;</div></div>`;
 
   el.innerHTML =
+    biasCard +
     cards +
     adCard +
-    biasCard +
     `<div class="idx-card">
       <div class="idx-name">Time</div>
       <div class="idx-time" id="idx-time-value">&mdash;</div>
