@@ -1562,6 +1562,19 @@ const SWING_ETF_TOP5_COLUMNS = [
 // company page rather than TradingView - IPO company names here don't
 // reliably map to NSE trading symbols, so guessing one risks a wrong/
 // dead link, unlike every other symbolLink() in this app.
+function formatListingAge(days) {
+  if (days == null) return "--";
+  if (days === 0) return "Today";
+  if (days < 30) return `${days} day${days === 1 ? "" : "s"}`;
+  if (days < 365) {
+    const months = Math.floor(days / 30);
+    return `${months} month${months === 1 ? "" : "s"}`;
+  }
+  const years = Math.floor(days / 365);
+  const remMonths = Math.floor((days % 365) / 30);
+  return remMonths > 0 ? `${years}y ${remMonths}m` : `${years} year${years === 1 ? "" : "s"}`;
+}
+
 const IPO_COLUMNS = [
   {
     header: "Name",
@@ -1571,6 +1584,11 @@ const IPO_COLUMNS = [
         : r.name,
   },
   { header: "Listing Date", render: (r) => r.listingDate || "--" },
+  {
+    header: "Since Listing",
+    render: (r) => formatListingAge(r.daysSinceListing),
+    sortKey: "daysSinceListing",
+  },
   {
     header: "IPO Market Cap (₹Cr)",
     render: (r) => (r.ipoMarketCapCr != null ? fmtInt(r.ipoMarketCapCr) : "--"),

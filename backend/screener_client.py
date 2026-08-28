@@ -6,7 +6,9 @@ Unlike nseindia.com, screener.in needs no session-bootstrap/cookie dance
 - a plain GET with a normal browser User-Agent works directly, confirmed
 live. The page is server-rendered HTML (not an SPA calling a JSON API),
 so this scrapes its table directly: Name, Listing Date, IPO Market Cap
-(Rs Cr), IPO Price, Current Price, % Change since listing.
+(Rs Cr), IPO Price, Current Price, % Change since listing. Also derives
+days-since-listing from that same listing-date text (screener.in doesn't
+show this itself).
 
 Not an official API and could break if screener.in changes their page
 markup - kept deliberately simple (plain regex over the HTML, no heavy
@@ -15,10 +17,14 @@ parser dependency) so a break is easy to spot and fix.
 
 from __future__ import annotations
 
+import datetime as dt
 import re
 import time
+from zoneinfo import ZoneInfo
 
 import requests
+
+IST = ZoneInfo("Asia/Kolkata")
 
 BASE = "https://www.screener.in"
 IPO_URL = f"{BASE}/ipo/recent/"
@@ -69,6 +75,25 @@ def _parse_pct(text: str) -> float | None:
     return -value if "⇣" in text else value
 
 
+def _parse_listing_date(text: str) -> dt.date | None:
+    """screener.in's own listing-date text: "today" for the current
+    trading day, otherwise "DD Mon YYYY" (e.g. "26 Aug 2026")."""
+    text = text.strip()
+    if text.lower() == "today":
+        return dt.datetime.now(IST).date()
+    try:
+        return dt.datetime.strptime(text, "%d %b %Y").date()
+    except ValueError:
+        return None
+
+
+def _days_since_listing(listing_date: dt.date | None) -> int | None:
+    if listing_date is None:
+        return None
+    days = (dt.datetime.now(IST).date() - listing_date).days
+    return days if days >= 0 else None  # a future date is an upcoming IPO, not "since listing"
+
+
 class ScreenerClient:
     def __init__(self):
         self._session = requests.Session()
@@ -98,11 +123,13 @@ class ScreenerClient:
             name = _clean(cells[0])
             link_match = _LINK_RE.search(cells[0])
             current_price = _parse_money(_clean(cells[4]))
+            listing_date_text = _clean(cells[1])
             rows.append(
                 {
                     "name": name,
                     "screenerUrl": f"{BASE}{link_match.group(1)}" if link_match else None,
-                    "listingDate": _clean(cells[1]),
+                    "listingDate": listing_date_text,
+                    "daysSinceListing": _days_since_listing(_parse_listing_date(listing_date_text)),
                     "ipoMarketCapCr": _parse_money(_clean(cells[2])),
                     "ipoPrice": _parse_money(_clean(cells[3])),
                     "currentPrice": current_price,

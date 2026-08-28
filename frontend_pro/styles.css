@@ -332,6 +332,11 @@ tbody tr:hover { background: var(--panel-alt); }
    inside one, like the other scanners' status notes do) - extra breathing
    room so it doesn't read as glued to the card below it. */
 #swing-status-note, #swing-etf-status-note { margin-bottom: 16px; }
+/* A source-attribution link inside a .status-note (e.g. Recent IPOs) -
+   the base `a { color: inherit }` would otherwise make it look like
+   plain muted text, not obviously clickable. */
+.status-note a { color: var(--purple); text-decoration: underline; }
+.status-note a:hover { color: var(--purple-dark); }
 .breakout-up { color: var(--up); font-weight: 700; }
 .breakout-down { color: var(--down); font-weight: 700; }
 .breakout-none { color: var(--muted); }
