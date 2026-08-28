@@ -43,11 +43,7 @@
         </button>
         <button class="nav-item" data-view="movers">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 6l-9.5 9.5-5-5L1 18"/><path d="M17 6h6v6"/></svg>
-          Top Movers
-        </button>
-        <button class="nav-item" data-view="fiftytwo">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V10M18 20V4M6 20v-4"/></svg>
-          52W High / Low
+          Top Movers &amp; 52W High/Low
         </button>
         <button class="nav-item" data-view="volume">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
@@ -59,11 +55,7 @@
         </button>
         <button class="nav-item" data-view="swing">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M17 7h4v4"/></svg>
-          Swing Trading
-        </button>
-        <button class="nav-item" data-view="swingetf">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
-          Swing ETF Trading
+          Swing Trading (Stocks &amp; ETFs)
         </button>
         <button class="nav-item" data-view="watchlist">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17.3L18.2 21l-1.6-7.1L22 9.2l-7.2-.6L12 2 9.2 8.6 2 9.2l5.4 4.7L5.8 21z"/></svg>
@@ -407,45 +399,48 @@
         <!-- ============================== Top Movers ============================== -->
         <section class="view" data-view="movers">
           <div class="view-head">
-            <h2>Top Movers</h2>
-            <p class="view-sub">F&amp;O gainers and losers, and today's most active by volume/value</p>
+            <h2>Top Movers &amp; 52W High/Low</h2>
+            <p class="view-sub">F&amp;O gainers/losers, today's most active by volume/value, and fresh 52-week highs/lows.</p>
           </div>
-          <div class="two-col">
-            <div class="card">
-              <div class="card-head"><h3>Most Active &mdash; By Volume</h3></div>
-              <div id="movers-active-volume" class="data-table"><div class="skel-line"></div></div>
-            </div>
-            <div class="card">
-              <div class="card-head"><h3>Most Active &mdash; By Value</h3></div>
-              <div id="movers-active-value" class="data-table"><div class="skel-line"></div></div>
-            </div>
-          </div>
-          <div class="two-col">
-            <div class="card">
-              <div class="card-head"><h3><span class="dot-up"></span>Near Day High <span class="card-sub">&mdash; closest to today's high right now</span></h3></div>
-              <div id="movers-day-high" class="data-table"><div class="skel-line"></div></div>
-            </div>
-            <div class="card">
-              <div class="card-head"><h3><span class="dot-down"></span>Near Day Low <span class="card-sub">&mdash; closest to today's low right now</span></h3></div>
-              <div id="movers-day-low" class="data-table"><div class="skel-line"></div></div>
-            </div>
-          </div>
-        </section>
 
-        <!-- ============================== 52W High/Low ============================== -->
-        <section class="view" data-view="fiftytwo">
-          <div class="view-head">
-            <h2>52-Week High / Low</h2>
-            <p class="view-sub">F&amp;O stocks that just hit a fresh 52-week high or low</p>
+          <div class="folder-tabs" id="movers-tabs">
+            <button class="folder-tab active" data-movers-tab="movers">Top Movers</button>
+            <button class="folder-tab" data-movers-tab="fiftytwo">52W High / Low</button>
           </div>
-          <div class="two-col">
-            <div class="card">
-              <div class="card-head"><h3><span class="dot-up"></span>New 52-Week Highs</h3></div>
-              <div id="week52-high" class="data-table"><div class="skel-line"></div></div>
+
+          <div class="folder-panel" data-movers-panel="movers">
+            <div class="two-col">
+              <div class="card">
+                <div class="card-head"><h3>Most Active &mdash; By Volume</h3></div>
+                <div id="movers-active-volume" class="data-table"><div class="skel-line"></div></div>
+              </div>
+              <div class="card">
+                <div class="card-head"><h3>Most Active &mdash; By Value</h3></div>
+                <div id="movers-active-value" class="data-table"><div class="skel-line"></div></div>
+              </div>
             </div>
-            <div class="card">
-              <div class="card-head"><h3><span class="dot-down"></span>New 52-Week Lows</h3></div>
-              <div id="week52-low" class="data-table"><div class="skel-line"></div></div>
+            <div class="two-col">
+              <div class="card">
+                <div class="card-head"><h3><span class="dot-up"></span>Near Day High <span class="card-sub">&mdash; closest to today's high right now</span></h3></div>
+                <div id="movers-day-high" class="data-table"><div class="skel-line"></div></div>
+              </div>
+              <div class="card">
+                <div class="card-head"><h3><span class="dot-down"></span>Near Day Low <span class="card-sub">&mdash; closest to today's low right now</span></h3></div>
+                <div id="movers-day-low" class="data-table"><div class="skel-line"></div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="folder-panel hidden" data-movers-panel="fiftytwo">
+            <div class="two-col">
+              <div class="card">
+                <div class="card-head"><h3><span class="dot-up"></span>New 52-Week Highs</h3></div>
+                <div id="week52-high" class="data-table"><div class="skel-line"></div></div>
+              </div>
+              <div class="card">
+                <div class="card-head"><h3><span class="dot-down"></span>New 52-Week Lows</h3></div>
+                <div id="week52-low" class="data-table"><div class="skel-line"></div></div>
+              </div>
             </div>
           </div>
         </section>
@@ -497,40 +492,45 @@
         <!-- ============================== Swing Trading ============================== -->
         <section class="view" data-view="swing">
           <div class="view-head">
-            <h2>Swing Trading <span class="muted">(NIFTY 500)</span></h2>
+            <h2>Swing Trading <span class="muted">(Stocks &amp; ETFs)</span></h2>
+            <p class="view-sub">Moving averages, 52-week high/low, and DMA-based selection scores - from real daily history, sorted best-candidate-first.</p>
+          </div>
+
+          <div class="folder-tabs" id="swing-tabs">
+            <button class="folder-tab active" data-swing-tab="stocks">Stocks (NIFTY 500)</button>
+            <button class="folder-tab" data-swing-tab="etf">ETFs (all NSE ETFs)</button>
+          </div>
+
+          <div class="folder-panel" data-swing-panel="stocks">
             <p class="view-sub">5/20/50/100/200-day moving averages, 52-week high/low, and a Consolidating/BOH/DMA-Breakout selection score - from real daily history, sorted best-candidate-first.</p>
-          </div>
-          <p id="swing-status-note" class="status-note"></p>
+            <p id="swing-status-note" class="status-note"></p>
 
-          <div class="card">
-            <div id="swing-table" class="data-table"><div class="skel-line"></div></div>
+            <div class="card">
+              <div id="swing-table" class="data-table"><div class="skel-line"></div></div>
+            </div>
+
+            <div class="card">
+              <div class="card-head"><div><h3>Top 5 to Invest / Track Today</h3><p class="card-sub">Highest combined score (BOH + DMA Breakout), Consolidating stocks only</p></div></div>
+              <div id="swing-top5" class="data-table"><div class="skel-line"></div></div>
+              <p class="status-note">Typical swing-trade holding period: Short swing trade 2&ndash;5 trading days &middot; Normal swing trade 1&ndash;3 weeks &middot; Longer swing trade 3&ndash;8 weeks.</p>
+              <p class="status-note">Stock selection time: check the market between 3:00 PM and 3:30 PM.</p>
+            </div>
           </div>
 
-          <div class="card">
-            <div class="card-head"><div><h3>Top 5 to Invest / Track Today</h3><p class="card-sub">Highest combined score (BOH + DMA Breakout), Consolidating stocks only</p></div></div>
-            <div id="swing-top5" class="data-table"><div class="skel-line"></div></div>
-            <p class="status-note">Typical swing-trade holding period: Short swing trade 2&ndash;5 trading days &middot; Normal swing trade 1&ndash;3 weeks &middot; Longer swing trade 3&ndash;8 weeks.</p>
-            <p class="status-note">Stock selection time: check the market between 3:00 PM and 3:30 PM.</p>
-          </div>
-        </section>
-
-        <!-- ============================== Swing ETF Trading ============================== -->
-        <section class="view" data-view="swingetf">
-          <div class="view-head">
-            <h2>Swing ETF Trading <span class="muted">(all NSE ETFs)</span></h2>
+          <div class="folder-panel hidden" data-swing-panel="etf">
             <p class="view-sub">CMP, 20 DMA, % change (20 DMA vs CMP), and 30-day average daily volume - sorted most-discounted-vs-20-DMA first.</p>
-          </div>
-          <p id="swing-etf-status-note" class="status-note"></p>
+            <p id="swing-etf-status-note" class="status-note"></p>
 
-          <div class="card">
-            <div id="swing-etf-table" class="data-table"><div class="skel-line"></div></div>
-          </div>
+            <div class="card">
+              <div id="swing-etf-table" class="data-table"><div class="skel-line"></div></div>
+            </div>
 
-          <div class="card">
-            <div class="card-head"><div><h3>Top 5 to Invest / Track Today</h3><p class="card-sub">CMP furthest below its 20 DMA</p></div></div>
-            <div id="swing-etf-top5" class="data-table"><div class="skel-line"></div></div>
-            <p class="status-note">Typical swing-trade holding period: Short swing trade 2&ndash;5 trading days &middot; Normal swing trade 1&ndash;3 weeks &middot; Longer swing trade 3&ndash;8 weeks.</p>
-            <p class="status-note">Stock selection time: check the market between 3:00 PM and 3:30 PM.</p>
+            <div class="card">
+              <div class="card-head"><div><h3>Top 5 to Invest / Track Today</h3><p class="card-sub">CMP furthest below its 20 DMA</p></div></div>
+              <div id="swing-etf-top5" class="data-table"><div class="skel-line"></div></div>
+              <p class="status-note">Typical swing-trade holding period: Short swing trade 2&ndash;5 trading days &middot; Normal swing trade 1&ndash;3 weeks &middot; Longer swing trade 3&ndash;8 weeks.</p>
+              <p class="status-note">Stock selection time: check the market between 3:00 PM and 3:30 PM.</p>
+            </div>
           </div>
         </section>
 

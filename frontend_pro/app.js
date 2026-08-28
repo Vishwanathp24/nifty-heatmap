@@ -158,12 +158,10 @@ const VIEW_TITLES = {
   scanners: "Scanners",
   breadth: "Market Breadth",
   heatmap: "Sector Heatmap",
-  movers: "Top Movers",
-  fiftytwo: "52-Week High / Low",
+  movers: "Top Movers & 52W High/Low",
   volume: "Volume Shockers",
   ipos: "IPO (Initial Public Offering)",
-  swing: "Swing Trading",
-  swingetf: "Swing ETF Trading",
+  swing: "Swing Trading (Stocks & ETFs)",
   watchlist: "Watchlist",
   settings: "Settings",
 };
@@ -1849,6 +1847,26 @@ function initIpoTabs() {
   });
 }
 
+function initMoversTabs() {
+  $("#movers-tabs").addEventListener("click", (e) => {
+    const btn = e.target.closest(".folder-tab[data-movers-tab]");
+    if (!btn) return;
+    const tab = btn.dataset.moversTab;
+    $$("#movers-tabs .folder-tab[data-movers-tab]").forEach((b) => b.classList.toggle("active", b.dataset.moversTab === tab));
+    $$(".folder-panel[data-movers-panel]").forEach((p) => p.classList.toggle("hidden", p.dataset.moversPanel !== tab));
+  });
+}
+
+function initSwingTabs() {
+  $("#swing-tabs").addEventListener("click", (e) => {
+    const btn = e.target.closest(".folder-tab[data-swing-tab]");
+    if (!btn) return;
+    const tab = btn.dataset.swingTab;
+    $$("#swing-tabs .folder-tab[data-swing-tab]").forEach((b) => b.classList.toggle("active", b.dataset.swingTab === tab));
+    $$(".folder-panel[data-swing-panel]").forEach((p) => p.classList.toggle("hidden", p.dataset.swingPanel !== tab));
+  });
+}
+
 // Companies currently open for subscription or listing over the next few
 // days (screener.in/ipo/) - a separate, much smaller page from Recent
 // IPOs above (already-listed). See ScreenerClient.get_upcoming_ipos.
@@ -2084,12 +2102,10 @@ const VIEW_FETCHERS = {
   scanner: [refreshScanner],
   fogainerslosers: [refreshScanner],
   scanners: [refreshScannersTab],
-  movers: [refreshTopMovers],
-  fiftytwo: [refresh52Week],
+  movers: [refreshTopMovers, refresh52Week],
   volume: [refreshVolumeShockers],
   ipos: [refreshRecentIpos, refreshUpcomingIpos],
-  swing: [refreshSwingTrading],
-  swingetf: [refreshSwingEtf],
+  swing: [refreshSwingTrading, refreshSwingEtf],
 };
 
 async function refreshAll() {
@@ -2166,6 +2182,8 @@ function init() {
   initScannersTabControls();
   initIpoSearch();
   initIpoTabs();
+  initMoversTabs();
+  initSwingTabs();
 
   $("#drawer-close").addEventListener("click", closeDrawer);
   $("#drawer-backdrop").addEventListener("click", closeDrawer);
