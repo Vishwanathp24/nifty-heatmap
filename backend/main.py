@@ -80,6 +80,13 @@ def fii_dii():
     return _wrap(client.get_fii_dii)
 
 
+@app.get("/api/pcr")
+def pcr():
+    """Put-Call Ratio (OI and volume) for NIFTY and BANKNIFTY's nearest
+    expiry. See NSEClient.get_pcr."""
+    return {"indices": _wrap(client.get_pcr)}
+
+
 @app.get("/api/sector")
 def sector(symbol: str = Query(..., description="e.g. 'NIFTY AUTO'")):
     symbol = symbol.strip().upper()

@@ -338,6 +338,44 @@ async function refreshFiiDii() {
   }
 }
 
+// Neutral "ratio" icon (same shape as the F&O Scanner summary's "Total"
+// card) - PCR deliberately isn't color-coded up/down here the way most of
+// this app's numbers are: whether a high or low PCR reads as bullish or
+// bearish is genuinely debated among traders, so this just shows the
+// numbers rather than editorializing a direction.
+const PCR_ICON =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>';
+
+function renderPcr(indices) {
+  const el = $("#pcr-summary");
+  if (!indices.length) {
+    el.innerHTML = `<div class="empty-note">PCR data unavailable right now.</div>`;
+    return;
+  }
+  el.innerHTML = indices
+    .map(
+      (r) => `
+    <div class="summary-card total">
+      <span class="sc-icon">${PCR_ICON}</span>
+      <div>
+        <div class="sc-label">${r.index} PCR (OI) &middot; ${r.expiry}</div>
+        <div class="sc-value">${r.pcrOi != null ? fmtNum(r.pcrOi, 2) : "--"}</div>
+        <div class="sc-sub">Call OI ${fmtInt(r.callOi)} &middot; Put OI ${fmtInt(r.putOi)} &middot; Vol PCR ${r.pcrVolume != null ? fmtNum(r.pcrVolume, 2) : "--"}</div>
+      </div>
+    </div>`
+    )
+    .join("");
+}
+
+async function refreshPcr() {
+  try {
+    const data = await fetchJSON("/api/pcr");
+    renderPcr(data.indices);
+  } catch (err) {
+    $("#pcr-summary").innerHTML = `<div class="empty-note">Couldn't load PCR: ${err.message}</div>`;
+  }
+}
+
 // ---------------------------------------------------------------- market bias
 
 function renderMarketBias(bias) {
@@ -1916,7 +1954,7 @@ const VIEW_FETCHERS = {
   // (#dash-top-gainers etc.) - scannerData is their only source. Dashboard
   // has to stay in this map too, not just the two F&O-specific views, or
   // those three panels are permanently empty on the Dashboard.
-  dashboard: [refreshScanner, refreshGlobalCues, refreshFiiDii],
+  dashboard: [refreshScanner, refreshGlobalCues, refreshFiiDii, refreshPcr],
   scanner: [refreshScanner],
   fogainerslosers: [refreshScanner],
   scanners: [refreshScannersTab],

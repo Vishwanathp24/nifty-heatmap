@@ -1230,6 +1230,78 @@ class NSEClient:
             }
         return by_category
 
+    # -- PCR (Put-Call Ratio) -------------------------------------------------
+    # NSE's classic option-chain endpoint moved to /api/option-chain-v3 at
+    # some point (the older /api/option-chain-indices path used by most
+    # older scraping guides now 404s - confirmed live) and, unlike every
+    # other classic endpoint this app relies on, it requires an explicit
+    # `expiry` param - a bare call with none returns "{}". It still always
+    # echoes back the full list of valid expiry dates even when the expiry
+    # you passed doesn't match one of them, so getting real data is a
+    # two-step dance: one throwaway call to read the valid expiryDates,
+    # then a second call with the actual nearest one.
+    PCR_INDICES = ("NIFTY", "BANKNIFTY")
+
+    def _option_chain_expiry_dates(self, index_symbol: str) -> list[str]:
+        data = self._get_json(
+            "/api/option-chain-v3", params={"type": "Indices", "symbol": index_symbol, "expiry": "01-Jan-1970"}
+        )
+        return data.get("records", {}).get("expiryDates", [])
+
+    def _option_chain(self, index_symbol: str, expiry: str) -> dict:
+        return self._get_json("/api/option-chain-v3", params={"type": "Indices", "symbol": index_symbol, "expiry": expiry})
+
+    def _get_pcr_one(self, index_symbol: str) -> dict:
+        def _fetch():
+            expiry_dates = self._option_chain_expiry_dates(index_symbol)
+            if not expiry_dates:
+                raise NSEFetchError(f"no option-chain expiry dates returned for {index_symbol}")
+            nearest_expiry = expiry_dates[0]  # NSE returns these soonest-first
+            chain = self._option_chain(index_symbol, nearest_expiry)
+            rows = chain.get("records", {}).get("data", [])
+
+            call_oi = put_oi = call_vol = put_vol = 0.0
+            for row in rows:
+                ce, pe = row.get("CE"), row.get("PE")
+                if ce:
+                    call_oi += ce.get("openInterest") or 0
+                    call_vol += ce.get("totalTradedVolume") or 0
+                if pe:
+                    put_oi += pe.get("openInterest") or 0
+                    put_vol += pe.get("totalTradedVolume") or 0
+
+            return {
+                "index": index_symbol,
+                "expiry": nearest_expiry,
+                "underlyingValue": chain.get("records", {}).get("underlyingValue"),
+                "callOi": call_oi,
+                "putOi": put_oi,
+                "pcrOi": round(put_oi / call_oi, 3) if call_oi else None,
+                "callVolume": call_vol,
+                "putVolume": put_vol,
+                "pcrVolume": round(put_vol / call_vol, 3) if call_vol else None,
+            }
+
+        return self._cached(f"pcr:{index_symbol}", 60.0, _fetch)
+
+    def get_pcr(self) -> list[dict]:
+        """Put-Call Ratio (by OI and by volume) for the nearest expiry of
+        NIFTY and BANKNIFTY - summed across every strike, from NSE's
+        option-chain endpoint. PCR (OI) > 1 means more put OI than call OI
+        outstanding; a commonly-watched options-sentiment number, but - like
+        this app's Market Bias - context for the current session, not a
+        prediction. One index failing doesn't blank out the other."""
+        results = []
+        errors = []
+        for index_symbol in self.PCR_INDICES:
+            try:
+                results.append(self._get_pcr_one(index_symbol))
+            except NSEFetchError as exc:
+                errors.append(str(exc))
+        if not results:
+            raise NSEFetchError(errors[0] if errors else "no PCR data returned")
+        return results
+
     def _etf_universe(self) -> set[str]:
         return {r.get("symbol") for r in self._etf_rows() if r.get("symbol")}
 
