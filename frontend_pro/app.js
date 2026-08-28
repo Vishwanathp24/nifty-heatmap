@@ -197,6 +197,7 @@ function initNav() {
   $("#sidebar-burger").addEventListener("click", () => {
     $(".sidebar").classList.toggle("open");
   });
+  $("#sidebar-brand-btn").addEventListener("click", () => switchView("dashboard"));
 }
 
 // ---------------------------------------------------------------- index strip / clock

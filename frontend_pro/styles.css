@@ -59,6 +59,8 @@ a { color: inherit; }
 .sidebar-brand {
   display: flex; align-items: center; gap: 10px;
   padding: 18px 18px 14px;
+  font: inherit; color: inherit; background: none; border: none; cursor: pointer;
+  width: 100%; text-align: left;
 }
 .brand-mark {
   width: 30px; height: 30px; border-radius: 8px;
