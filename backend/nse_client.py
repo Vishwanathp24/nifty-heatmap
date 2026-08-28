@@ -345,13 +345,15 @@ DOWNTREND_ADX_MIN = 20.0  # "ADX > 20"
 DOWNTREND_VOLUME_SMA_PERIOD = 20  # "volume above average" - same convention as the 15-Min Breakout scanner
 
 # A separate, much deeper daily history than DAILY_HISTORY_TARGET_DAYS above
-# (30 days - fine for RSI/SMA(20), nowhere near enough for EMA(200)). Walking
-# ~220 trading days of NSE's Bhavcopy archive one day at a time is too slow
-# to do inside a live request (see _build_long_daily_history_incremental),
-# so it's built and kept warm on its own background thread instead, and
-# persisted to disk so a restart doesn't repeat the full walk.
-LONG_DAILY_HISTORY_TARGET_DAYS = 220
-LONG_DAILY_HISTORY_MAX_CHECKED = 400  # calendar days to scan on a from-scratch build
+# (30 days - fine for RSI/SMA(20), nowhere near enough for EMA(200) or a
+# genuine 52-week high/low). Walking ~260 trading days (roughly a full NSE
+# trading year, with room to spare over EMA(200)'s minimum) of Bhavcopy
+# archive one day at a time is too slow to do inside a live request (see
+# _build_long_daily_history_incremental), so it's built and kept warm on
+# its own background thread instead, and persisted to disk so a restart
+# doesn't repeat the full walk.
+LONG_DAILY_HISTORY_TARGET_DAYS = 260
+LONG_DAILY_HISTORY_MAX_CHECKED = 460  # calendar days to scan on a from-scratch build
 LONG_DAILY_HISTORY_TRIM_DAYS = LONG_DAILY_HISTORY_TARGET_DAYS + 10  # small buffer past target before trimming
 LONG_DAILY_HISTORY_REFRESH_SEC = 6 * 3600.0
 LONG_DAILY_HISTORY_PATH = str(DATA_DIR / "long_daily_history.json")
@@ -1184,6 +1186,13 @@ class NSEClient:
         except OSError:
             pass  # persistence is best-effort - losing a write just delays warm-up
 
+    def _nifty500_universe(self) -> set[str]:
+        return {
+            r.get("symbol")
+            for r in self._index_constituents("NIFTY 500")
+            if r.get("priority") != 1 and r.get("symbol")
+        }
+
     def _build_long_daily_history_incremental(self) -> dict[str, list[dict]]:
         """Like _build_daily_history, but incremental: reuses whatever is
         already in self._long_daily_history (loaded from disk, or built by
@@ -1191,8 +1200,19 @@ class NSEClient:
         newer than the newest date already held, instead of re-walking the
         full LONG_DAILY_HISTORY_TARGET_DAYS window from scratch every cycle.
         That full walk (up to LONG_DAILY_HISTORY_MAX_CHECKED sequential
-        archive fetches) is expensive and should only ever happen once -
-        the first time this app runs with no on-disk cache yet."""
+        archive fetches) is expensive and should only normally happen once -
+        the first time this app runs with no on-disk cache yet.
+
+        Tracks the UNION of the F&O universe (Downtrend Scanner's daily
+        EMA200 leg) and the NIFTY 500 universe (Swing Trading's DMA/52-week
+        columns) - no extra Bhavcopy fetches needed for that, since each
+        day's archive file already contains every EQ-series symbol
+        nationwide; only which symbols get kept from it changes. The one
+        exception: if the target set just grew (e.g. Swing Trading's NIFTY
+        500 names added on top of an existing F&O-only cache), those new
+        symbols have no backfilled history yet - forces one full
+        target-window walk in that case rather than the normal 5-day
+        catch-up, same one-time cost as a from-scratch build."""
         with self._long_daily_lock:
             existing = {sym: list(bars) for sym, bars in self._long_daily_history.items()}
 
@@ -1206,18 +1226,24 @@ class NSEClient:
                 if newest_known is None or d > newest_known:
                     newest_known = d
 
-        # From scratch: walk the full target window. Catching up: only look
-        # a handful of calendar days back - there's at most one new trading
-        # day per refresh cycle (LONG_DAILY_HISTORY_REFRESH_SEC), plus a
-        # little slack for long weekends/holidays.
-        target_days = LONG_DAILY_HISTORY_TARGET_DAYS if newest_known is None else 5
-        max_checked = LONG_DAILY_HISTORY_MAX_CHECKED if newest_known is None else 10
+        target_symbols = self._fo_universe() | self._nifty500_universe()
+        missing_symbols = target_symbols - existing.keys()
+
+        # From scratch (or a newly-expanded target set): walk the full
+        # target window. Otherwise: only look a handful of calendar days
+        # back - there's at most one new trading day per refresh cycle
+        # (LONG_DAILY_HISTORY_REFRESH_SEC), plus a little slack for long
+        # weekends/holidays.
+        needs_full_walk = newest_known is None or bool(missing_symbols)
+        target_days = LONG_DAILY_HISTORY_TARGET_DAYS if needs_full_walk else 5
+        max_checked = LONG_DAILY_HISTORY_MAX_CHECKED if needs_full_walk else 10
+        walk_cutoff = None if needs_full_walk else newest_known
 
         by_date: dict[str, dict[str, dict]] = {}
         day = dt.datetime.now(IST).date()
         checked = 0
         while len(by_date) < target_days and checked < max_checked:
-            if newest_known is not None and day <= newest_known:
+            if walk_cutoff is not None and day <= walk_cutoff:
                 break  # caught up to what we already have on disk
             result = self._fetch_bhavcopy_day(day)
             checked += 1
@@ -1228,11 +1254,10 @@ class NSEClient:
         if not by_date:
             return existing  # nothing new yet (e.g. today's session hasn't closed/published)
 
-        fo_symbols = self._fo_universe()
-        merged = {sym: list(existing.get(sym, [])) for sym in fo_symbols}
+        merged = {sym: list(existing.get(sym, [])) for sym in target_symbols}
         for date_str in sorted(by_date.keys(), key=parse_date):
             day_rows = by_date[date_str]
-            for sym in fo_symbols:
+            for sym in target_symbols:
                 row = day_rows.get(sym)
                 if row:
                     merged[sym].append({"date": date_str, **row})
@@ -1663,6 +1688,103 @@ class NSEClient:
             "totalFOSymbols": len(fo_symbols),
             "symbolsWithHistory": len(results),
             "status": self.get_downtrend_scanner_status(),
+            "stocks": results,
+        }
+
+    # -- Swing Trading (NIFTY 500, DMA + 52-week high/low) ---------------------
+    #
+    # Phase 1 per explicit scope: just the raw data table (5/20/50/100/200-day
+    # moving averages, 52-week high/low + the date each occurred) for the
+    # NIFTY 500 universe - no stock-selection/screening logic yet, that's a
+    # separate follow-up once this data is confirmed correct.
+    #
+    # The user's reference was NSE's own "Live Equity Market" page
+    # (nseindia.com/market-data/live-equity-market), which turned out to be
+    # on NSE's newly-redesigned Next.js site - its data comes from an
+    # undocumented internal proxy (/api/NextApi/apiClient/marketWatchApi)
+    # with no discoverable functionName for this specific report (checked:
+    # the page's own JS bundles list getIndicesData/getSmeData/getSGBData/
+    # etc. but nothing DMA- or 52-week-related), and nseindia.com itself is
+    # blocked for interactive browser inspection here, so there was no way
+    # to observe its real network calls. Rather than guess at an
+    # undocumented endpoint, this computes the exact same numbers from data
+    # already reliably in hand: real daily Bhavcopy history (the long-
+    # lookback cache extended above to cover NIFTY 500, not just F&O).
+    # DMA = plain SMA(close, N) - same definition NSE itself uses. 52-week
+    # high/low use the daily High/Low columns (not Close), which is the
+    # conventional definition.
+    SWING_DMA_PERIODS = (5, 20, 50, 100, 200)
+    SWING_52W_LOOKBACK_DAYS = 252  # ~1 NSE trading year - LONG_DAILY_HISTORY_TARGET_DAYS (260) covers this with room to spare
+
+    @staticmethod
+    def _swing_metrics(candles: list[dict]) -> dict:
+        closes = [c["close"] for c in candles]
+        dmas = {p: NSEClient._sma(closes, p) for p in NSEClient.SWING_DMA_PERIODS}
+
+        window = candles[-NSEClient.SWING_52W_LOOKBACK_DAYS :]
+        week52_high = week52_low = None
+        week52_high_date = week52_low_date = None
+        for c in window:
+            if week52_high is None or c["high"] > week52_high:
+                week52_high, week52_high_date = c["high"], c["date"]
+            if week52_low is None or c["low"] < week52_low:
+                week52_low, week52_low_date = c["low"], c["date"]
+
+        return {
+            "dma5": round(dmas[5], 2) if dmas[5] is not None else None,
+            "dma20": round(dmas[20], 2) if dmas[20] is not None else None,
+            "dma50": round(dmas[50], 2) if dmas[50] is not None else None,
+            "dma100": round(dmas[100], 2) if dmas[100] is not None else None,
+            "dma200": round(dmas[200], 2) if dmas[200] is not None else None,
+            "week52High": week52_high,
+            "week52HighDate": week52_high_date,
+            "week52Low": week52_low,
+            "week52LowDate": week52_low_date,
+        }
+
+    def get_swing_trading_status(self) -> dict:
+        with self._long_daily_lock:
+            bars = max((len(v) for v in self._long_daily_history.values()), default=0)
+            ready = self._long_daily_ready
+        needed = max(self.SWING_DMA_PERIODS) + 1
+        return {"barsAvailable": bars, "barsNeeded": needed, "ready": ready and bars >= needed}
+
+    def get_swing_trading_list(self) -> dict:
+        """NIFTY 500 universe, one row per symbol with data available:
+        symbol/sector/ltp/pChange/volume plus the DMA and 52-week columns
+        above. Rows with no Bhavcopy history yet (freshly listed, or the
+        one-time NIFTY 500 backfill hasn't completed - see
+        _build_long_daily_history_incremental) are simply omitted rather
+        than shown with all-null columns; `symbolsWithData` vs
+        `totalNifty500Symbols` shows how many that currently is."""
+        nifty500_symbols = self._nifty500_universe()
+        rows = {r.get("symbol"): r for r in self._fo_quote_rows()}  # NIFTY 500 live quote snapshot
+        with self._long_daily_lock:
+            daily_history = {sym: list(bars) for sym, bars in self._long_daily_history.items()}
+
+        results = []
+        for sym in nifty500_symbols:
+            row = rows.get(sym)
+            candles = daily_history.get(sym, [])
+            if row is None or not candles:
+                continue
+            results.append(
+                {
+                    "symbol": sym,
+                    "sector": self._sector_for(sym),
+                    "ltp": row.get("lastPrice"),
+                    "pChange": row.get("pChange"),
+                    "volume": row.get("totalTradedVolume"),
+                    "barsAvailable": len(candles),
+                    **self._swing_metrics(candles),
+                }
+            )
+
+        results.sort(key=lambda r: r["symbol"])
+        return {
+            "totalNifty500Symbols": len(nifty500_symbols),
+            "symbolsWithData": len(results),
+            "status": self.get_swing_trading_status(),
             "stocks": results,
         }
 

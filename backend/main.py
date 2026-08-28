@@ -214,6 +214,22 @@ def downtrend_scanner(mode: str = Query("daily", description="'daily' or 'intrad
     return _wrap(client.get_downtrend_scanner, mode)
 
 
+@app.get("/api/swing-trading/status")
+def swing_trading_status():
+    """How far along the long-lookback (background-warmed) daily history
+    the Swing Trading table's DMA/52-week columns are."""
+    return _wrap(client.get_swing_trading_status)
+
+
+@app.get("/api/swing-trading")
+def swing_trading():
+    """NIFTY 500 universe with 5/20/50/100/200-day moving averages and
+    52-week high/low (+ the date each occurred), computed from real daily
+    Bhavcopy history. Phase 1: raw data table only, no stock-selection
+    logic applied yet - see NSEClient.get_swing_trading_list."""
+    return _wrap(client.get_swing_trading_list)
+
+
 @app.get("/api/stock-verdict")
 def stock_verdict(symbol: str = Query(..., description="NSE trading symbol, e.g. RELIANCE")):
     """On-demand "smart summary" for one symbol (click-to-open panel, any

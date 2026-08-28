@@ -161,6 +161,7 @@ const VIEW_TITLES = {
   movers: "Top Movers",
   fiftytwo: "52-Week High / Low",
   volume: "Volume Shockers",
+  swing: "Swing Trading",
   watchlist: "Watchlist",
   settings: "Settings",
 };
@@ -1401,6 +1402,49 @@ const breadthSectorControl = initSectorMultiSelect({
   },
 });
 
+// -- Swing Trading (NIFTY 500) -----------------------------------------------
+//
+// Phase 1: raw data table only (5/20/50/100/200-day moving averages,
+// 52-week high/low + the date each occurred) - no stock-selection logic
+// yet, that comes as a separate follow-up once this data's confirmed
+// correct. All computed server-side from real daily Bhavcopy history.
+const SWING_COLUMNS = [
+  { header: "Symbol", render: (r) => symbolLink(r.symbol) },
+  { header: "Sector", render: (r) => sectorLabel(r.sector), cls: "cell-left" },
+  { header: "LTP", render: (r) => fmtNum(r.ltp), sortKey: "ltp" },
+  {
+    header: "Chg %",
+    render: (r) => `<span class="${chgClass(r.pChange)}">${sign(r.pChange)}${fmtNum(r.pChange)}%</span>`,
+    sortKey: "pChange",
+  },
+  { header: "Volume", render: (r) => fmtInt(r.volume), sortKey: "volume" },
+  { header: "5 DMA", render: (r) => fmtNum(r.dma5), sortKey: "dma5" },
+  { header: "20 DMA", render: (r) => fmtNum(r.dma20), sortKey: "dma20" },
+  { header: "50 DMA", render: (r) => fmtNum(r.dma50), sortKey: "dma50" },
+  { header: "100 DMA", render: (r) => fmtNum(r.dma100), sortKey: "dma100" },
+  { header: "200 DMA", render: (r) => fmtNum(r.dma200), sortKey: "dma200" },
+  { header: "52 Week High", render: (r) => fmtNum(r.week52High), sortKey: "week52High" },
+  { header: "52 Week High Date", render: (r) => r.week52HighDate || "--" },
+  { header: "52 Week Low", render: (r) => fmtNum(r.week52Low), sortKey: "week52Low" },
+  { header: "52 Week Low Date", render: (r) => r.week52LowDate || "--" },
+];
+
+async function refreshSwingTrading() {
+  try {
+    const data = await fetchJSON("/api/swing-trading");
+    const status = data.status;
+    $("#swing-status-note").textContent = status.ready
+      ? `Ready (${status.barsAvailable} real trading days of history) - ${data.symbolsWithData} of ${data.totalNifty500Symbols} NIFTY 500 stocks have data.`
+      : `Building (${status.barsAvailable}/${status.barsNeeded} real trading days) - the one-time NIFTY 500 history backfill can take a few minutes right after a fresh deploy.`;
+    renderMoversTable($("#swing-table"), data.stocks, {
+      emptyText: "No NIFTY 500 stocks have enough history yet.",
+      columns: SWING_COLUMNS,
+    });
+  } catch (err) {
+    $("#swing-table").innerHTML = `<div class="empty-note">Couldn't load Swing Trading data: ${err.message}</div>`;
+  }
+}
+
 async function refreshScanner() {
   try {
     scannerData = await fetchJSON("/api/fo-scanner");
@@ -1492,6 +1536,7 @@ async function refreshAll() {
     fetchJSON("/api/day-level-stocks"),
     refreshScanner(),
     refreshScannersTab(),
+    refreshSwingTrading(),
   ]);
 
   const [
