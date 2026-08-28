@@ -161,6 +161,7 @@ const VIEW_TITLES = {
   movers: "Top Movers",
   fiftytwo: "52-Week High / Low",
   volume: "Volume Shockers",
+  ipos: "Recent IPOs",
   swing: "Swing Trading",
   swingetf: "Swing ETF Trading",
   watchlist: "Watchlist",
@@ -1553,6 +1554,60 @@ const SWING_ETF_TOP5_COLUMNS = [
   { header: "Turnover Value (₹Cr)", render: (r) => (r.turnoverValueCr != null ? fmtNum(r.turnoverValueCr) : "--") },
 ];
 
+// -- Recent IPOs --------------------------------------------------------
+//
+// Scraped from screener.in/ipo/recent/ (a different site from NSE - see
+// backend/screener_client.py), server-side cached for 20 min since
+// listing data moves slowly. Name links out to the source screener.in
+// company page rather than TradingView - IPO company names here don't
+// reliably map to NSE trading symbols, so guessing one risks a wrong/
+// dead link, unlike every other symbolLink() in this app.
+const IPO_COLUMNS = [
+  {
+    header: "Name",
+    render: (r) =>
+      r.screenerUrl
+        ? `<a class="sym-link" href="${r.screenerUrl}" target="_blank" rel="noopener noreferrer" title="Open ${r.name} on screener.in">${r.name}</a>`
+        : r.name,
+  },
+  { header: "Listing Date", render: (r) => r.listingDate || "--" },
+  {
+    header: "IPO Market Cap (₹Cr)",
+    render: (r) => (r.ipoMarketCapCr != null ? fmtInt(r.ipoMarketCapCr) : "--"),
+    sortKey: "ipoMarketCapCr",
+  },
+  { header: "IPO Price", render: (r) => (r.ipoPrice != null ? fmtNum(r.ipoPrice) : "--"), sortKey: "ipoPrice" },
+  {
+    header: "Current Price",
+    render: (r) => (r.currentPrice != null ? fmtNum(r.currentPrice) : "--"),
+    sortKey: "currentPrice",
+  },
+  {
+    header: "% Change",
+    render: (r) =>
+      r.pctChange != null
+        ? `<span class="${chgClass(r.pctChange)}">${sign(r.pctChange)}${fmtNum(r.pctChange)}%</span>`
+        : "--",
+    sortKey: "pctChange",
+  },
+  {
+    header: "Status",
+    render: (r) => (r.listed ? `<span class="up">Listed</span>` : `<span class="flat">Upcoming</span>`),
+  },
+];
+
+async function refreshRecentIpos() {
+  try {
+    const data = await fetchJSON("/api/recent-ipos");
+    renderMoversTable($("#ipos-table"), data.ipos, {
+      emptyText: "No recent IPO data available.",
+      columns: IPO_COLUMNS,
+    });
+  } catch (err) {
+    $("#ipos-table").innerHTML = `<div class="empty-note">Couldn't load Recent IPOs: ${err.message}</div>`;
+  }
+}
+
 async function refreshSwingEtf() {
   try {
     const data = await fetchJSON("/api/swing-etf");
@@ -1670,6 +1725,7 @@ async function refreshAll() {
     refreshScannersTab(),
     refreshSwingTrading(),
     refreshSwingEtf(),
+    refreshRecentIpos(),
   ]);
 
   const [

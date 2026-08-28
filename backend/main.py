@@ -18,6 +18,8 @@ from fastapi.staticfiles import StaticFiles
 
 from . import fyers_client
 from .nse_client import HEATMAP_SECTOR_SYMBOLS, SECTOR_LIST, NSEFetchError, client
+from .screener_client import ScreenerFetchError
+from .screener_client import client as screener_client
 
 FRONTEND_PRO_DIR = pathlib.Path(__file__).resolve().parent.parent / "frontend_pro"
 
@@ -45,7 +47,7 @@ async def _no_cache(request, call_next):
 def _wrap(fn, *args, **kwargs):
     try:
         return fn(*args, **kwargs)
-    except NSEFetchError as exc:
+    except (NSEFetchError, ScreenerFetchError) as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
@@ -245,6 +247,17 @@ def swing_etf():
     first, matching the user's own reference sheet. See
     NSEClient.get_swing_etf_list."""
     return _wrap(client.get_swing_etf_list)
+
+
+@app.get("/api/recent-ipos")
+def recent_ipos():
+    """Recent IPOs (~50 most recent, newest listing first) scraped from
+    screener.in/ipo/recent/ - a different site from NSE, no session/bot-
+    protection dance needed there (confirmed live). Name, Listing Date,
+    IPO Market Cap, IPO Price, Current Price, % Change since listing;
+    upcoming (not-yet-listed) IPOs are included with null price fields
+    and `listed: false`. See ScreenerClient.get_recent_ipos."""
+    return {"ipos": _wrap(screener_client.get_recent_ipos)}
 
 
 @app.get("/api/stock-verdict")
