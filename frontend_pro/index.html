@@ -57,6 +57,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M17 7h4v4"/></svg>
           Swing Trading
         </button>
+        <button class="nav-item" data-view="swingetf">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></svg>
+          Swing ETF Trading
+        </button>
         <button class="nav-item" data-view="watchlist">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17.3L18.2 21l-1.6-7.1L22 9.2l-7.2-.6L12 2 9.2 8.6 2 9.2l5.4 4.7L5.8 21z"/></svg>
           Watchlist
@@ -454,6 +458,25 @@
           <div class="card">
             <div class="card-head"><div><h3>Top 5 to Invest / Track Today</h3><p class="card-sub">Highest combined score (BOH + DMA Breakout), Consolidating stocks only</p></div></div>
             <div id="swing-top5" class="data-table"><div class="skel-line"></div></div>
+            <p class="status-note">Typical swing-trade holding period: Short swing trade 2&ndash;5 trading days &middot; Normal swing trade 1&ndash;3 weeks &middot; Longer swing trade 3&ndash;8 weeks.</p>
+          </div>
+        </section>
+
+        <!-- ============================== Swing ETF Trading ============================== -->
+        <section class="view" data-view="swingetf">
+          <div class="view-head">
+            <h2>Swing ETF Trading <span class="muted">(all NSE ETFs)</span></h2>
+            <p class="view-sub">CMP, 20 DMA, % change (20 DMA vs CMP), and 30-day average daily volume - sorted most-discounted-vs-20-DMA first.</p>
+          </div>
+          <p id="swing-etf-status-note" class="status-note"></p>
+
+          <div class="card">
+            <div id="swing-etf-table" class="data-table"><div class="skel-line"></div></div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><div><h3>Top 5 to Invest / Track Today</h3><p class="card-sub">CMP furthest below its 20 DMA</p></div></div>
+            <div id="swing-etf-top5" class="data-table"><div class="skel-line"></div></div>
             <p class="status-note">Typical swing-trade holding period: Short swing trade 2&ndash;5 trading days &middot; Normal swing trade 1&ndash;3 weeks &middot; Longer swing trade 3&ndash;8 weeks.</p>
           </div>
         </section>

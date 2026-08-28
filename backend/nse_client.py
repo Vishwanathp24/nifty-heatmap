@@ -1193,6 +1193,26 @@ class NSEClient:
             if r.get("priority") != 1 and r.get("symbol")
         }
 
+    def _etf_rows(self) -> list[dict]:
+        """Live snapshot of every NSE-listed ETF (symbol, underlying asset
+        description, CMP, today's volume, ...) - the classic /api/etf
+        endpoint, same working-without-bot-protection tier as the other
+        classic endpoints this app already relies on."""
+        return self._cached("etf", 15.0, lambda: self._get_json("/api/etf")["data"])
+
+    def _etf_universe(self) -> set[str]:
+        return {r.get("symbol") for r in self._etf_rows() if r.get("symbol")}
+
+    @staticmethod
+    def _etf_float(v) -> float | None:
+        """/api/etf returns its numeric fields as strings (unlike most of
+        NSE's other JSON endpoints) - e.g. "230.12", sometimes "-" for a
+        genuinely missing value."""
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return None
+
     def _build_long_daily_history_incremental(self) -> dict[str, list[dict]]:
         """Like _build_daily_history, but incremental: reuses whatever is
         already in self._long_daily_history (loaded from disk, or built by
@@ -1204,15 +1224,16 @@ class NSEClient:
         the first time this app runs with no on-disk cache yet.
 
         Tracks the UNION of the F&O universe (Downtrend Scanner's daily
-        EMA200 leg) and the NIFTY 500 universe (Swing Trading's DMA/52-week
-        columns) - no extra Bhavcopy fetches needed for that, since each
-        day's archive file already contains every EQ-series symbol
-        nationwide; only which symbols get kept from it changes. The one
-        exception: if the target set just grew (e.g. Swing Trading's NIFTY
-        500 names added on top of an existing F&O-only cache), those new
-        symbols have no backfilled history yet - forces one full
-        target-window walk in that case rather than the normal 5-day
-        catch-up, same one-time cost as a from-scratch build."""
+        EMA200 leg), the NIFTY 500 universe (Swing Trading's DMA/52-week
+        columns), and the ETF universe (Swing ETF Trading's DMA/volume
+        columns) - no extra Bhavcopy fetches needed for any of that, since
+        each day's archive file already contains every EQ-series symbol
+        nationwide (ETFs trade under SERIES=EQ too, confirmed live) - only
+        which symbols get kept from it changes. The one exception: if the
+        target set just grew (e.g. a new universe added on top of an
+        existing cache), those new symbols have no backfilled history yet -
+        forces one full target-window walk in that case rather than the
+        normal 5-day catch-up, same one-time cost as a from-scratch build."""
         with self._long_daily_lock:
             existing = {sym: list(bars) for sym, bars in self._long_daily_history.items()}
 
@@ -1226,7 +1247,7 @@ class NSEClient:
                 if newest_known is None or d > newest_known:
                     newest_known = d
 
-        target_symbols = self._fo_universe() | self._nifty500_universe()
+        target_symbols = self._fo_universe() | self._nifty500_universe() | self._etf_universe()
         missing_symbols = target_symbols - existing.keys()
 
         # From scratch (or a newly-expanded target set): walk the full
@@ -1875,6 +1896,111 @@ class NSEClient:
             "totalNifty500Symbols": len(nifty500_symbols),
             "symbolsWithData": len(results),
             "status": self.get_swing_trading_status(),
+            "stocks": results,
+        }
+
+    # -- Swing ETF Trading (all NSE-listed ETFs, 20 DMA + volume) --------------
+    #
+    # Same architecture as Swing Trading (NIFTY 500) above: the classic
+    # /api/etf endpoint for live CMP + underlying-asset text, and the same
+    # shared long-lookback Bhavcopy history (now also covering the ETF
+    # universe) for the 20 DMA and 30-day average volume columns. Ranking
+    # matches the user's own reference sheet ("Eligible ETFs for Buying"):
+    # sorted by how far CMP sits below its 20 DMA, most-discounted first.
+    SWING_ETF_DMA_PERIOD = 20
+    SWING_ETF_VOLUME_AVG_DAYS = 30
+    # A genuine security rarely moves >50% vs its OWN trailing 20-day
+    # average within that same 20-day window - a gap this big showing up
+    # (confirmed live: DSP Gold/Silver ETF both did, ~90%) is a unit-split/
+    # bonus-issue discontinuity in the raw unadjusted Bhavcopy close
+    # series, not a real price move. Since the whole point of this screen
+    # is ranking by that same gap, an unflagged artifact like that would
+    # falsely dominate the "most discounted" Top 5 - so it's nulled out
+    # here rather than split-adjusting the price series (a correct fix,
+    # but real work of its own - flagged as a known gap, not fixed).
+    SWING_ETF_MAX_PLAUSIBLE_PCT_CHANGE = 50.0
+
+    def get_swing_etf_status(self) -> dict:
+        with self._long_daily_lock:
+            bars = max((len(v) for v in self._long_daily_history.values()), default=0)
+            ready = self._long_daily_ready
+        needed = max(self.SWING_ETF_DMA_PERIOD, self.SWING_ETF_VOLUME_AVG_DAYS) + 1
+        return {"barsAvailable": bars, "barsNeeded": needed, "ready": ready and bars >= needed}
+
+    def get_swing_etf_list(self) -> dict:
+        """Every NSE-listed ETF with data available: symbol, underlying
+        asset, CMP, 20 DMA, % change (20 DMA vs CMP - CMP relative to its
+        own 20-day average, negative = trading below it), 30-day average
+        daily volume, and 30-day average turnover value (avg volume x CMP,
+        in Rs Crore - a combined volume/liquidity signal). De-duplicated
+        by underlying asset: when several ETFs track the same index/
+        commodity (a common occurrence - multiple fund houses often
+        launch a clone of the same benchmark), only the single most-
+        liquid one (highest turnover value) is kept, per explicit request
+        - the rest are just hard-to-trade duplicates for this purpose.
+        Sorted most-discounted-vs-20-DMA first (the same ranking as the
+        user's reference sheet); ETFs with no computable DMA yet (backfill
+        still running, or too newly listed) sink to the bottom rather than
+        being omitted outright, since CMP/underlying-asset are still
+        useful without it."""
+        etf_rows = {r.get("symbol"): r for r in self._etf_rows() if r.get("symbol")}
+        with self._long_daily_lock:
+            daily_history = {sym: list(bars) for sym, bars in self._long_daily_history.items()}
+
+        results = []
+        for sym, row in etf_rows.items():
+            cmp_ = self._etf_float(row.get("ltP"))
+            if cmp_ is None:
+                continue
+            candles = daily_history.get(sym, [])
+            dma20 = self._sma([c["close"] for c in candles], self.SWING_ETF_DMA_PERIOD)
+            avg_volume_30d = self._sma([c["volume"] for c in candles], self.SWING_ETF_VOLUME_AVG_DAYS)
+            pct_change_20dma_vs_cmp = round((cmp_ / dma20 - 1) * 100, 2) if dma20 else None
+            if pct_change_20dma_vs_cmp is not None and abs(pct_change_20dma_vs_cmp) > self.SWING_ETF_MAX_PLAUSIBLE_PCT_CHANGE:
+                # Likely a unit-split/bonus-issue discontinuity, not a real
+                # move - see the constant's comment. Drop both derived
+                # numbers; CMP/underlying-asset/volume stay usable.
+                dma20 = None
+                pct_change_20dma_vs_cmp = None
+            turnover_value_cr = round(avg_volume_30d * cmp_ / 1e7, 2) if avg_volume_30d is not None else None
+            results.append(
+                {
+                    "symbol": sym,
+                    "underlyingAsset": row.get("assets"),
+                    "cmp": cmp_,
+                    "dma20": round(dma20, 2) if dma20 is not None else None,
+                    "pctChange20DmaVsCmp": pct_change_20dma_vs_cmp,
+                    "avgVolume30d": round(avg_volume_30d) if avg_volume_30d is not None else None,
+                    "turnoverValueCr": turnover_value_cr,
+                    "barsAvailable": len(candles),
+                }
+            )
+
+        total_etf_symbols = len(results)
+
+        # De-dup by underlying asset - keep the highest-turnover row per
+        # group. Blank/missing underlying-asset text doesn't collapse
+        # different ETFs together (each is its own group, keyed by symbol).
+        best_by_asset: dict[str, dict] = {}
+        for r in results:
+            key = r["underlyingAsset"] or f"__{r['symbol']}"
+            current = best_by_asset.get(key)
+            if current is None or (r["turnoverValueCr"] or -1) > (current["turnoverValueCr"] or -1):
+                best_by_asset[key] = r
+        results = list(best_by_asset.values())
+
+        results.sort(
+            key=lambda r: (
+                r["pctChange20DmaVsCmp"] is None,
+                r["pctChange20DmaVsCmp"] if r["pctChange20DmaVsCmp"] is not None else 0,
+                r["symbol"],
+            )
+        )
+        return {
+            "totalEtfSymbols": total_etf_symbols,
+            "uniqueUnderlyingAssets": len(results),
+            "symbolsWithData": sum(1 for r in results if r["dma20"] is not None),
+            "status": self.get_swing_etf_status(),
             "stocks": results,
         }
 

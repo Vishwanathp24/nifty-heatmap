@@ -331,7 +331,7 @@ tbody tr:hover { background: var(--panel-alt); }
 /* Swing Trading's status note sits directly above a card (not immediately
    inside one, like the other scanners' status notes do) - extra breathing
    room so it doesn't read as glued to the card below it. */
-#swing-status-note { margin-bottom: 16px; }
+#swing-status-note, #swing-etf-status-note { margin-bottom: 16px; }
 .breakout-up { color: var(--up); font-weight: 700; }
 .breakout-down { color: var(--down); font-weight: 700; }
 .breakout-none { color: var(--muted); }

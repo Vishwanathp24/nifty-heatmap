@@ -231,6 +231,22 @@ def swing_trading():
     return _wrap(client.get_swing_trading_list)
 
 
+@app.get("/api/swing-etf/status")
+def swing_etf_status():
+    """How far along the long-lookback (background-warmed) daily history
+    the Swing ETF Trading table's 20 DMA/volume columns are."""
+    return _wrap(client.get_swing_etf_status)
+
+
+@app.get("/api/swing-etf")
+def swing_etf():
+    """Every NSE-listed ETF with CMP, 20 DMA, % change (20 DMA vs CMP),
+    and 30-day average daily volume - sorted most-discounted-vs-20-DMA
+    first, matching the user's own reference sheet. See
+    NSEClient.get_swing_etf_list."""
+    return _wrap(client.get_swing_etf_list)
+
+
 @app.get("/api/stock-verdict")
 def stock_verdict(symbol: str = Query(..., description="NSE trading symbol, e.g. RELIANCE")):
     """On-demand "smart summary" for one symbol (click-to-open panel, any

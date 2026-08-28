@@ -162,6 +162,7 @@ const VIEW_TITLES = {
   fiftytwo: "52-Week High / Low",
   volume: "Volume Shockers",
   swing: "Swing Trading",
+  swingetf: "Swing ETF Trading",
   watchlist: "Watchlist",
   settings: "Settings",
 };
@@ -1500,6 +1501,82 @@ async function refreshSwingTrading() {
   }
 }
 
+// -- Swing ETF Trading (all NSE ETFs) ----------------------------------------
+//
+// Same shape as Swing Trading above, just a different universe/ranking:
+// CMP, 20 DMA, % change (20 DMA vs CMP - CMP relative to its own 20-day
+// average), 30-day average daily volume, and 30-day average turnover
+// value (avg volume x CMP, Rs Cr - a combined volume/liquidity signal),
+// sorted most-discounted-vs-20-DMA first - matching the user's own
+// reference sheet ("Eligible ETFs for Buying"). De-duplicated server-side
+// by underlying asset (only the most-liquid ETF per index/commodity kept
+// - see NSEClient.get_swing_etf_list). No sector column - not a
+// meaningful concept for ETFs.
+const SWING_ETF_COLUMNS = [
+  { header: "ETF Code", render: (r) => symbolLink(r.symbol) },
+  { header: "Underlying Asset", render: (r) => r.underlyingAsset || "--", cls: "cell-left" },
+  { header: "CMP", render: (r) => fmtNum(r.cmp), sortKey: "cmp" },
+  { header: "20 DMA", render: (r) => (r.dma20 != null ? fmtNum(r.dma20) : "--"), sortKey: "dma20" },
+  {
+    header: "% Change 20 DMA Vs CMP",
+    render: (r) =>
+      r.pctChange20DmaVsCmp != null
+        ? `<span class="${chgClass(r.pctChange20DmaVsCmp)}">${sign(r.pctChange20DmaVsCmp)}${fmtNum(r.pctChange20DmaVsCmp)}%</span>`
+        : "--",
+    sortKey: "pctChange20DmaVsCmp",
+  },
+  {
+    header: "Daily Avg Volume (30D)",
+    render: (r) => (r.avgVolume30d != null ? fmtInt(r.avgVolume30d) : "--"),
+    sortKey: "avgVolume30d",
+  },
+  {
+    header: "Turnover Value (₹Cr)",
+    render: (r) => (r.turnoverValueCr != null ? fmtNum(r.turnoverValueCr) : "--"),
+    sortKey: "turnoverValueCr",
+  },
+];
+
+const SWING_ETF_TOP5_COLUMNS = [
+  { header: "ETF Code", render: (r) => symbolLink(r.symbol) },
+  { header: "Underlying Asset", render: (r) => r.underlyingAsset || "--", cls: "cell-left" },
+  { header: "CMP", render: (r) => fmtNum(r.cmp) },
+  { header: "20 DMA", render: (r) => (r.dma20 != null ? fmtNum(r.dma20) : "--") },
+  {
+    header: "% Change 20 DMA Vs CMP",
+    render: (r) =>
+      r.pctChange20DmaVsCmp != null
+        ? `<span class="${chgClass(r.pctChange20DmaVsCmp)}">${sign(r.pctChange20DmaVsCmp)}${fmtNum(r.pctChange20DmaVsCmp)}%</span>`
+        : "--",
+  },
+  { header: "Daily Avg Volume (30D)", render: (r) => (r.avgVolume30d != null ? fmtInt(r.avgVolume30d) : "--") },
+  { header: "Turnover Value (₹Cr)", render: (r) => (r.turnoverValueCr != null ? fmtNum(r.turnoverValueCr) : "--") },
+];
+
+async function refreshSwingEtf() {
+  try {
+    const data = await fetchJSON("/api/swing-etf");
+    const status = data.status;
+    $("#swing-etf-status-note").textContent = status.ready
+      ? `Ready (${status.barsAvailable} real trading days of history) - ${data.uniqueUnderlyingAssets} unique underlying assets (deduped from ${data.totalEtfSymbols} listed ETFs, most-liquid kept), ${data.symbolsWithData} with 20 DMA data.`
+      : `Building (${status.barsAvailable}/${status.barsNeeded} real trading days) - the one-time ETF history backfill can take a few minutes right after a fresh deploy.`;
+    // data.stocks is already sorted (most-discounted-vs-20-DMA first,
+    // nulls last) server-side, so the first 5 with a real % ARE the top 5.
+    const top5 = data.stocks.filter((r) => r.pctChange20DmaVsCmp != null).slice(0, 5);
+    renderMoversTable($("#swing-etf-top5"), top5, {
+      emptyText: "No ETFs with a computable 20 DMA yet.",
+      columns: SWING_ETF_TOP5_COLUMNS,
+    });
+    renderMoversTable($("#swing-etf-table"), data.stocks, {
+      emptyText: "No ETF data available yet.",
+      columns: SWING_ETF_COLUMNS,
+    });
+  } catch (err) {
+    $("#swing-etf-top5").innerHTML = `<div class="empty-note">Couldn't load Swing ETF data: ${err.message}</div>`;
+    $("#swing-etf-table").innerHTML = `<div class="empty-note">Couldn't load Swing ETF data: ${err.message}</div>`;
+  }
+}
+
 async function refreshScanner() {
   try {
     scannerData = await fetchJSON("/api/fo-scanner");
@@ -1592,6 +1669,7 @@ async function refreshAll() {
     refreshScanner(),
     refreshScannersTab(),
     refreshSwingTrading(),
+    refreshSwingEtf(),
   ]);
 
   const [
