@@ -387,26 +387,30 @@ function sectorTileHtml(tiles) {
 }
 
 function renderMiniSectors(sorted) {
-  // Rendered in two places, deliberately at different sizes:
+  // Rendered in three places, deliberately at different sizes:
   // - Dashboard view (#dash-mini-sectors): the FULL list, all 23 sectors -
   //   same count as the dedicated Sector Heatmap page, just a different
   //   (compact-tile) style.
-  // - F&O Scanner view (#mini-sectors), above the F&O Stocks (Live) table:
-  //   a genuinely "mini" widget - top 5 + bottom 5 only, not just "however
-  //   the first 10 happened to sort" (which, on a broadly red day, used to
-  //   hide the actual worst decliners entirely).
-  const dash = $("#dash-mini-sectors");
-  if (dash) {
-    dash.innerHTML = sectorTileHtml(sorted);
-    dash.querySelectorAll(".mini-sector-tile").forEach((tile) => {
-      tile.addEventListener("click", () => openDrawer(tile.dataset.symbol));
-    });
-  }
-  const mini = $("#mini-sectors");
-  if (mini) {
-    const tiles = sorted.length <= 10 ? sorted : [...sorted.slice(0, 5), ...sorted.slice(-5)];
-    mini.innerHTML = sectorTileHtml(tiles);
-    mini.querySelectorAll(".mini-sector-tile").forEach((tile) => {
+  // - F&O Scanner view (#mini-sectors) and F&O Gainers & Losers view
+  //   (#fogl-mini-sectors): genuinely "mini" widgets - top 5 + bottom 5
+  //   only, not just "however the first 10 happened to sort" (which, on a
+  //   broadly red day, used to hide the actual worst decliners entirely).
+  // Every tile opens that sector's constituent-stock drawer, same as the
+  // full Sector Heatmap page - these are NSE's raw sectoral-index names
+  // (HEATMAP_SECTOR_SYMBOLS, e.g. "NIFTY IT"), a deliberately separate
+  // taxonomy from the clean per-stock "sector" field (FO_SECTOR_MAP, e.g.
+  // "IT") that the Gainers/Losers sector filter uses below - the two don't
+  // map 1:1, so a tile click can't also drive that filter.
+  const targets = [
+    { el: $("#dash-mini-sectors"), full: true },
+    { el: $("#mini-sectors"), full: false },
+    { el: $("#fogl-mini-sectors"), full: false },
+  ];
+  for (const { el, full } of targets) {
+    if (!el) continue;
+    const tiles = full || sorted.length <= 10 ? sorted : [...sorted.slice(0, 5), ...sorted.slice(-5)];
+    el.innerHTML = sectorTileHtml(tiles);
+    el.querySelectorAll(".mini-sector-tile").forEach((tile) => {
       tile.addEventListener("click", () => openDrawer(tile.dataset.symbol));
     });
   }
@@ -1228,19 +1232,40 @@ function exportScannerCSV() {
   URL.revokeObjectURL(url);
 }
 
-async function loadSectorFilterOptionsForScanner() {
+async function loadSectorFilterOptions(selectEl) {
   try {
     const { labels } = await fetchJSON("/api/sector-labels");
-    const select = $("#f-sector");
     for (const label of labels) {
       const opt = document.createElement("option");
       opt.value = label;
       opt.textContent = label;
-      select.appendChild(opt);
+      selectEl.appendChild(opt);
     }
   } catch {
-    // non-fatal
+    // non-fatal - the dropdown just won't have extra options beyond "All"
   }
+}
+
+// -- F&O Gainers & Losers: sector filter -------------------------------------
+
+let foglSelectedSector = "ALL";
+let latestFoGainers = [];
+let latestFoLosers = [];
+
+function renderFoGainersLosers() {
+  const gainers =
+    foglSelectedSector === "ALL"
+      ? latestFoGainers
+      : latestFoGainers.filter((r) => r.sector === foglSelectedSector);
+  const losers =
+    foglSelectedSector === "ALL"
+      ? latestFoLosers
+      : latestFoLosers.filter((r) => r.sector === foglSelectedSector);
+  const suffix = foglSelectedSector === "ALL" ? "" : ` for ${foglSelectedSector}`;
+  renderMoversTable($("#fogl-gainers"), gainers, { emptyText: `No F&O gainers${suffix} right now.` });
+  renderMoversTable($("#fogl-losers"), losers, { emptyText: `No F&O losers${suffix} right now.` });
+  $("#fogl-sector-hint").textContent =
+    foglSelectedSector === "ALL" ? "" : `${gainers.length} gainers · ${losers.length} losers`;
 }
 
 async function refreshScanner() {
@@ -1370,8 +1395,9 @@ async function refreshAll() {
   renderIndexStrip();
 
   if (foRes.status === "fulfilled") {
-    renderMoversTable($("#fogl-gainers"), foRes.value.gainers, { emptyText: "No F&O gainers data." });
-    renderMoversTable($("#fogl-losers"), foRes.value.losers, { emptyText: "No F&O losers data." });
+    latestFoGainers = foRes.value.gainers;
+    latestFoLosers = foRes.value.losers;
+    renderFoGainersLosers();
   }
   if (activeRes.status === "fulfilled") {
     renderMoversTable($("#movers-active-volume"), activeRes.value.byVolume, {
@@ -1459,7 +1485,12 @@ function init() {
     else stopAutoRefresh();
   });
 
-  loadSectorFilterOptionsForScanner();
+  loadSectorFilterOptions($("#f-sector"));
+  loadSectorFilterOptions($("#fogl-sector"));
+  $("#fogl-sector").addEventListener("change", (e) => {
+    foglSelectedSector = e.target.value;
+    renderFoGainersLosers();
+  });
   refreshAll();
   startAutoRefresh();
   setInterval(tickClock, 1000);

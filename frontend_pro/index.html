@@ -140,6 +140,20 @@
             <h2>F&amp;O Gainers &amp; Losers</h2>
             <p class="view-sub">Full same-session F&amp;O gainers and losers tables</p>
           </div>
+
+          <div class="filter-row">
+            <div class="filter-field">
+              <label>Sector</label>
+              <select id="fogl-sector"><option value="ALL">All Sectors</option></select>
+            </div>
+            <span id="fogl-sector-hint" class="card-sub"></span>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><div><h3>Sectors Heatmap</h3><p class="card-sub">Top 5 &amp; bottom 5 sectors by change - click a tile for its constituent stocks</p></div></div>
+            <div id="fogl-mini-sectors" class="mini-sector-grid"></div>
+          </div>
+
           <div class="two-col">
             <div class="card">
               <div class="card-head"><h3><span class="dot-up"></span>F&amp;O Gainers</h3></div>
