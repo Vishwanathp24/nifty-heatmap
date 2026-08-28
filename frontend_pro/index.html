@@ -21,6 +21,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
           Dashboard
         </button>
+        <button class="nav-item" data-view="heatmap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg>
+          Sector Heatmap
+        </button>
         <button class="nav-item" data-view="scanner">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>
           F&amp;O Scanner
@@ -36,10 +40,6 @@
         <button class="nav-item" data-view="breadth">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9M13 17V5M8 17v-3"/></svg>
           Market Breadth
-        </button>
-        <button class="nav-item" data-view="heatmap">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg>
-          Sector Heatmap
         </button>
         <button class="nav-item" data-view="movers">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 6l-9.5 9.5-5-5L1 18"/><path d="M17 6h6v6"/></svg>
@@ -139,6 +139,18 @@
               <h4><span class="dot-vol"></span>High Volume</h4>
               <div id="dash-high-volume" class="mini-list"></div>
             </div>
+          </div>
+        </section>
+
+        <!-- ============================== Sector Heatmap ============================== -->
+        <section class="view" data-view="heatmap">
+          <div class="view-head">
+            <h2>Sector Heatmap</h2>
+            <p class="view-sub">All 23 NSE sectoral indices &mdash; click a tile for constituent stocks</p>
+          </div>
+          <div class="card">
+            <div class="card-head"><div></div><span id="sector-count" class="count-chip">&mdash;</span></div>
+            <div id="heatmap-grid" class="heatmap-grid"><div class="skel-grid"></div></div>
           </div>
         </section>
 
@@ -371,18 +383,6 @@
 
           <div class="card">
             <div id="breadth-body" class="ad-body"><div class="skel-line"></div></div>
-          </div>
-        </section>
-
-        <!-- ============================== Sector Heatmap ============================== -->
-        <section class="view" data-view="heatmap">
-          <div class="view-head">
-            <h2>Sector Heatmap</h2>
-            <p class="view-sub">All 23 NSE sectoral indices &mdash; click a tile for constituent stocks</p>
-          </div>
-          <div class="card">
-            <div class="card-head"><div></div><span id="sector-count" class="count-chip">&mdash;</span></div>
-            <div id="heatmap-grid" class="heatmap-grid"><div class="skel-grid"></div></div>
           </div>
         </section>
 
