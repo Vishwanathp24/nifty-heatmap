@@ -1562,17 +1562,21 @@ const SWING_ETF_TOP5_COLUMNS = [
 // company page rather than TradingView - IPO company names here don't
 // reliably map to NSE trading symbols, so guessing one risks a wrong/
 // dead link, unlike every other symbolLink() in this app.
+// Full breakdown, e.g. "2 yrs, 1 month, 2 days" - years and months treated
+// as fixed 365/30-day blocks (a plain-English age, not a calendar-accurate
+// one), zero-valued units dropped.
 function formatListingAge(days) {
   if (days == null) return "--";
   if (days === 0) return "Today";
-  if (days < 30) return `${days} day${days === 1 ? "" : "s"}`;
-  if (days < 365) {
-    const months = Math.floor(days / 30);
-    return `${months} month${months === 1 ? "" : "s"}`;
-  }
   const years = Math.floor(days / 365);
-  const remMonths = Math.floor((days % 365) / 30);
-  return remMonths > 0 ? `${years}y ${remMonths}m` : `${years} year${years === 1 ? "" : "s"}`;
+  const afterYears = days % 365;
+  const months = Math.floor(afterYears / 30);
+  const remDays = afterYears % 30;
+  const parts = [];
+  if (years > 0) parts.push(`${years} yr${years === 1 ? "" : "s"}`);
+  if (months > 0) parts.push(`${months} month${months === 1 ? "" : "s"}`);
+  if (remDays > 0) parts.push(`${remDays} day${remDays === 1 ? "" : "s"}`);
+  return parts.join(", ");
 }
 
 const IPO_COLUMNS = [
