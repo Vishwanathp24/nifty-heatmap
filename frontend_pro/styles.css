@@ -153,7 +153,12 @@ a { color: inherit; }
 
 /* Global Cues card (Dashboard) - same .idx-card tiles as the topbar index
    strip, just in a card-width-constrained grid instead of the full-page one. */
-.cue-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; }
+/* auto-fit (not auto-fill): auto-fill reserves a track for every column
+   that WOULD fit even if there's no item left to put in it, so a row that
+   doesn't exactly fill leaves a dead gap on the right instead of letting
+   the last real tiles stretch to close it - confirmed live with 7 tiles
+   on a wide viewport. auto-fit collapses those empty tracks to 0 width. */
+.cue-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; }
 .up { color: var(--up); }
 .down { color: var(--down); }
 .flat { color: var(--muted); }
