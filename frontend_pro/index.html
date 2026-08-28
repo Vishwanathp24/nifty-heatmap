@@ -57,6 +57,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
           Recent IPOs
         </button>
+        <button class="nav-item" data-view="upcomingipos">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+          Upcoming IPOs
+        </button>
         <button class="nav-item" data-view="swing">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M17 7h4v4"/></svg>
           Swing Trading
@@ -475,6 +479,17 @@
           </div>
           <div class="card">
             <div id="ipos-table" class="data-table"><div class="skel-line"></div></div>
+          </div>
+        </section>
+
+        <!-- ============================== Upcoming IPOs ============================== -->
+        <section class="view" data-view="upcomingipos">
+          <div class="view-head">
+            <h2>Upcoming IPOs</h2>
+            <p class="view-sub">Companies currently open for subscription or listing over the next few days - Name, Subscription Period, Price Band, Listing Date, Market Cap, Subscription, PE, ROCE.</p>
+          </div>
+          <div class="card">
+            <div id="upcoming-ipos-table" class="data-table"><div class="skel-line"></div></div>
           </div>
         </section>
 

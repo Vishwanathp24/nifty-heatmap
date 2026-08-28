@@ -293,6 +293,16 @@ def recent_ipos():
     return {"ipos": _wrap(screener_client.get_recent_ipos)}
 
 
+@app.get("/api/upcoming-ipos")
+def upcoming_ipos():
+    """Companies currently open for subscription or listing over the
+    next few days, scraped from screener.in/ipo/ - subscription window,
+    price band, expected listing date, market cap, and the live
+    oversubscription multiple once subscription has opened. See
+    ScreenerClient.get_upcoming_ipos."""
+    return {"ipos": _wrap(screener_client.get_upcoming_ipos)}
+
+
 @app.get("/api/stock-verdict")
 def stock_verdict(symbol: str = Query(..., description="NSE trading symbol, e.g. RELIANCE")):
     """On-demand "smart summary" for one symbol (click-to-open panel, any

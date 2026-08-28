@@ -1,6 +1,8 @@
-"""Thin client for screener.in's public "Recent IPOs" page
-(screener.in/ipo/recent/) - a separate site from NSE, so this is a
-separate small client, same pattern as fyers_client.py.
+"""Thin client for screener.in's public IPO pages - "Recent IPOs"
+(screener.in/ipo/recent/, already-listed) and "Upcoming IPOs"
+(screener.in/ipo/, open-for-subscription/listing-soon) - a separate site
+from NSE, so this is a separate small client, same pattern as
+fyers_client.py.
 
 Unlike nseindia.com, screener.in needs no session-bootstrap/cookie dance
 - a plain GET with a normal browser User-Agent works directly, confirmed
@@ -75,6 +77,29 @@ _TAG_RE = re.compile(r"<[^>]+>")
 _LINK_RE = re.compile(r'href="(/company/[^"]+)"')
 _PCT_RE = re.compile(r"(\d+(?:\.\d+)?)\s*%")
 
+# screener.in/ipo/ ("Upcoming IPOs") - a single short page (~15 rows, no
+# pagination seen), but its table isn't a plain <tr>/<td> grid the way
+# /ipo/recent/'s is: each row also carries a "Subscription Status" popup
+# with its own nested <table>, whose rows share the SAME stripe/stripe-
+# light/"" classes as the outer rows - so splitting on row class (like
+# _ROW_RE above) picks up nested rows too. The one reliable per-row
+# anchor is the company name link itself (never appears inside the
+# nested modal), so rows are split on THAT instead - see _fetch_upcoming.
+UPCOMING_IPO_URL = f"{BASE}/ipo/"
+UPCOMING_IPO_CACHE_TTL_SEC = 15 * 60
+_UPCOMING_NAME_RE = re.compile(r'<td class="text">\s*<a class="font-weight-500"\s*href="(/company/[^"]+)"[^>]*>([^<]+)</a>')
+_UPCOMING_SUBPERIOD_RE = re.compile(r'<span class="font-weight-500">([^<]+)</span>\s*-\s*<span class="font-weight-500">([^<]+)</span>')
+_UPCOMING_PRICE_RE = re.compile(r"<td>(₹[^<]+)</td>")
+_UPCOMING_LISTDATE_RE = re.compile(r'<td class="sub text-align-center">([^<]+)</td>')
+_UPCOMING_MCAP_RE = re.compile(r"<td>([\d,]+)</td>")
+_UPCOMING_SUBMULT_RE = re.compile(r'data-title="Subscription Status"[^>]*>\s*([^<]+?)\s*<i')
+# PE and ROCE are the two plain <td> cells right after the Subscription
+# cell's nested modal finally closes - matched from the tail of the row
+# (</tr> anchors it) since counting the modal's own many <td>s from the
+# front isn't reliable with plain regex.
+_UPCOMING_TAIL_RE = re.compile(r"</td>\s*<td>([^<]*)</td>\s*<td>([^<]*)</td>\s*</tr>", re.S)
+_ORDINAL_SUFFIX_RE = re.compile(r"(\d+)(?:st|nd|rd|th)")
+
 
 class ScreenerFetchError(RuntimeError):
     """Raised when screener.in can't be reached or its page shape changed unexpectedly."""
@@ -120,6 +145,30 @@ def _days_since_listing(listing_date: dt.date | None) -> int | None:
     return days if days >= 0 else None  # a future date is an upcoming IPO, not "since listing"
 
 
+def _clean_ordinal_date(text: str) -> str | None:
+    """screener.in's /ipo/ page writes dates as "25th Aug"/"2nd Sep" (no
+    year - these are all near-term) - strips the ordinal suffix (25 Aug),
+    None for the empty/whitespace-only cell a not-yet-scheduled IPO has."""
+    text = _ORDINAL_SUFFIX_RE.sub(r"\1", text).strip()
+    return text or None
+
+
+def _parse_multiple(text: str) -> float | None:
+    """"152 times" -> 152.0, "0.1 times" -> 0.1; None once subscription
+    hasn't opened yet (no "Subscription Status" popup on that row at all,
+    so _UPCOMING_SUBMULT_RE just never matches)."""
+    m = re.search(r"[\d.]+", text)
+    return float(m.group(0)) if m else None
+
+
+def _parse_roce(text: str) -> float | None:
+    text = text.replace("%", "").strip()
+    try:
+        return float(text)
+    except ValueError:
+        return None
+
+
 class ScreenerClient:
     def __init__(self):
         self._session = requests.Session()
@@ -130,6 +179,7 @@ class ScreenerClient:
         self._last_cold_attempt = 0.0
         self._last_cold_error: ScreenerFetchError | None = None
         threading.Thread(target=self._refresh_loop, daemon=True, name="screener-ipo-refresh").start()
+        self._upcoming_cache: tuple[float, list[dict]] | None = None
 
     def _fetch_page(self, page: int) -> list[dict]:
         params = {"sort": "listdate", "order": "desc"}
@@ -260,6 +310,66 @@ class ScreenerClient:
             return rows
         finally:
             self._cold_lock.release()
+
+    def _fetch_upcoming_ipos(self) -> list[dict]:
+        try:
+            resp = self._session.get(UPCOMING_IPO_URL, timeout=20)
+        except requests.RequestException as exc:
+            raise ScreenerFetchError(f"screener.in Upcoming IPOs fetch failed: {exc}") from exc
+        if resp.status_code != 200:
+            raise ScreenerFetchError(f"screener.in Upcoming IPOs fetch failed: HTTP {resp.status_code}")
+
+        html = resp.text
+        name_matches = list(_UPCOMING_NAME_RE.finditer(html))
+        rows = []
+        for i, m in enumerate(name_matches):
+            start = m.start()
+            end = name_matches[i + 1].start() if i + 1 < len(name_matches) else len(html)
+            row_html = html[start:end]
+
+            subperiod = _UPCOMING_SUBPERIOD_RE.search(row_html)
+            price = _UPCOMING_PRICE_RE.search(row_html)
+            listdate_matches = _UPCOMING_LISTDATE_RE.findall(row_html)
+            mcap = _UPCOMING_MCAP_RE.search(row_html)
+            submult = _UPCOMING_SUBMULT_RE.search(row_html)
+            tail = _UPCOMING_TAIL_RE.search(row_html)
+
+            rows.append(
+                {
+                    "name": m.group(2).strip(),
+                    "screenerUrl": f"{BASE}{m.group(1)}",
+                    "subscriptionOpen": _clean_ordinal_date(subperiod.group(1)) if subperiod else None,
+                    "subscriptionClose": _clean_ordinal_date(subperiod.group(2)) if subperiod else None,
+                    "priceBand": price.group(1).strip() if price else None,
+                    # The 2nd "sub text-align-center" cell is Listing Date - the
+                    # 1st is the Subscription Period cell, which never matches
+                    # here since it contains nested <span> tags this pattern
+                    # (deliberately, [^<]+) doesn't allow through.
+                    "listingDate": _clean_ordinal_date(listdate_matches[0]) if listdate_matches else None,
+                    "ipoMarketCapCr": _parse_money(mcap.group(1)) if mcap else None,
+                    "subscriptionTimes": _parse_multiple(submult.group(1)) if submult else None,
+                    "pe": _parse_money(tail.group(1)) if tail else None,
+                    "roce": _parse_roce(tail.group(2)) if tail else None,
+                }
+            )
+        if not rows and name_matches == []:
+            raise ScreenerFetchError("screener.in Upcoming IPOs page markup may have changed - no rows found")
+        return rows
+
+    def get_upcoming_ipos(self) -> list[dict]:
+        """Companies currently open for subscription or listing over the
+        next few days (screener.in/ipo/) - subscription window, price
+        band, expected listing date, market cap, and (once subscription
+        has opened) the live oversubscription multiple. A separate, much
+        smaller page from /ipo/recent/ above, single request/no pagination
+        seen, so no background-walk machinery needed here."""
+        if self._upcoming_cache is not None:
+            ts, cached_rows = self._upcoming_cache
+            if time.time() - ts < UPCOMING_IPO_CACHE_TTL_SEC:
+                return cached_rows
+        rows = self._fetch_upcoming_ipos()
+        self._upcoming_cache = (time.time(), rows)
+        return rows
 
 
 client = ScreenerClient()

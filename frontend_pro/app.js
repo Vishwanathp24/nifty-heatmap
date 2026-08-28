@@ -162,6 +162,7 @@ const VIEW_TITLES = {
   fiftytwo: "52-Week High / Low",
   volume: "Volume Shockers",
   ipos: "Recent IPOs",
+  upcomingipos: "Upcoming IPOs",
   swing: "Swing Trading",
   swingetf: "Swing ETF Trading",
   watchlist: "Watchlist",
@@ -1839,6 +1840,61 @@ function initIpoSearch() {
   });
 }
 
+// Companies currently open for subscription or listing over the next few
+// days (screener.in/ipo/) - a separate, much smaller page from Recent
+// IPOs above (already-listed). See ScreenerClient.get_upcoming_ipos.
+const UPCOMING_IPO_COLUMNS = [
+  {
+    header: "Name",
+    render: (r) =>
+      r.screenerUrl
+        ? `<a class="sym-link" href="${r.screenerUrl}" target="_blank" rel="noopener noreferrer" title="Open ${r.name} on screener.in">${r.name}</a>`
+        : r.name,
+    cls: "cell-left",
+  },
+  {
+    header: "Subscription Period",
+    render: (r) => (r.subscriptionOpen && r.subscriptionClose ? `${r.subscriptionOpen} &ndash; ${r.subscriptionClose}` : "--"),
+  },
+  { header: "Price Band", render: (r) => r.priceBand || "--" },
+  { header: "Listing Date", render: (r) => r.listingDate || "--" },
+  {
+    header: "Market Cap (₹Cr)",
+    render: (r) => (r.ipoMarketCapCr != null ? fmtInt(r.ipoMarketCapCr) : "--"),
+    sortKey: "ipoMarketCapCr",
+  },
+  {
+    header: "Subscription",
+    render: (r) => (r.subscriptionTimes != null ? `${fmtNum(r.subscriptionTimes)}x` : "--"),
+    sortKey: "subscriptionTimes",
+  },
+  { header: "PE", render: (r) => (r.pe != null ? fmtNum(r.pe) : "--"), sortKey: "pe" },
+  {
+    header: "ROCE",
+    render: (r) => (r.roce != null ? `<span class="${chgClass(r.roce)}">${sign(r.roce)}${fmtNum(r.roce)}%</span>` : "--"),
+    sortKey: "roce",
+  },
+];
+
+let upcomingIposData = [];
+
+function renderUpcomingIposTable() {
+  renderMoversTable($("#upcoming-ipos-table"), upcomingIposData, {
+    emptyText: "No upcoming IPO data available.",
+    columns: UPCOMING_IPO_COLUMNS,
+  });
+}
+
+async function refreshUpcomingIpos() {
+  try {
+    const data = await fetchJSON("/api/upcoming-ipos");
+    upcomingIposData = data.ipos;
+    renderUpcomingIposTable();
+  } catch (err) {
+    $("#upcoming-ipos-table").innerHTML = `<div class="empty-note">Couldn't load Upcoming IPOs: ${err.message}</div>`;
+  }
+}
+
 async function refreshSwingEtf() {
   try {
     const data = await fetchJSON("/api/swing-etf");
@@ -2023,6 +2079,7 @@ const VIEW_FETCHERS = {
   fiftytwo: [refresh52Week],
   volume: [refreshVolumeShockers],
   ipos: [refreshRecentIpos],
+  upcomingipos: [refreshUpcomingIpos],
   swing: [refreshSwingTrading],
   swingetf: [refreshSwingEtf],
 };
