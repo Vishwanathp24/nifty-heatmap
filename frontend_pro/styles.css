@@ -37,13 +37,19 @@ a { color: inherit; }
 
 /* ------------------------------------------------------------- app shell */
 
-.app-shell { display: flex; min-height: 100vh; }
+/* 100dvh (dynamic viewport height) after the 100vh fallback - on mobile,
+   raw vh is pinned to the LARGEST possible viewport (address bar hidden),
+   so the browser has to recompute vh-sized boxes as its chrome shows/hides
+   mid-scroll, which is the classic cause of stuttery/broken-feeling scroll
+   on a phone. dvh tracks the actual visible viewport instead. Unsupported
+   browsers just ignore the second declaration and keep the vh value. */
+.app-shell { display: flex; min-height: 100vh; min-height: 100dvh; }
 
 .sidebar {
   width: var(--sidebar-w); flex-shrink: 0;
   background: var(--bg-alt); border-right: 1px solid var(--border);
   display: flex; flex-direction: column;
-  position: sticky; top: 0; height: 100vh; z-index: 20;
+  position: sticky; top: 0; height: 100vh; height: 100dvh; z-index: 20;
 }
 .sidebar-brand {
   display: flex; align-items: center; gap: 10px;
