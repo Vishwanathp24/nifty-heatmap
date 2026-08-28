@@ -207,12 +207,6 @@ let latestBias = null;
 let latestFiiDii = null;
 let latestPcr = [];
 
-// index-strip symbol ("NIFTY 50"/"NIFTY BANK") -> matching PCR index name
-// ("NIFTY"/"BANKNIFTY") - the two are named differently across NSE's own
-// endpoints, so renderIndexStrip() needs this to fold a PCR line into the
-// right card.
-const PCR_INDEX_MAP = { "NIFTY 50": "NIFTY", "NIFTY BANK": "BANKNIFTY" };
-
 function biasClassFor(label) {
   const lower = label.toLowerCase();
   return lower.startsWith("bull") ? "bullish" : lower.startsWith("bear") ? "bearish" : "neutral";
@@ -220,21 +214,15 @@ function biasClassFor(label) {
 
 function renderIndexStrip() {
   const el = $("#index-strip");
-  const pcrByIndex = {};
-  for (const r of latestPcr) pcrByIndex[r.index] = r;
-
   const cards = latestIndices
-    .map((idx) => {
-      const pcr = pcrByIndex[PCR_INDEX_MAP[idx.symbol]];
-      const pcrLine = pcr && pcr.pcrOi != null ? `<div class="idx-val">PCR (OI) ${fmtNum(pcr.pcrOi, 2)}</div>` : "";
-      return `
+    .map(
+      (idx) => `
     <div class="idx-card">
       <div class="idx-name">${idx.symbol}</div>
       <div class="idx-val">${fmtNum(idx.last, 2)}</div>
       <div class="idx-chg ${chgClass(idx.pChange)}">${sign(idx.change)}${fmtNum(idx.change, 2)} (${sign(idx.pChange)}${fmtNum(idx.pChange, 2)}%)</div>
-      ${pcrLine}
-    </div>`;
-    })
+    </div>`
+    )
     .join("");
 
   const adCard = latestAdSummary
@@ -263,11 +251,28 @@ function renderIndexStrip() {
       <div class="idx-chg ${latestFiiDii?.dii?.netValueCr != null ? chgClass(latestFiiDii.dii.netValueCr) : "flat"}">${fiiLine("DII", latestFiiDii?.dii)}</div>
     </div>`;
 
+  // Its own card (like FII/DII, not folded into NIFTY 50/NIFTY BANK -
+  // that read as too cramped) - NIFTY on the .idx-val line, BANKNIFTY on
+  // the .idx-chg line below it, same two-line layout as the FII/DII card.
+  const pcrByIndex = {};
+  for (const r of latestPcr) pcrByIndex[r.index] = r;
+  const pcrLine = (label) => {
+    const r = pcrByIndex[label];
+    return r && r.pcrOi != null ? `${label} ${fmtNum(r.pcrOi, 2)}` : `${label} --`;
+  };
+  const pcrCard = `
+    <div class="idx-card">
+      <div class="idx-name">PCR (OI)</div>
+      <div class="idx-val">${pcrLine("NIFTY")}</div>
+      <div class="idx-chg flat">${pcrLine("BANKNIFTY")}</div>
+    </div>`;
+
   el.innerHTML =
     cards +
     adCard +
     biasCard +
     fiiDiiCard +
+    pcrCard +
     `<div class="idx-card">
       <div class="idx-name">Time</div>
       <div class="idx-time" id="idx-time-value">&mdash;</div>
