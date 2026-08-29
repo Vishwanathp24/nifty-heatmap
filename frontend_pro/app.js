@@ -2119,6 +2119,13 @@ function initIpoTabs() {
     const tab = btn.dataset.ipoTab;
     $$(".folder-tab[data-ipo-tab]").forEach((b) => b.classList.toggle("active", b.dataset.ipoTab === tab));
     $$(".folder-panel[data-ipo-panel]").forEach((p) => p.classList.toggle("hidden", p.dataset.ipoPanel !== tab));
+    // Switching tabs (either direction) clears Recent IPOs' own search/
+    // page state, so coming back to it later never shows a leftover
+    // filter or mid-list page from a previous visit.
+    ipoSearch = "";
+    $("#ipo-search").value = "";
+    tablePageState["ipos-table"] = 0;
+    renderIposTable();
   });
 }
 
