@@ -169,6 +169,7 @@ const VIEW_TITLES = {
   scanner: "F&O Scanner",
   fogainerslosers: "F&O Gainers & Losers",
   scanners: "Scanners",
+  greencandle: "Chartink Screener",
   breadth: "Market Breadth",
   heatmap: "Sector Heatmap",
   movers: "Market Movers",
@@ -1245,13 +1246,7 @@ function initScannersTabControls() {
 }
 
 async function refreshScannersTab() {
-  await Promise.allSettled([
-    refreshOrb(),
-    refreshBuySellScanner(),
-    refreshBreakoutScanner(),
-    refreshGreenCandleScanner(),
-    refreshDowntrendScanner(),
-  ]);
+  await Promise.allSettled([refreshOrb(), refreshBuySellScanner(), refreshBreakoutScanner(), refreshDowntrendScanner()]);
 }
 
 // ---------------------------------------------------------------- F&O Scanner
@@ -2240,6 +2235,7 @@ const VIEW_FETCHERS = {
   scanner: [refreshScanner],
   fogainerslosers: [refreshScanner],
   scanners: [refreshScannersTab],
+  greencandle: [refreshGreenCandleScanner],
   movers: [refreshTopMovers, refresh52Week, refreshVolumeShockers],
   ipos: [refreshRecentIpos, refreshUpcomingIpos],
   swing: [refreshSwingTrading, refreshSwingEtf, refreshSwingInternationalEtf],
