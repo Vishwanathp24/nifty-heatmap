@@ -438,7 +438,13 @@
             <p class="view-sub">Quick links to your own published Chartink screeners - opens the live scan directly on Chartink (always current, not an approximation).</p>
           </div>
 
-          <div class="card">
+          <div class="folder-tabs" id="scannerlinks-tabs">
+            <button class="folder-tab active" data-scannerlinks-tab="chartink">Chartink</button>
+            <button class="folder-tab" data-scannerlinks-tab="downstox">Downstox</button>
+            <button class="folder-tab" data-scannerlinks-tab="other">Other</button>
+          </div>
+
+          <div class="card folder-panel" data-scannerlinks-panel="chartink">
             <div class="card-head"><div><h3>Chartink</h3></div></div>
             <div class="chartink-links">
               <a class="chartink-link" href="https://chartink.com/screener/copy-bullish-intraday-stock-2545" target="_blank" rel="noopener noreferrer">
@@ -536,7 +542,7 @@
             </div>
           </div>
 
-          <div class="card">
+          <div class="card folder-panel hidden" data-scannerlinks-panel="downstox">
             <div class="card-head"><div><h3>Downstox</h3></div></div>
             <div class="chartink-links">
               <a class="chartink-link" href="https://downstox.com/breakouts" target="_blank" rel="noopener noreferrer">
@@ -554,7 +560,7 @@
             </div>
           </div>
 
-          <div class="card">
+          <div class="card folder-panel hidden" data-scannerlinks-panel="other">
             <div class="card-head"><div><h3>Other</h3></div></div>
             <div class="chartink-links">
               <a class="chartink-link" href="https://web.telegram.org/k/#@stockcepe" target="_blank" rel="noopener noreferrer">

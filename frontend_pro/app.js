@@ -2238,6 +2238,16 @@ function initSwingTabs() {
   });
 }
 
+function initScannerLinksTabs() {
+  $("#scannerlinks-tabs").addEventListener("click", (e) => {
+    const btn = e.target.closest(".folder-tab[data-scannerlinks-tab]");
+    if (!btn) return;
+    const tab = btn.dataset.scannerlinksTab;
+    $$("#scannerlinks-tabs .folder-tab[data-scannerlinks-tab]").forEach((b) => b.classList.toggle("active", b.dataset.scannerlinksTab === tab));
+    $$(".folder-panel[data-scannerlinks-panel]").forEach((p) => p.classList.toggle("hidden", p.dataset.scannerlinksPanel !== tab));
+  });
+}
+
 function initScannersGroupTabs() {
   $("#scanners-tabs").addEventListener("click", (e) => {
     const btn = e.target.closest(".folder-tab[data-scanners-tab]");
@@ -2617,6 +2627,7 @@ function init() {
   initSwingTabs();
   initScannersGroupTabs();
   initDownstoxTabs();
+  initScannerLinksTabs();
 
   $("#drawer-close").addEventListener("click", closeDrawer);
   $("#drawer-backdrop").addEventListener("click", closeDrawer);
