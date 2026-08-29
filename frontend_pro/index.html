@@ -401,8 +401,8 @@
               <div><h3>Bullish Intraday Stock</h3><p class="card-sub">
                 Daily and 15-min, each: Close vs SMA(20) &middot; Close vs each of the last 5 bars' High &middot; RSI(14) &gt; 60 - same logic as
                 <a href="https://chartink.com/screener/copy-bullish-intraday-stock-2545" target="_blank" rel="noopener noreferrer">vp-bullish-intraday-stock</a>,
-                which uses 1-hour instead of 15-min. Fixed to 15-min here (same as Scanners &rarr; Buy/Sell Scanner's Buy direction at that timeframe) since both need the
-                same 21 self-tracked bars to start evaluating, and 15-min builds up within a single trading day instead of ~3.5 days at 1-hour.
+                which uses 1-hour instead of 15-min. Lists every stock passing the 7 daily conditions; once 15-min history is ready, the Status column shows which of those
+                also pass all 7 intraday conditions ("&check; Qualified") vs daily-only - so a listed stock isn't necessarily a full 14-condition match yet.
               </p></div>
             </div>
             <p id="bullish-intraday-status-note" class="status-note"></p>
@@ -414,8 +414,8 @@
               <div><h3>Bearish Intraday Scanner</h3><p class="card-sub">
                 Daily and 15-min, each: Close vs SMA(20) &middot; Close vs each of the last 5 bars' Low &middot; RSI(14) &lt; 40 - same logic as
                 <a href="https://chartink.com/screener/copy-bearish-intraday-scanner-2251" target="_blank" rel="noopener noreferrer">vp-bearish-intraday-scanner</a>,
-                which uses 1-hour instead of 15-min. Fixed to 15-min here (same as Scanners &rarr; Buy/Sell Scanner's Sell direction at that timeframe) since both need the
-                same 21 self-tracked bars to start evaluating, and 15-min builds up within a single trading day instead of ~3.5 days at 1-hour.
+                which uses 1-hour instead of 15-min. Lists every stock passing the 7 daily conditions; once 15-min history is ready, the Status column shows which of those
+                also pass all 7 intraday conditions ("&check; Qualified") vs daily-only - so a listed stock isn't necessarily a full 14-condition match yet.
               </p></div>
             </div>
             <p id="bearish-intraday-status-note" class="status-note"></p>

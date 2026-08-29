@@ -1026,22 +1026,27 @@ async function refreshBuySellScanner() {
 // literal replica of the two named scans anymore.
 const CHARTINK_FIXED_TIMEFRAME = 15;
 
-// Filters on "qualifies" (ALL 14 conditions - both daily AND intraday
-// legs), not just "dailyPass" (7 of 14) like the Scanners page's Buy/Sell
-// tab does - these two pages exist specifically to mirror a named
-// Chartink scan's exact result count, and dailyPass alone is a much
-// looser filter that shows extra stocks Chartink wouldn't (confirmed
-// live: dailyPass matched 10 stocks against Chartink's own 3, since it
-// ignores the other 7 intraday conditions entirely).
+// Filters on "dailyPass" (7 of the 14 conditions - the daily leg), same
+// as the Scanners page's Buy/Sell tab - not "qualifies" (all 14, both
+// legs). A stricter qualifies-only filter is the textbook-correct match
+// for the named Chartink scans, but showed literally nothing while the
+// self-tracked intraday leg has no history yet (which, per
+// CHARTINK_FIXED_TIMEFRAME's comment, is most of the time right after a
+// deploy) - an empty page that might stay empty for hours is worse than
+// a labeled partial list. The "Status" column (from buysellColumns'
+// intraday set, shown once intradayReady) makes the distinction
+// explicit per row: "✓ Qualified (daily + intraday)" vs "Daily only" -
+// so nothing here claims to be a full 14-condition match unless it is.
 async function refreshFixedBuySellScreen(direction, statusNoteId, tableId) {
   const timeframe = CHARTINK_FIXED_TIMEFRAME;
   try {
     const data = await fetchJSON(`/api/scanner?direction=${direction}&timeframe=${timeframe}`);
     $(`#${statusNoteId}`).textContent = buySellStatusText(data.status, timeframe);
-    const relevant = data.stocks.filter((s) => s.qualifies);
+    const tf = data.status.timeframes[String(timeframe)];
+    const relevant = data.stocks.filter((s) => s.dailyPass);
     renderMoversTable($(`#${tableId}`), relevant, {
-      emptyText: `No stocks currently pass all 14 conditions (daily + ${timeframe}-min).`,
-      columns: buysellColumns(true),
+      emptyText: `No stocks currently pass the daily ${direction} conditions.`,
+      columns: buysellColumns(Boolean(tf && tf.ready)),
     });
   } catch (err) {
     $(`#${tableId}`).innerHTML = `<div class="empty-note">Couldn't load scanner data: ${err.message}</div>`;
