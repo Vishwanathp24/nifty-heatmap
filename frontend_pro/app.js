@@ -2246,6 +2246,17 @@ function initScannerLinksTabs() {
     $$("#scannerlinks-tabs .folder-tab[data-scannerlinks-tab]").forEach((b) => b.classList.toggle("active", b.dataset.scannerlinksTab === tab));
     $$(".folder-panel[data-scannerlinks-panel]").forEach((p) => p.classList.toggle("hidden", p.dataset.scannerlinksPanel !== tab));
   });
+  // Nested sub-tabs inside the Chartink panel (F&O Stocks/Intraday/Swing
+  // Trading/BTST) - grouping is by strategy type, a best-effort read of
+  // each screener's own name/description since Chartink doesn't expose a
+  // category field; move any link that reads wrong if you spot one.
+  $("#chartink-strategy-tabs").addEventListener("click", (e) => {
+    const btn = e.target.closest(".folder-tab[data-chartink-strategy-tab]");
+    if (!btn) return;
+    const tab = btn.dataset.chartinkStrategyTab;
+    $$("#chartink-strategy-tabs .folder-tab[data-chartink-strategy-tab]").forEach((b) => b.classList.toggle("active", b.dataset.chartinkStrategyTab === tab));
+    $$(".folder-panel[data-chartink-strategy-panel]").forEach((p) => p.classList.toggle("hidden", p.dataset.chartinkStrategyPanel !== tab));
+  });
 }
 
 function initScannersGroupTabs() {
