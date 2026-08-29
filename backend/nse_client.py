@@ -1224,7 +1224,21 @@ class NSEClient:
         return history
 
     def _get_daily_history(self) -> dict[str, list[dict]]:
-        return self._cached("daily-history", 6 * 3600.0, self._build_daily_history)
+        # Not a plain self._cached() call on purpose: if the LAST build
+        # came back empty (e.g. NSE's Bhavcopy archive was returning
+        # Akamai "Access Denied" at the time - confirmed happening live
+        # during this app's development), that empty result would
+        # otherwise sit cached for the full 6 hours even after NSE
+        # recovers, since _cached() has no notion of "this cached value
+        # is actually a failure". Retry immediately instead whenever the
+        # cached value has no data for anyone, rather than trusting a
+        # stale-but-not-yet-expired empty cache.
+        cached = self._cache.get("daily-history", 6 * 3600.0)
+        if cached is not None and any(cached.values()):
+            return cached
+        value = self._build_daily_history()
+        self._cache.set("daily-history", value)
+        return value
 
     # -- Long-lookback daily history (Downtrend Scanner's daily EMA(200) leg) --
 
