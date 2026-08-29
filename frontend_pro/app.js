@@ -2051,7 +2051,16 @@ const IPO_COLUMNS = [
         : r.name,
     cls: "cell-left",
   },
-  { header: "Listing Date", render: (r) => r.listingDate || "--" },
+  {
+    header: "Listing Date",
+    render: (r) => r.listingDate || "--",
+    // Same underlying value as "Since Listing" below (days-since-listing is
+    // just the inverse view of listing date), so it sorts identically -
+    // reusing the key also means this is what "reset to Listing Date"
+    // means below: clearing tableSortState leaves rows in the API's
+    // already-newest-first-by-listing-date order.
+    sortKey: "daysSinceListing",
+  },
   {
     header: "Since Listing",
     render: (r) => formatListingAge(r.daysSinceListing),
@@ -2120,11 +2129,13 @@ function initIpoTabs() {
     $$(".folder-tab[data-ipo-tab]").forEach((b) => b.classList.toggle("active", b.dataset.ipoTab === tab));
     $$(".folder-panel[data-ipo-panel]").forEach((p) => p.classList.toggle("hidden", p.dataset.ipoPanel !== tab));
     // Switching tabs (either direction) clears Recent IPOs' own search/
-    // page state, so coming back to it later never shows a leftover
-    // filter or mid-list page from a previous visit.
+    // sort/page state, so coming back to it later never shows a leftover
+    // filter, sort order, or mid-list page from a previous visit - it
+    // resets to the default Listing Date order.
     ipoSearch = "";
     $("#ipo-search").value = "";
     tablePageState["ipos-table"] = 0;
+    delete tableSortState["ipos-table"];
     renderIposTable();
   });
 }
