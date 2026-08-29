@@ -1012,7 +1012,7 @@ async function refreshBuySellScanner() {
   }
 }
 
-// -- Bullish Intraday Stock / Bearish Intraday Scanner (own tabs) -------
+// -- Bullish Intraday Scanner / Bearish Intraday Scanner (own tabs) -----
 // Same /api/scanner endpoint and columns as the Scanners page's Buy/Sell
 // tab above, just pinned to one direction and a fixed timeframe instead
 // of following the user's Scanners-page selection.
