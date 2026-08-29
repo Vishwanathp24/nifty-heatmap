@@ -170,6 +170,7 @@ const VIEW_TITLES = {
   fogainerslosers: "F&O Gainers & Losers",
   scanners: "Scanners",
   chartinklinks: "Scanner Links",
+  downstox: "Downstox",
   breadth: "Market Breadth",
   heatmap: "Sector Heatmap",
   movers: "Market Movers",
@@ -1215,6 +1216,66 @@ async function refreshBtstScanner() {
   }
 }
 
+// -- Downstox: Breakout Highs Scanner (10/20/50/100/200-day, 52-week) ------------
+// Native equivalent of downstox.com/breakouts - see the comment above
+// NSEClient.get_breakout_highs_scanner for why this isn't scraped instead.
+// The backend returns all 6 periods in one response, so switching the
+// period chip below just re-renders from the already-fetched data - no
+// extra network call per click.
+
+let selectedBreakoutHighsPeriod = 10;
+let breakoutHighsData = null;
+
+const BREAKOUT_HIGHS_COLUMNS = [
+  { header: "Symbol", render: (r) => symbolLink(r.symbol), cls: "cell-left" },
+  { header: "Sector", render: (r) => sectorLabel(r.sector), cls: "cell-left" },
+  { header: "LTP", render: (r) => fmtNum(r.ltp), sortKey: "ltp" },
+  {
+    header: "Chg %",
+    render: (r) => `<span class="${chgClass(r.pChange)}">${sign(r.pChange)}${fmtNum(r.pChange)}%</span>`,
+    sortKey: "pChange",
+  },
+  { header: "Today's High", render: (r) => fmtNum(r.todayHigh), sortKey: "todayHigh" },
+  { header: "Prior Period High", render: (r) => fmtNum(r.priorHigh), sortKey: "priorHigh" },
+  {
+    header: "Breakout %",
+    render: (r) => `<span class="up">+${fmtNum(r.breakoutPct)}%</span>`,
+    sortKey: "breakoutPct",
+  },
+];
+
+function renderBreakoutHighsStatusNote(status) {
+  const note = $("#breakouthighs-status-note");
+  if (!status) {
+    note.textContent = "";
+    return;
+  }
+  note.textContent = status.ready
+    ? `ready (${status.barsAvailable} real trading days of history).`
+    : `building (${status.barsAvailable}/${status.barsNeeded} real trading days).`;
+}
+
+function renderBreakoutHighsTable() {
+  const bucket = breakoutHighsData && breakoutHighsData.periods[String(selectedBreakoutHighsPeriod)];
+  const stocks = bucket ? bucket.stocks : [];
+  const periodLabel = $$("#breakouthighs-tabs .qf-chip.active")[0]?.textContent || "this period";
+  renderMoversTable($("#breakouthighs-table"), stocks, {
+    emptyText: `No F&O stocks are currently making a new ${periodLabel.toLowerCase()} high.`,
+    columns: BREAKOUT_HIGHS_COLUMNS,
+  });
+}
+
+async function refreshBreakoutHighsScanner() {
+  try {
+    const data = await fetchJSON("/api/breakout-highs-scanner");
+    breakoutHighsData = data;
+    renderBreakoutHighsStatusNote(data.status);
+    renderBreakoutHighsTable();
+  } catch (err) {
+    $("#breakouthighs-table").innerHTML = `<div class="empty-note">Couldn't load Breakout Highs data: ${err.message}</div>`;
+  }
+}
+
 // -- 15-Min Breakout Scanner ------------------------------------------------------
 
 let selectedBreakoutDirection = "buy";
@@ -1434,6 +1495,23 @@ function initScannersTabControls() {
     selectedBreakoutDirection = btn.dataset.direction;
     $$("#breakout-tabs .qf-chip").forEach((b) => b.classList.toggle("active", b === btn));
     refreshBreakoutScanner();
+  });
+}
+
+function initDownstoxTabs() {
+  $("#downstox-tabs").addEventListener("click", (e) => {
+    const btn = e.target.closest(".folder-tab[data-downstox-tab]");
+    if (!btn) return;
+    const tab = btn.dataset.downstoxTab;
+    $$("#downstox-tabs .folder-tab[data-downstox-tab]").forEach((b) => b.classList.toggle("active", b.dataset.downstoxTab === tab));
+    $$(".folder-panel[data-downstox-panel]").forEach((p) => p.classList.toggle("hidden", p.dataset.downstoxPanel !== tab));
+  });
+  $("#breakouthighs-tabs").addEventListener("click", (e) => {
+    const btn = e.target.closest(".qf-chip");
+    if (!btn) return;
+    selectedBreakoutHighsPeriod = Number(btn.dataset.period);
+    $$("#breakouthighs-tabs .qf-chip").forEach((b) => b.classList.toggle("active", b === btn));
+    renderBreakoutHighsTable(); // already-fetched data - just re-render, no new request
   });
 }
 
@@ -2456,6 +2534,7 @@ const VIEW_FETCHERS = {
   scanners: [refreshScannersTab],
   movers: [refreshTopMovers, refresh52Week, refreshVolumeShockers],
   ipos: [refreshRecentIpos, refreshUpcomingIpos],
+  downstox: [refreshBreakoutHighsScanner],
   swing: [refreshSwingTrading, refreshSwingEtf, refreshSwingInternationalEtf],
 };
 
@@ -2537,6 +2616,7 @@ function init() {
   initMoversTabs();
   initSwingTabs();
   initScannersGroupTabs();
+  initDownstoxTabs();
 
   $("#drawer-close").addEventListener("click", closeDrawer);
   $("#drawer-backdrop").addEventListener("click", closeDrawer);

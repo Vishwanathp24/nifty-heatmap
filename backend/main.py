@@ -306,6 +306,25 @@ def btst_scanner():
     return _wrap(client.get_btst_scanner)
 
 
+@app.get("/api/breakout-highs-scanner/status")
+def breakout_highs_scanner_status():
+    """How far along the daily (long-lookback, background-warmed) history
+    the Breakout Highs Scanner's data is - it needs a 252-trading-day
+    window (for the 52-week period), the deepest of any scanner in this
+    app (tied with BTST/Swing Trading)."""
+    return _wrap(client.get_breakout_highs_scanner_status)
+
+
+@app.get("/api/breakout-highs-scanner")
+def breakout_highs_scanner():
+    """Native equivalent of Downstox's own Breakouts page, computed
+    directly from NSE data rather than scraped (see
+    NSEClient.get_breakout_highs_scanner for why). Six periods - 10/20/50/
+    100/200-day and 52-week new highs - each its own full list, scoped to
+    the F&O universe."""
+    return _wrap(client.get_breakout_highs_scanner)
+
+
 @app.get("/api/swing-trading/status")
 def swing_trading_status():
     """How far along the long-lookback (background-warmed) daily history

@@ -2295,6 +2295,87 @@ class NSEClient:
             "stocks": results,
         }
 
+    # -- Breakout Highs Scanner (10/20/50/100/200-day + 52-week highs) --------
+    #
+    # A native equivalent to Downstox's own "Breakouts" page
+    # (downstox.com/breakouts) rather than scraping it - their robots.txt
+    # explicitly disallows ClaudeBot/Claude-Web (named separately from the
+    # general "allow" rule that covers other crawlers), so this instead
+    # computes the same kind of "new N-day high" breakout directly from
+    # NSE's own daily data already in hand (the same long-lookback Bhavcopy
+    # history used by BTST/Swing Trading above). Definition: a stock
+    # "breaks out" at period N if today's daily High exceeds the highest
+    # daily High of the preceding N trading days (today excluded) - the
+    # conventional definition, matching Swing Trading's own 52-week
+    # high/low (SWING_52W_LOOKBACK_DAYS = 252) for the longest period here.
+    # Scoped to the F&O universe, like most of this app's other scanners
+    # (Downstox's own scan runs on the full NSE+BSE universe, so its counts
+    # will always run higher than this one's).
+    #
+    # Larger N is strictly harder to satisfy than smaller N (the trailing
+    # N-day window only grows), so a stock breaking out at 200 days is
+    # mathematically also breaking out at 10/20/50/100 days - each period
+    # here is its own full "new N-day high" list, not deduplicated down to
+    # one row per stock, mirroring how Downstox itself presents six
+    # separate period buckets rather than a single "best tier" table.
+    BREAKOUT_HIGHS_PERIODS = (10, 20, 50, 100, 200, 252)  # 252 trading days ~ "52-week"
+
+    def get_breakout_highs_scanner_status(self) -> dict:
+        with self._long_daily_lock:
+            bars = max((len(v) for v in self._long_daily_history.values()), default=0)
+            ready = self._long_daily_ready
+        needed = max(self.BREAKOUT_HIGHS_PERIODS) + 1
+        return {"barsAvailable": bars, "barsNeeded": needed, "ready": ready and bars >= needed}
+
+    def get_breakout_highs_scanner(self) -> dict:
+        """Computes all 6 periods in a single pass over the shared daily
+        history (cheap - same data for every period, just a different
+        trailing window), so the frontend's period tabs can switch with no
+        extra network call. See BREAKOUT_HIGHS_PERIODS above for the exact
+        rule."""
+        fo_symbols = self._fo_universe()
+        rows = {r.get("symbol"): r for r in self._fo_quote_rows()}
+        with self._long_daily_lock:
+            daily_history = {sym: list(bars) for sym, bars in self._long_daily_history.items()}
+
+        periods: dict[int, list[dict]] = {p: [] for p in self.BREAKOUT_HIGHS_PERIODS}
+        symbols_with_history = 0
+        for sym in fo_symbols:
+            row = rows.get(sym)
+            candles = daily_history.get(sym, [])
+            if row is None or not candles:
+                continue
+            symbols_with_history += 1
+            highs = [c["high"] for c in candles]
+            today_high = highs[-1]
+            for period in self.BREAKOUT_HIGHS_PERIODS:
+                needed_bars = period + 1
+                if len(candles) < needed_bars:
+                    continue
+                prior_high = max(highs[-needed_bars:-1])
+                if today_high > prior_high:
+                    periods[period].append(
+                        {
+                            "symbol": sym,
+                            "sector": self._sector_for(sym),
+                            "ltp": row.get("lastPrice"),
+                            "pChange": row.get("pChange"),
+                            "todayHigh": today_high,
+                            "priorHigh": round(prior_high, 2),
+                            "breakoutPct": round((today_high / prior_high - 1) * 100, 2) if prior_high else None,
+                        }
+                    )
+
+        for stocks in periods.values():
+            stocks.sort(key=lambda r: -abs(r.get("pChange") or 0))
+
+        return {
+            "totalFOSymbols": len(fo_symbols),
+            "symbolsWithHistory": symbols_with_history,
+            "status": self.get_breakout_highs_scanner_status(),
+            "periods": {str(p): {"count": len(stocks), "stocks": stocks} for p, stocks in periods.items()},
+        }
+
     # -- Swing Trading (NIFTY 500, DMA + 52-week high/low + selection score) --
     #
     # Phase 1 (raw data: 5/20/50/100/200-day moving averages, 52-week high/
