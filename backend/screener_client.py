@@ -247,6 +247,7 @@ class ScreenerClient:
     def _refresh_once(self) -> None:
         max_days = 365 * IPO_LOOKBACK_YEARS
         rows: list[dict] = []
+        seen_keys: set[str] = set()  # screenerUrl (or name, if that's missing) - see the dedup note below
         page = 1
         while page <= MAX_IPO_PAGES:
             try:
@@ -255,7 +256,18 @@ class ScreenerClient:
                 break  # a page failed mid-walk - keep whatever this walk already gathered
             if not page_rows:
                 break  # ran past the end of screener's IPO list
-            rows.extend(page_rows)
+            # screener.in's pagination doesn't reliably return an empty page
+            # once a walk runs past its real number of IPO pages - confirmed
+            # live, it can instead keep returning the SAME page's rows for
+            # every later page number, which without this check silently
+            # accumulated one row 39x identically in the final list. A
+            # fetched page bringing back NOTHING new (every row already
+            # seen) is the real end-of-list signal here, not an empty list.
+            new_rows = [r for r in page_rows if (r.get("screenerUrl") or r["name"]) not in seen_keys]
+            if not new_rows:
+                break
+            seen_keys.update(r.get("screenerUrl") or r["name"] for r in new_rows)
+            rows.extend(new_rows)
             oldest_days_on_page = max(
                 (r["daysSinceListing"] for r in page_rows if r["daysSinceListing"] is not None), default=None
             )
