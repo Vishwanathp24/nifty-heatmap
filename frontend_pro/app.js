@@ -1435,13 +1435,6 @@ function initScannersTabControls() {
     $$("#breakout-tabs .qf-chip").forEach((b) => b.classList.toggle("active", b === btn));
     refreshBreakoutScanner();
   });
-  $("#downtrend-tabs").addEventListener("click", (e) => {
-    const btn = e.target.closest(".qf-chip");
-    if (!btn) return;
-    selectedDowntrendMode = btn.dataset.mode;
-    $$("#downtrend-tabs .qf-chip").forEach((b) => b.classList.toggle("active", b === btn));
-    refreshDowntrendScanner();
-  });
 }
 
 async function refreshScannersTab() {
