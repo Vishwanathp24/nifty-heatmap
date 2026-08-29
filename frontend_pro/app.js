@@ -58,12 +58,25 @@ function tvLink(symbol) {
 // the OS its shot at the handoff); desktop keeps opening a new tab, since
 // there's no "app" to hand off to there and a same-tab navigation would
 // just lose the dashboard.
+//
+// iOS is the exception (see isIOSDevice() below, used in symbolLink):
+// confirmed live that Universal Links aren't actually catching the tap on
+// iPhone - it falls through to Mobile Safari same-tab, navigating away
+// from the dashboard with no way back except the browser's back button.
+// Since the app-handoff isn't happening there anyway, there's no
+// Universal Link behavior left to preserve - so iOS gets target="_blank"
+// like desktop, trading "maybe the app catches it" (it wasn't) for
+// "never lose the dashboard".
 function isMobileDevice() {
   return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 }
 
+function isIOSDevice() {
+  return /iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
+
 function symbolLink(symbol) {
-  const linkAttrs = isMobileDevice() ? "" : ` target="_blank" rel="noopener noreferrer"`;
+  const linkAttrs = isMobileDevice() && !isIOSDevice() ? "" : ` target="_blank" rel="noopener noreferrer"`;
   return `<span class="sym-cell"><a class="sym-link" href="${tvLink(symbol)}"${linkAttrs} title="Open ${symbol} chart on TradingView">${symbol}</a><button type="button" class="verdict-trigger" data-symbol="${symbol}" title="Smart summary for ${symbol} - trend, breakout, pivot read">✦</button></span>`;
 }
 
