@@ -313,6 +313,7 @@
             <button class="folder-tab active" data-scanners-tab="orb">Opening Range Breakout</button>
             <button class="folder-tab" data-scanners-tab="buysell">Buy / Sell (Bullish / Bearish)</button>
             <button class="folder-tab" data-scanners-tab="breakout15">15-Min Breakout</button>
+            <button class="folder-tab" data-scanners-tab="greencandle">15-Min Green Candle</button>
             <button class="folder-tab" data-scanners-tab="downtrend">Downtrend Scanner</button>
           </div>
 
@@ -362,6 +363,16 @@
             </div>
             <p id="breakout-status-note" class="status-note"></p>
             <div id="breakout-table" class="data-table"><div class="skel-line"></div></div>
+          </div>
+
+          <div class="scanner-section folder-panel hidden" data-group="greencandle" data-scanners-panel="greencandle">
+            <h3 class="scanner-section-title">15-Min Green Candle</h3>
+            <p class="view-sub">
+              A best-effort approximation of a published Chartink scan (<a href="https://chartink.com/screener/srirangscanfut" target="_blank" rel="noopener noreferrer">srirangscanfut</a>)
+              whose actual filter is hidden by its creator - the only visible clue is a "Green candle on 15-min" tag, so this is exactly that: F&amp;O stocks whose latest 15-min candle is green (close &gt; open). Won't necessarily match that scan's exact list.
+            </p>
+            <p id="greencandle-status-note" class="status-note"></p>
+            <div id="greencandle-table" class="data-table"><div class="skel-line"></div></div>
           </div>
 
           <div class="scanner-section folder-panel hidden" data-group="downtrend" data-scanners-panel="downtrend">

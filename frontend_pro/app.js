@@ -1065,6 +1065,59 @@ async function refreshBreakoutScanner() {
   }
 }
 
+// -- 15-Min Green Candle Scanner ---------------------------------------
+// Best-effort approximation of a published Chartink scan whose real
+// filter is hidden - see index.html's card-sub and
+// NSEClient.get_green_candle_scanner for the full explanation. Reuses
+// the same self-tracked 15-min candle history / status as the 15-Min
+// Breakout Scanner above.
+
+const GREEN_CANDLE_COLUMNS = [
+  { header: "Symbol", render: (r) => symbolLink(r.symbol), cls: "cell-left" },
+  { header: "Sector", render: (r) => sectorLabel(r.sector), cls: "cell-left" },
+  { header: "LTP", render: (r) => fmtNum(r.ltp), sortKey: "ltp" },
+  {
+    header: "Chg %",
+    render: (r) => `<span class="${chgClass(r.pChange)}">${sign(r.pChange)}${fmtNum(r.pChange)}%</span>`,
+    sortKey: "pChange",
+  },
+  { header: "15m Open", render: (r) => fmtNum(r.open15m), sortKey: "open15m" },
+  { header: "15m Close", render: (r) => fmtNum(r.close15m), sortKey: "close15m" },
+  {
+    header: "Candle",
+    render: (r) => (r.isGreen ? `<span class="up">▲ Green</span>` : `<span class="down">▼ Red</span>`),
+  },
+];
+
+function renderGreenCandleStatusNote(status) {
+  const note = $("#greencandle-status-note");
+  if (!status) {
+    note.textContent = "";
+    return;
+  }
+  if (!status.todayBarCompleted) {
+    note.textContent = "Waiting for today's first 15-min candle to close — nothing to show yet.";
+  } else {
+    note.textContent = status.ready
+      ? `Ready (${status.barsAvailable} 15-min bars, self-tracked, persisted across days).`
+      : `Building (${status.barsAvailable}/${status.barsNeeded} 15-min bars) — fills within a single session once tracking starts.`;
+  }
+}
+
+async function refreshGreenCandleScanner() {
+  try {
+    const data = await fetchJSON("/api/green-candle-scanner");
+    renderGreenCandleStatusNote(data.status);
+    const green = data.stocks.filter((r) => r.isGreen);
+    renderMoversTable($("#greencandle-table"), green, {
+      emptyText: "No F&O stocks currently have a green 15-min candle.",
+      columns: GREEN_CANDLE_COLUMNS,
+    });
+  } catch (err) {
+    $("#greencandle-table").innerHTML = `<div class="empty-note">Couldn't load green candle scanner data: ${err.message}</div>`;
+  }
+}
+
 // -- Downtrend Scanner ------------------------------------------------------
 
 let selectedDowntrendMode = "daily";
@@ -1192,7 +1245,13 @@ function initScannersTabControls() {
 }
 
 async function refreshScannersTab() {
-  await Promise.allSettled([refreshOrb(), refreshBuySellScanner(), refreshBreakoutScanner(), refreshDowntrendScanner()]);
+  await Promise.allSettled([
+    refreshOrb(),
+    refreshBuySellScanner(),
+    refreshBreakoutScanner(),
+    refreshGreenCandleScanner(),
+    refreshDowntrendScanner(),
+  ]);
 }
 
 // ---------------------------------------------------------------- F&O Scanner

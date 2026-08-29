@@ -1780,6 +1780,55 @@ class NSEClient:
             "stocks": results,
         }
 
+    # -- 15-Min Green Candle Scanner ---------------------------------------
+    #
+    # A best-effort approximation of a published Chartink scan
+    # (chartink.com/screener/srirangscanfut) whose actual filter conditions
+    # are hidden by its creator - the only visible clue on the page is a
+    # "Green candle on 15-min" tag, so this implements exactly that literal
+    # rule (latest 15-min candle's close > open) and nothing more. It will
+    # not necessarily match that scan's exact stock list - there's no way
+    # to know what else (if anything) its hidden filter also checks.
+    # Reuses the same self-tracked 15-min candle history the 15-Min
+    # Breakout Scanner above already persists - no separate tracking.
+
+    def get_green_candle_scanner_status(self) -> dict:
+        return self.get_breakout_scanner_status()
+
+    def get_green_candle_scanner(self) -> dict:
+        fo_symbols = self._fo_universe()
+        rows = {r.get("symbol"): r for r in self._fo_quote_rows()}
+        today_str = dt.datetime.now(IST).date().isoformat()
+
+        results = []
+        for sym in fo_symbols:
+            row = rows.get(sym)
+            if row is None:
+                continue
+            candles = self._intraday_candles_for(sym, BREAKOUT_TIMEFRAME_MIN)
+            if not self._intraday_leg_is_current(candles, today_str):
+                continue  # today's first 15-min bar hasn't completed yet
+            latest = candles[-1]
+            results.append(
+                {
+                    "symbol": sym,
+                    "sector": self._sector_for(sym),
+                    "ltp": row.get("lastPrice"),
+                    "pChange": row.get("pChange"),
+                    "open15m": latest["open"],
+                    "close15m": latest["close"],
+                    "isGreen": latest["close"] > latest["open"],
+                }
+            )
+
+        results.sort(key=lambda r: (not r["isGreen"], -(r.get("pChange") or 0)))
+        return {
+            "totalFOSymbols": len(fo_symbols),
+            "symbolsWithHistory": len(results),
+            "status": self.get_green_candle_scanner_status(),
+            "stocks": results,
+        }
+
     # -- Downtrend Scanner -----------------------------------------------------
     # See the DOWNTREND_* constants above for the exact rule per mode.
 

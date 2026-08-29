@@ -227,6 +227,22 @@ def breakout_scanner(
     return _wrap(client.get_breakout_scanner, direction)
 
 
+@app.get("/api/green-candle-scanner/status")
+def green_candle_scanner_status():
+    """Same persisted 15-min candle history the 15-Min Breakout Scanner
+    uses (see /api/breakout-scanner/status) - this scan reuses it as-is."""
+    return _wrap(client.get_green_candle_scanner_status)
+
+
+@app.get("/api/green-candle-scanner")
+def green_candle_scanner():
+    """Best-effort approximation of a published Chartink scan
+    (chartink.com/screener/srirangscanfut) whose real filter is hidden -
+    every F&O stock whose latest 15-min candle today is green (close >
+    open). See NSEClient.get_green_candle_scanner."""
+    return _wrap(client.get_green_candle_scanner)
+
+
 @app.get("/api/downtrend-scanner/status")
 def downtrend_scanner_status():
     """How far along the daily (long-lookback, background-warmed) and each
