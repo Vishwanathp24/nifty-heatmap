@@ -1016,17 +1016,23 @@ async function refreshBuySellScanner() {
 // tab above, just pinned to one direction and the 60-min timeframe (the
 // exact rule these two are named after - see the two Chartink links in
 // index.html) instead of following the user's Scanners-page selection.
+//
+// Filters on "qualifies" (ALL 14 conditions - both daily AND 1-hour legs),
+// not just "dailyPass" (7 of 14) like the Scanners page's Buy/Sell tab
+// does - these two pages exist specifically to mirror a named Chartink
+// scan's exact result count, and dailyPass alone is a much looser filter
+// that shows extra stocks Chartink wouldn't (confirmed live: dailyPass
+// matched 10 stocks against Chartink's own 3, since it ignores the other
+// 7 intraday conditions entirely).
 async function refreshFixedBuySellScreen(direction, statusNoteId, tableId) {
   const timeframe = 60;
   try {
     const data = await fetchJSON(`/api/scanner?direction=${direction}&timeframe=${timeframe}`);
     $(`#${statusNoteId}`).textContent = buySellStatusText(data.status, timeframe);
-    const tf = data.status.timeframes[String(timeframe)];
-    const columns = buysellColumns(Boolean(tf && tf.ready));
-    const relevant = data.stocks.filter((s) => s.dailyPass);
+    const relevant = data.stocks.filter((s) => s.qualifies);
     renderMoversTable($(`#${tableId}`), relevant, {
-      emptyText: `No stocks currently pass the daily ${direction} conditions.`,
-      columns,
+      emptyText: "No stocks currently pass all 14 conditions (daily + 1-hour).",
+      columns: buysellColumns(true),
     });
   } catch (err) {
     $(`#${tableId}`).innerHTML = `<div class="empty-note">Couldn't load scanner data: ${err.message}</div>`;
