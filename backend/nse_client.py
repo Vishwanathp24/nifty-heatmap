@@ -376,6 +376,30 @@ BULLISH_MORNING_SMA_PERIODS = (20, 40, 60)
 BULLISH_MORNING_MIN_VOLUME = 10_000
 BULLISH_MORNING_VOLUME_MULTIPLIER = 1.25
 
+# ---------------------------------------------------------------------------
+# BTST (Buy Today, Sell Tomorrow) Scanner - a user-supplied 5-condition
+# daily-only rule (no intraday leg, so like the Bullish Morning Scanner's
+# daily/weekly/monthly conditions this only needs the long daily history
+# to be ready). The source scan (chartink.com/screener/copy-buy-today-
+# sell-tomorrow-btst-by-upsurge-club-2585) runs on the CASH segment (all
+# ~2000 NSE-listed equities), not futures - by request this is scoped to
+# the F&O universe instead (same as every other scanner in this file),
+# so it will only ever surface F&O-eligible names, not genuine small/
+# micro-caps the real scan can also show.
+# ALL of the following must hold:
+#   1. Today's Volume > SMA(Volume, 5) * BTST_VOLUME_MULTIPLIER
+#   2. RSI(14) > BTST_RSI_MIN
+#   3. Today's Open > yesterday's Open
+#   4. Today's Close > yesterday's Close
+#   5. Today's Close >= (highest High over the last BTST_HIGH_LOOKBACK_DAYS
+#      trading days, including today) * BTST_HIGH_PCT
+BTST_VOLUME_SMA_PERIOD = 5
+BTST_VOLUME_MULTIPLIER = 3
+BTST_RSI_PERIOD = 14
+BTST_RSI_MIN = 65.0
+BTST_HIGH_LOOKBACK_DAYS = 250
+BTST_HIGH_PCT = 0.85
+
 # A separate, much deeper daily history than DAILY_HISTORY_TARGET_DAYS above
 # (30 days - fine for RSI/SMA(20), nowhere near enough for EMA(200) or a
 # genuine 52-week high/low). Walking ~260 trading days (roughly a full NSE
@@ -2169,6 +2193,91 @@ class NSEClient:
             "totalFOSymbols": len(fo_symbols),
             "symbolsWithHistory": len(results),
             "status": self.get_bullish_morning_scanner_status(),
+            "stocks": results,
+        }
+
+    def get_btst_scanner_status(self) -> dict:
+        with self._long_daily_lock:
+            bars = max((len(v) for v in self._long_daily_history.values()), default=0)
+            ready = self._long_daily_ready
+        needed = BTST_HIGH_LOOKBACK_DAYS + 1
+        return {"barsAvailable": bars, "barsNeeded": needed, "ready": ready and bars >= needed}
+
+    def get_btst_scanner(self) -> dict:
+        """See the BTST_* constants above for the exact 5-condition rule -
+        daily-only (volume spike vs its own 5-day average, RSI(14) > 65,
+        Open/Close both above yesterday's, Close within 15% of its own
+        250-day high), scoped to the F&O universe rather than the source
+        scan's cash-segment universe (see the comment above
+        BTST_VOLUME_SMA_PERIOD for why)."""
+        fo_symbols = self._fo_universe()
+        rows = {r.get("symbol"): r for r in self._fo_quote_rows()}
+        with self._long_daily_lock:
+            daily_history = {sym: list(bars) for sym, bars in self._long_daily_history.items()}
+
+        needed_bars = BTST_HIGH_LOOKBACK_DAYS + 1
+        results = []
+        for sym in fo_symbols:
+            row = rows.get(sym)
+            if row is None:
+                continue
+            candles = daily_history.get(sym, [])
+            if len(candles) < needed_bars:
+                continue
+
+            closes = [c["close"] for c in candles]
+            opens = [c["open"] for c in candles]
+            highs = [c["high"] for c in candles]
+            volumes = [c["volume"] for c in candles]
+
+            today_volume = volumes[-1]
+            vol_sma = self._sma(volumes, BTST_VOLUME_SMA_PERIOD)
+            volume_pass = vol_sma is not None and today_volume > vol_sma * BTST_VOLUME_MULTIPLIER
+
+            rsi = self._rsi(closes, BTST_RSI_PERIOD)
+            rsi_pass = rsi is not None and rsi > BTST_RSI_MIN
+
+            today_open = opens[-1]
+            yesterday_open = opens[-2]
+            open_pass = today_open > yesterday_open
+
+            today_close = closes[-1]
+            yesterday_close = closes[-2]
+            close_pass = today_close > yesterday_close
+
+            high_250 = max(highs[-BTST_HIGH_LOOKBACK_DAYS:])
+            near_high_pass = today_close >= high_250 * BTST_HIGH_PCT
+
+            qualifies = bool(volume_pass and rsi_pass and open_pass and close_pass and near_high_pass)
+
+            results.append(
+                {
+                    "symbol": sym,
+                    "sector": self._sector_for(sym),
+                    "ltp": row.get("lastPrice"),
+                    "pChange": row.get("pChange"),
+                    "todayVolume": today_volume,
+                    "volSma5": round(vol_sma, 2) if vol_sma is not None else None,
+                    "volumePass": volume_pass,
+                    "rsi": round(rsi, 2) if rsi is not None else None,
+                    "rsiPass": rsi_pass,
+                    "todayOpen": today_open,
+                    "yesterdayOpen": yesterday_open,
+                    "openPass": open_pass,
+                    "todayClose": today_close,
+                    "yesterdayClose": yesterday_close,
+                    "closePass": close_pass,
+                    "high250": round(high_250, 2),
+                    "nearHighPass": near_high_pass,
+                    "qualifies": qualifies,
+                }
+            )
+
+        results.sort(key=lambda r: (not r["qualifies"], -abs(r.get("pChange") or 0)))
+        return {
+            "totalFOSymbols": len(fo_symbols),
+            "symbolsWithHistory": len(results),
+            "status": self.get_btst_scanner_status(),
             "stocks": results,
         }
 

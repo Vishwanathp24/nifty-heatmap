@@ -286,6 +286,26 @@ def bullish_morning_scanner():
     return _wrap(client.get_bullish_morning_scanner)
 
 
+@app.get("/api/btst-scanner/status")
+def btst_scanner_status():
+    """How far along the daily (long-lookback, background-warmed) history
+    the BTST Scanner's data is - it needs a 250-trading-day window (for
+    the near-52-week-high condition), the deepest of any scanner in this
+    app."""
+    return _wrap(client.get_btst_scanner_status)
+
+
+@app.get("/api/btst-scanner")
+def btst_scanner():
+    """A user-supplied 5-condition daily rule (Buy Today, Sell Tomorrow),
+    ALL required: today's volume > 3x its own 5-day average, RSI(14) >
+    65, today's Open and Close both above yesterday's, and today's Close
+    within 15% of its own 250-day high. Scoped to the F&O universe by
+    request, not the source scan's cash-segment universe (~2000 NSE
+    stocks) - see NSEClient.get_btst_scanner."""
+    return _wrap(client.get_btst_scanner)
+
+
 @app.get("/api/swing-trading/status")
 def swing_trading_status():
     """How far along the long-lookback (background-warmed) daily history

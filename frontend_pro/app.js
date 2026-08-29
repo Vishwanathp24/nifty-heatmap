@@ -1147,6 +1147,74 @@ async function refreshBullishMorningScanner() {
   }
 }
 
+// -- BTST Scanner (own tab) -----------------------------------------------
+// A user-supplied 5-condition daily-only rule (Buy Today, Sell Tomorrow -
+// see backend/nse_client.py's BTST_* constants for the exact rule),
+// scoped to the F&O universe rather than the source scan's cash-segment
+// universe (~2000 NSE stocks) - by request. No intraday leg, so this is
+// ready as soon as the long daily history is (a 250-day window, the
+// deepest of any scanner in this app).
+const BTST_COLUMNS = [
+  { header: "Symbol", render: (r) => symbolLink(r.symbol), cls: "cell-left" },
+  { header: "Sector", render: (r) => sectorLabel(r.sector), cls: "cell-left" },
+  { header: "LTP", render: (r) => fmtNum(r.ltp), sortKey: "ltp" },
+  {
+    header: "Chg %",
+    render: (r) => `<span class="${chgClass(r.pChange)}">${sign(r.pChange)}${fmtNum(r.pChange)}%</span>`,
+    sortKey: "pChange",
+  },
+  {
+    header: "Volume (Today vs 5D Avg &times;3)",
+    render: (r) => `<span class="${r.volumePass ? "up" : "flat"}">${fmtInt(r.todayVolume)} / ${fmtInt(r.volSma5)}</span>`,
+  },
+  {
+    header: "RSI(14)",
+    render: (r) => `<span class="${r.rsiPass ? "up" : "flat"}">${fmtNum(r.rsi)}</span>`,
+    sortKey: "rsi",
+  },
+  {
+    header: "Open (Today vs Y'day)",
+    render: (r) => `<span class="${r.openPass ? "up" : "flat"}">${fmtNum(r.todayOpen)} / ${fmtNum(r.yesterdayOpen)}</span>`,
+  },
+  {
+    header: "Close (Today vs Y'day)",
+    render: (r) => `<span class="${r.closePass ? "up" : "flat"}">${fmtNum(r.todayClose)} / ${fmtNum(r.yesterdayClose)}</span>`,
+  },
+  {
+    header: "Close vs 250D High",
+    render: (r) => `<span class="${r.nearHighPass ? "up" : "flat"}">${fmtNum(r.todayClose)} / ${fmtNum(r.high250)}</span>`,
+  },
+  {
+    header: "Status",
+    render: (r) => (r.qualifies ? `<span class="up">&check; All 5 conditions</span>` : `<span class="flat">&mdash;</span>`),
+  },
+];
+
+function renderBtstStatusNote(status) {
+  const note = $("#btst-status-note");
+  if (!status) {
+    note.textContent = "";
+    return;
+  }
+  note.textContent = status.ready
+    ? `Ready (${status.barsAvailable} real trading days of history).`
+    : `Building (${status.barsAvailable}/${status.barsNeeded} real trading days).`;
+}
+
+async function refreshBtstScanner() {
+  try {
+    const data = await fetchJSON("/api/btst-scanner");
+    renderBtstStatusNote(data.status);
+    const qualifying = data.stocks.filter((r) => r.qualifies);
+    renderMoversTable($("#btst-table"), qualifying, {
+      emptyText: "No F&O stocks currently pass all 5 conditions.",
+      columns: BTST_COLUMNS,
+    });
+  } catch (err) {
+    $("#btst-table").innerHTML = `<div class="empty-note">Couldn't load BTST Scanner data: ${err.message}</div>`;
+  }
+}
+
 // -- 15-Min Breakout Scanner ------------------------------------------------------
 
 let selectedBreakoutDirection = "buy";
@@ -2383,7 +2451,7 @@ const VIEW_FETCHERS = {
   scanner: [refreshScanner],
   fogainerslosers: [refreshScanner],
   scanners: [refreshScannersTab],
-  greencandle: [refreshBullishIntradayScreen, refreshBearishIntradayScreen, refreshBullishMorningScanner],
+  greencandle: [refreshBullishIntradayScreen, refreshBearishIntradayScreen, refreshBullishMorningScanner, refreshBtstScanner],
   movers: [refreshTopMovers, refresh52Week, refreshVolumeShockers],
   ipos: [refreshRecentIpos, refreshUpcomingIpos],
   swing: [refreshSwingTrading, refreshSwingEtf, refreshSwingInternationalEtf],

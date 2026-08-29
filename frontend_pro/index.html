@@ -395,6 +395,7 @@
             <button class="folder-tab active" data-chartink-tab="bullish">Bullish Intraday Stock</button>
             <button class="folder-tab" data-chartink-tab="bearish">Bearish Intraday Scanner</button>
             <button class="folder-tab" data-chartink-tab="bullishmorning">Bullish Morning Scanner</button>
+            <button class="folder-tab" data-chartink-tab="btst">BTST Scanner</button>
           </div>
 
           <div class="card folder-panel" data-chartink-panel="bullish">
@@ -435,6 +436,20 @@
             </div>
             <p id="bullishmorning-status-note" class="status-note"></p>
             <div id="bullishmorning-table" class="data-table"><div class="skel-line"></div></div>
+          </div>
+
+          <div class="card folder-panel hidden" data-chartink-panel="btst">
+            <div class="card-head">
+              <div><h3>BTST Scanner</h3><p class="card-sub">
+                Buy Today, Sell Tomorrow - daily only, ALL 5 required: today's volume &gt; 3&times; its own 5-day average &middot; RSI(14) &gt; 65 &middot; today's Open and Close
+                both above yesterday's &middot; today's Close within 15% of its own 250-day high. The exact rule from
+                <a href="https://chartink.com/screener/copy-buy-today-sell-tomorrow-btst-by-upsurge-club-2585" target="_blank" rel="noopener noreferrer">vp-buy-today-sell-tomorrow-btst</a>,
+                which runs on the cash segment (~2000 NSE stocks); scoped to the F&amp;O universe here instead, so it will only surface F&amp;O-eligible names, not genuine
+                small/micro-caps the real scan can also show. No intraday leg, so this is ready immediately.
+              </p></div>
+            </div>
+            <p id="btst-status-note" class="status-note"></p>
+            <div id="btst-table" class="data-table"><div class="skel-line"></div></div>
           </div>
         </section>
 
