@@ -170,7 +170,6 @@ const VIEW_TITLES = {
   fogainerslosers: "F&O Gainers & Losers",
   scanners: "Scanners",
   chartinklinks: "Scanner Links",
-  downstox: "Downstox",
   breadth: "Market Breadth",
   heatmap: "Sector Heatmap",
   movers: "Market Movers",
@@ -1496,16 +1495,6 @@ function initScannersTabControls() {
     $$("#breakout-tabs .qf-chip").forEach((b) => b.classList.toggle("active", b === btn));
     refreshBreakoutScanner();
   });
-}
-
-function initDownstoxTabs() {
-  $("#downstox-tabs").addEventListener("click", (e) => {
-    const btn = e.target.closest(".folder-tab[data-downstox-tab]");
-    if (!btn) return;
-    const tab = btn.dataset.downstoxTab;
-    $$("#downstox-tabs .folder-tab[data-downstox-tab]").forEach((b) => b.classList.toggle("active", b.dataset.downstoxTab === tab));
-    $$(".folder-panel[data-downstox-panel]").forEach((p) => p.classList.toggle("hidden", p.dataset.downstoxPanel !== tab));
-  });
   $("#breakouthighs-tabs").addEventListener("click", (e) => {
     const btn = e.target.closest(".qf-chip");
     if (!btn) return;
@@ -1525,6 +1514,7 @@ async function refreshScannersTab() {
     refreshBearishIntradayScreen(),
     refreshBullishMorningScanner(),
     refreshBtstScanner(),
+    refreshBreakoutHighsScanner(),
   ]);
 }
 
@@ -2555,7 +2545,6 @@ const VIEW_FETCHERS = {
   scanners: [refreshScannersTab],
   movers: [refreshTopMovers, refresh52Week, refreshVolumeShockers],
   ipos: [refreshRecentIpos, refreshUpcomingIpos],
-  downstox: [refreshBreakoutHighsScanner],
   swing: [refreshSwingTrading, refreshSwingEtf, refreshSwingInternationalEtf],
 };
 
@@ -2637,7 +2626,6 @@ function init() {
   initMoversTabs();
   initSwingTabs();
   initScannersGroupTabs();
-  initDownstoxTabs();
   initScannerLinksTabs();
 
   $("#drawer-close").addEventListener("click", closeDrawer);

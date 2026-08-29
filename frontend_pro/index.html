@@ -41,10 +41,6 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
           Scanner Links
         </button>
-        <button class="nav-item" data-view="downstox">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l3-3 3 3 5-6"/></svg>
-          Downstox
-        </button>
         <button class="nav-item" data-view="breadth">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9M13 17V5M8 17v-3"/></svg>
           Market Breadth
@@ -326,6 +322,8 @@
             <button class="folder-tab" data-scanners-tab="bearish">Bearish Intraday Scanner</button>
             <button class="folder-tab" data-scanners-tab="bullishmorning">Bullish Morning Scanner</button>
             <button class="folder-tab" data-scanners-tab="btst">BTST Scanner</button>
+            <button class="folder-tab" data-scanners-tab="breakouthighs">Breakout Highs Scanner</button>
+            <button class="folder-tab" data-scanners-tab="fosignal">F&amp;O Signal Screener</button>
           </div>
 
           <div class="scanner-section folder-panel" data-group="orb" data-scanners-panel="orb">
@@ -428,6 +426,30 @@
             </p>
             <p id="btst-status-note" class="status-note"></p>
             <div id="btst-table" class="data-table"><div class="skel-line"></div></div>
+          </div>
+
+          <div class="scanner-section folder-panel hidden" data-group="breakouthighs" data-scanners-panel="breakouthighs">
+            <h3 class="scanner-section-title">Breakout Highs Scanner</h3>
+            <p class="view-sub">
+              A native equivalent of Downstox's own "Breakouts" page (downstox.com/breakouts), computed directly from NSE daily history rather than scraped - their robots.txt
+              explicitly disallows Claude-associated crawlers. A stock "breaks out" at a period if today's daily High exceeds the highest daily High of the preceding N trading
+              days. F&amp;O universe only - <span id="breakouthighs-status-note"></span>
+            </p>
+            <div id="breakouthighs-tabs" class="qf-chips">
+              <button class="qf-chip active" data-period="10">10-Day</button>
+              <button class="qf-chip" data-period="20">20-Day</button>
+              <button class="qf-chip" data-period="50">50-Day</button>
+              <button class="qf-chip" data-period="100">100-Day</button>
+              <button class="qf-chip" data-period="200">200-Day</button>
+              <button class="qf-chip" data-period="252">52-Week</button>
+            </div>
+            <div id="breakouthighs-table" class="data-table"><div class="skel-line"></div></div>
+          </div>
+
+          <div class="scanner-section folder-panel hidden" data-group="fosignal" data-scanners-panel="fosignal">
+            <h3 class="scanner-section-title">F&amp;O Signal Screener</h3>
+            <p class="view-sub">Coming soon.</p>
+            <div class="empty-note">Not built yet - Downstox's version scores each stock against several readings taken at once (VWAP position, open interest direction, relative volume, day-range position), and this app doesn't track Open Interest yet. Ask to add it once that's sorted out.</div>
           </div>
         </section>
 
@@ -589,41 +611,6 @@
             </div>
           </div>
 
-        </section>
-
-        <!-- ============================== Downstox (native, not scraped - see comment in nse_client.py) ============================== -->
-        <section class="view" data-view="downstox">
-          <div class="view-head">
-            <h2>Downstox</h2>
-            <p class="view-sub">Native equivalents of Downstox's own scans, computed directly from NSE data rather than scraped - downstox.com's robots.txt explicitly disallows Claude-associated crawlers.</p>
-          </div>
-
-          <div class="folder-tabs" id="downstox-tabs">
-            <button class="folder-tab active" data-downstox-tab="breakouts">NSE and BSE Breakout Stocks Today</button>
-            <button class="folder-tab" data-downstox-tab="signals">F&amp;O Signal Screener</button>
-          </div>
-
-          <div class="card folder-panel" data-downstox-panel="breakouts">
-            <div class="card-head">
-              <div><h3>NSE and BSE Breakout Stocks Today</h3><p class="card-sub">A stock "breaks out" at a period if today's daily High exceeds the highest daily High of the preceding N trading days. F&amp;O universe only - <span id="breakouthighs-status-note"></span></p></div>
-            </div>
-            <div id="breakouthighs-tabs" class="qf-chips">
-              <button class="qf-chip active" data-period="10">10-Day</button>
-              <button class="qf-chip" data-period="20">20-Day</button>
-              <button class="qf-chip" data-period="50">50-Day</button>
-              <button class="qf-chip" data-period="100">100-Day</button>
-              <button class="qf-chip" data-period="200">200-Day</button>
-              <button class="qf-chip" data-period="252">52-Week</button>
-            </div>
-            <div id="breakouthighs-table" class="data-table"><div class="skel-line"></div></div>
-          </div>
-
-          <div class="card folder-panel hidden" data-downstox-panel="signals">
-            <div class="card-head">
-              <div><h3>F&amp;O Signal Screener</h3><p class="card-sub">Coming soon.</p></div>
-            </div>
-            <div class="empty-note">Not built yet - Downstox's version scores each stock against several readings taken at once (VWAP position, open interest direction, relative volume, day-range position), and this app doesn't track Open Interest yet. Ask to add it once that's sorted out.</div>
-          </div>
         </section>
 
         <!-- ============================== Market Breadth ============================== -->
