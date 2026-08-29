@@ -1428,13 +1428,6 @@ function initScannersTabControls() {
     $$("#buysell-tabs .qf-chip").forEach((b) => b.classList.toggle("active", b === btn));
     refreshBuySellScanner();
   });
-  $("#buysell-timeframe-tabs").addEventListener("click", (e) => {
-    const btn = e.target.closest(".qf-chip");
-    if (!btn) return;
-    selectedScanTimeframe = Number(btn.dataset.timeframe);
-    $$("#buysell-timeframe-tabs .qf-chip").forEach((b) => b.classList.toggle("active", b === btn));
-    refreshBuySellScanner();
-  });
   $("#breakout-tabs").addEventListener("click", (e) => {
     const btn = e.target.closest(".qf-chip");
     if (!btn) return;
