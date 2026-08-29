@@ -37,13 +37,9 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2"/></svg>
           Scanners
         </button>
-        <button class="nav-item" data-view="greencandle">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="10" y="4" width="4" height="10" rx="1"/><path d="M12 4V2M12 20v-2"/><rect x="18" y="9" width="4" height="6" rx="1"/><path d="M20 9V7M20 17v-2"/><rect x="2" y="7" width="4" height="9" rx="1"/><path d="M4 7V5M4 18v-2"/></svg>
-          Chartink Screener
-        </button>
         <button class="nav-item" data-view="chartinklinks">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-          Chartink Links
+          Scanner Links
         </button>
         <button class="nav-item" data-view="breadth">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9M13 17V5M8 17v-3"/></svg>
@@ -322,6 +318,10 @@
             <button class="folder-tab" data-scanners-tab="buysell">Buy / Sell (Bullish / Bearish)</button>
             <button class="folder-tab" data-scanners-tab="breakout15">15-Min Breakout</button>
             <button class="folder-tab" data-scanners-tab="downtrend">Downtrend Scanner</button>
+            <button class="folder-tab" data-scanners-tab="bullish">Bullish Intraday Scanner</button>
+            <button class="folder-tab" data-scanners-tab="bearish">Bearish Intraday Scanner</button>
+            <button class="folder-tab" data-scanners-tab="bullishmorning">Bullish Morning Scanner</button>
+            <button class="folder-tab" data-scanners-tab="btst">BTST Scanner</button>
           </div>
 
           <div class="scanner-section folder-panel" data-group="orb" data-scanners-panel="orb">
@@ -386,81 +386,62 @@
             <p id="downtrend-status-note" class="status-note"></p>
             <div id="downtrend-table" class="data-table"><div class="skel-line"></div></div>
           </div>
-        </section>
 
-        <!-- ============================== Chartink Screener ============================== -->
-        <section class="view" data-view="greencandle">
-          <div class="view-head">
-            <h2>Chartink Screener</h2>
-            <p class="view-sub">Custom scanners - some sourced from your own published Chartink scans, some from your own rules - won't necessarily match any source scan's exact stock list, see each tab for how.</p>
-          </div>
-
-          <div class="folder-tabs" id="chartink-tabs">
-            <button class="folder-tab active" data-chartink-tab="bullish">Bullish Intraday Scanner</button>
-            <button class="folder-tab" data-chartink-tab="bearish">Bearish Intraday Scanner</button>
-            <button class="folder-tab" data-chartink-tab="bullishmorning">Bullish Morning Scanner</button>
-            <button class="folder-tab" data-chartink-tab="btst">BTST Scanner</button>
-          </div>
-
-          <div class="card folder-panel" data-chartink-panel="bullish">
-            <div class="card-head">
-              <div><h3>Bullish Intraday Scanner</h3><p class="card-sub">
-                Daily and 1-hour, each: Close vs SMA(20) &middot; Close vs each of the last 5 bars' High &middot; RSI(14) &gt; 60 - the exact rule from
-                <a href="https://chartink.com/screener/copy-bullish-intraday-stock-2545" target="_blank" rel="noopener noreferrer">vp-bullish-intraday-stock</a>.
-                Lists every stock passing the 7 daily conditions; once 1-hour history is ready (can take a few trading days to build up), the Status column shows which of those
-                also pass all 7 intraday conditions ("&check; Qualified") vs daily-only - so a listed stock isn't necessarily a full 14-condition match yet.
-              </p></div>
-            </div>
+          <div class="scanner-section folder-panel hidden" data-group="bullish" data-scanners-panel="bullish">
+            <h3 class="scanner-section-title">Bullish Intraday Scanner</h3>
+            <p class="view-sub">
+              Daily and 1-hour, each: Close vs SMA(20) &middot; Close vs each of the last 5 bars' High &middot; RSI(14) &gt; 60 - the exact rule from
+              <a href="https://chartink.com/screener/copy-bullish-intraday-stock-2545" target="_blank" rel="noopener noreferrer">vp-bullish-intraday-stock</a>.
+              Lists every stock passing the 7 daily conditions; once 1-hour history is ready (can take a few trading days to build up), the Status column shows which of those
+              also pass all 7 intraday conditions ("&check; Qualified") vs daily-only - so a listed stock isn't necessarily a full 14-condition match yet.
+            </p>
             <p id="bullish-intraday-status-note" class="status-note"></p>
             <div id="bullish-intraday-table" class="data-table"><div class="skel-line"></div></div>
           </div>
 
-          <div class="card folder-panel hidden" data-chartink-panel="bearish">
-            <div class="card-head">
-              <div><h3>Bearish Intraday Scanner</h3><p class="card-sub">
-                Daily and 1-hour, each: Close vs SMA(20) &middot; Close vs each of the last 5 bars' Low &middot; RSI(14) &lt; 40 - the exact rule from
-                <a href="https://chartink.com/screener/copy-bearish-intraday-scanner-2251" target="_blank" rel="noopener noreferrer">vp-bearish-intraday-scanner</a>.
-                Lists every stock passing the 7 daily conditions; once 1-hour history is ready (can take a few trading days to build up), the Status column shows which of those
-                also pass all 7 intraday conditions ("&check; Qualified") vs daily-only - so a listed stock isn't necessarily a full 14-condition match yet.
-              </p></div>
-            </div>
+          <div class="scanner-section folder-panel hidden" data-group="bearish" data-scanners-panel="bearish">
+            <h3 class="scanner-section-title">Bearish Intraday Scanner</h3>
+            <p class="view-sub">
+              Daily and 1-hour, each: Close vs SMA(20) &middot; Close vs each of the last 5 bars' Low &middot; RSI(14) &lt; 40 - the exact rule from
+              <a href="https://chartink.com/screener/copy-bearish-intraday-scanner-2251" target="_blank" rel="noopener noreferrer">vp-bearish-intraday-scanner</a>.
+              Lists every stock passing the 7 daily conditions; once 1-hour history is ready (can take a few trading days to build up), the Status column shows which of those
+              also pass all 7 intraday conditions ("&check; Qualified") vs daily-only - so a listed stock isn't necessarily a full 14-condition match yet.
+            </p>
             <p id="bearish-intraday-status-note" class="status-note"></p>
             <div id="bearish-intraday-table" class="data-table"><div class="skel-line"></div></div>
           </div>
 
-          <div class="card folder-panel hidden" data-chartink-panel="bullishmorning">
-            <div class="card-head">
-              <div><h3>Bullish Morning Scanner</h3><p class="card-sub">
-                ALL 16 required: today's range (High&minus;Low) beats each of the last 7 days' own range &middot; green candle (Close &gt; Open, Close &gt; yesterday's Close)
-                &middot; this week's and this month's Close above their own Open &middot; yesterday's volume &gt; 10,000 &middot; SMA(20) &gt; SMA(40) &gt; SMA(60) of Close &middot;
-                today's volume &gt; 1.25&times; yesterday's &middot; latest 15-min candle's Close &gt; its own Open. "ROCE &lt; 30" and "EPS &gt; 0" from the original spec are
-                <strong>not evaluated</strong> - this app has no fundamentals data source. Lists every stock passing the 15 daily/weekly/monthly conditions; once 15-min history is
-                ready, the Status column shows which also pass the 16th ("&check; All 16") vs 15-of-16 only.
-              </p></div>
-            </div>
+          <div class="scanner-section folder-panel hidden" data-group="bullishmorning" data-scanners-panel="bullishmorning">
+            <h3 class="scanner-section-title">Bullish Morning Scanner</h3>
+            <p class="view-sub">
+              ALL 16 required: today's range (High&minus;Low) beats each of the last 7 days' own range &middot; green candle (Close &gt; Open, Close &gt; yesterday's Close)
+              &middot; this week's and this month's Close above their own Open &middot; yesterday's volume &gt; 10,000 &middot; SMA(20) &gt; SMA(40) &gt; SMA(60) of Close &middot;
+              today's volume &gt; 1.25&times; yesterday's &middot; latest 15-min candle's Close &gt; its own Open. "ROCE &lt; 30" and "EPS &gt; 0" from the original spec are
+              <strong>not evaluated</strong> - this app has no fundamentals data source. Lists every stock passing the 15 daily/weekly/monthly conditions; once 15-min history is
+              ready, the Status column shows which also pass the 16th ("&check; All 16") vs 15-of-16 only.
+            </p>
             <p id="bullishmorning-status-note" class="status-note"></p>
             <div id="bullishmorning-table" class="data-table"><div class="skel-line"></div></div>
           </div>
 
-          <div class="card folder-panel hidden" data-chartink-panel="btst">
-            <div class="card-head">
-              <div><h3>BTST Scanner</h3><p class="card-sub">
-                Buy Today, Sell Tomorrow - daily only, ALL 5 required: today's volume &gt; 3&times; its own 5-day average &middot; RSI(14) &gt; 65 &middot; today's Open and Close
-                both above yesterday's &middot; today's Close within 15% of its own 250-day high. The exact rule from
-                <a href="https://chartink.com/screener/copy-buy-today-sell-tomorrow-btst-by-upsurge-club-2585" target="_blank" rel="noopener noreferrer">vp-buy-today-sell-tomorrow-btst</a>,
-                which runs on the cash segment (~2000 NSE stocks); scoped to the F&amp;O universe here instead, so it will only surface F&amp;O-eligible names, not genuine
-                small/micro-caps the real scan can also show. No intraday leg, so this is ready immediately.
-              </p></div>
-            </div>
+          <div class="scanner-section folder-panel hidden" data-group="btst" data-scanners-panel="btst">
+            <h3 class="scanner-section-title">BTST Scanner</h3>
+            <p class="view-sub">
+              Buy Today, Sell Tomorrow - daily only, ALL 5 required: today's volume &gt; 3&times; its own 5-day average &middot; RSI(14) &gt; 65 &middot; today's Open and Close
+              both above yesterday's &middot; today's Close within 15% of its own 250-day high. The exact rule from
+              <a href="https://chartink.com/screener/copy-buy-today-sell-tomorrow-btst-by-upsurge-club-2585" target="_blank" rel="noopener noreferrer">vp-buy-today-sell-tomorrow-btst</a>,
+              which runs on the cash segment (~2000 NSE stocks); scoped to the F&amp;O universe here instead, so it will only surface F&amp;O-eligible names, not genuine
+              small/micro-caps the real scan can also show. No intraday leg, so this is ready immediately.
+            </p>
             <p id="btst-status-note" class="status-note"></p>
             <div id="btst-table" class="data-table"><div class="skel-line"></div></div>
           </div>
         </section>
 
-        <!-- ============================== Chartink Links ============================== -->
+        <!-- ============================== Scanner Links ============================== -->
         <section class="view" data-view="chartinklinks">
           <div class="view-head">
-            <h2>Chartink Links</h2>
+            <h2>Scanner Links</h2>
             <p class="view-sub">Quick links to your own published Chartink screeners, by category - opens the live scan directly on Chartink (always current, not an approximation).</p>
           </div>
 

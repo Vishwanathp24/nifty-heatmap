@@ -169,8 +169,7 @@ const VIEW_TITLES = {
   scanner: "F&O Scanner",
   fogainerslosers: "F&O Gainers & Losers",
   scanners: "Scanners",
-  greencandle: "Chartink Screener",
-  chartinklinks: "Chartink Links",
+  chartinklinks: "Scanner Links",
   breadth: "Market Breadth",
   heatmap: "Sector Heatmap",
   movers: "Market Movers",
@@ -1453,7 +1452,16 @@ function initScannersTabControls() {
 }
 
 async function refreshScannersTab() {
-  await Promise.allSettled([refreshOrb(), refreshBuySellScanner(), refreshBreakoutScanner(), refreshDowntrendScanner()]);
+  await Promise.allSettled([
+    refreshOrb(),
+    refreshBuySellScanner(),
+    refreshBreakoutScanner(),
+    refreshDowntrendScanner(),
+    refreshBullishIntradayScreen(),
+    refreshBearishIntradayScreen(),
+    refreshBullishMorningScanner(),
+    refreshBtstScanner(),
+  ]);
 }
 
 // ---------------------------------------------------------------- F&O Scanner
@@ -2148,16 +2156,6 @@ function initSwingTabs() {
   });
 }
 
-function initChartinkTabs() {
-  $("#chartink-tabs").addEventListener("click", (e) => {
-    const btn = e.target.closest(".folder-tab[data-chartink-tab]");
-    if (!btn) return;
-    const tab = btn.dataset.chartinkTab;
-    $$("#chartink-tabs .folder-tab[data-chartink-tab]").forEach((b) => b.classList.toggle("active", b.dataset.chartinkTab === tab));
-    $$(".folder-panel[data-chartink-panel]").forEach((p) => p.classList.toggle("hidden", p.dataset.chartinkPanel !== tab));
-  });
-}
-
 function initScannersGroupTabs() {
   $("#scanners-tabs").addEventListener("click", (e) => {
     const btn = e.target.closest(".folder-tab[data-scanners-tab]");
@@ -2452,7 +2450,6 @@ const VIEW_FETCHERS = {
   scanner: [refreshScanner],
   fogainerslosers: [refreshScanner],
   scanners: [refreshScannersTab],
-  greencandle: [refreshBullishIntradayScreen, refreshBearishIntradayScreen, refreshBullishMorningScanner, refreshBtstScanner],
   movers: [refreshTopMovers, refresh52Week, refreshVolumeShockers],
   ipos: [refreshRecentIpos, refreshUpcomingIpos],
   swing: [refreshSwingTrading, refreshSwingEtf, refreshSwingInternationalEtf],
@@ -2535,7 +2532,6 @@ function init() {
   initIpoTabs();
   initMoversTabs();
   initSwingTabs();
-  initChartinkTabs();
   initScannersGroupTabs();
 
   $("#drawer-close").addEventListener("click", closeDrawer);
