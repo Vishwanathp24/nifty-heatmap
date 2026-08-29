@@ -962,25 +962,27 @@ function buysellColumns(intradayReady) {
   return intradayReady ? [...BUYSELL_DAILY_COLUMNS, ...BUYSELL_INTRADAY_COLUMNS] : BUYSELL_DAILY_COLUMNS;
 }
 
-function renderBuySellStatusNote(status) {
-  const note = $("#buysell-status-note");
-  if (!status) {
-    note.textContent = "";
-    return;
-  }
+// Shared by the Scanners page's Buy/Sell tab (variable timeframe) and the
+// two fixed-timeframe Bullish/Bearish Intraday pages below (always 60).
+function buySellStatusText(status, timeframe) {
+  if (!status) return "";
   const daily = status.dailyReady
     ? `Daily: ready (${status.dailyBarsAvailable} real trading days).`
     : `Daily: building (${status.dailyBarsAvailable}/${status.dailyBarsNeeded} trading days).`;
-  const tf = status.timeframes[String(selectedScanTimeframe)];
+  const tf = status.timeframes[String(timeframe)];
   let intraday;
   if (!tf.todayBarCompleted) {
-    intraday = `${selectedScanTimeframe}-min: waiting for today's first ${selectedScanTimeframe}-min candle to close — intraday signal not current yet.`;
+    intraday = `${timeframe}-min: waiting for today's first ${timeframe}-min candle to close — intraday signal not current yet.`;
   } else if (tf.ready) {
-    intraday = `${selectedScanTimeframe}-min: ready (${tf.barsAvailable} bars, self-tracked).`;
+    intraday = `${timeframe}-min: ready (${tf.barsAvailable} bars, self-tracked).`;
   } else {
-    intraday = `${selectedScanTimeframe}-min: building (${tf.barsAvailable}/${tf.barsNeeded} bars).`;
+    intraday = `${timeframe}-min: building (${tf.barsAvailable}/${tf.barsNeeded} bars).`;
   }
-  note.textContent = `${daily} ${intraday}`;
+  return `${daily} ${intraday}`;
+}
+
+function renderBuySellStatusNote(status) {
+  $("#buysell-status-note").textContent = buySellStatusText(status, selectedScanTimeframe);
 }
 
 function syncScannerToBias(label) {
@@ -1007,6 +1009,36 @@ async function refreshBuySellScanner() {
   } catch (err) {
     $("#buysell-table").innerHTML = `<div class="empty-note">Couldn't load scanner data: ${err.message}</div>`;
   }
+}
+
+// -- Bullish Intraday Stock / Bearish Intraday Scanner (own tabs) -------
+// Same /api/scanner endpoint and columns as the Scanners page's Buy/Sell
+// tab above, just pinned to one direction and the 60-min timeframe (the
+// exact rule these two are named after - see the two Chartink links in
+// index.html) instead of following the user's Scanners-page selection.
+async function refreshFixedBuySellScreen(direction, statusNoteId, tableId) {
+  const timeframe = 60;
+  try {
+    const data = await fetchJSON(`/api/scanner?direction=${direction}&timeframe=${timeframe}`);
+    $(`#${statusNoteId}`).textContent = buySellStatusText(data.status, timeframe);
+    const tf = data.status.timeframes[String(timeframe)];
+    const columns = buysellColumns(Boolean(tf && tf.ready));
+    const relevant = data.stocks.filter((s) => s.dailyPass);
+    renderMoversTable($(`#${tableId}`), relevant, {
+      emptyText: `No stocks currently pass the daily ${direction} conditions.`,
+      columns,
+    });
+  } catch (err) {
+    $(`#${tableId}`).innerHTML = `<div class="empty-note">Couldn't load scanner data: ${err.message}</div>`;
+  }
+}
+
+function refreshBullishIntradayScreen() {
+  return refreshFixedBuySellScreen("buy", "bullish-intraday-status-note", "bullish-intraday-table");
+}
+
+function refreshBearishIntradayScreen() {
+  return refreshFixedBuySellScreen("sell", "bearish-intraday-status-note", "bearish-intraday-table");
 }
 
 // -- 15-Min Breakout Scanner ------------------------------------------------------
@@ -1941,6 +1973,16 @@ function initSwingTabs() {
   });
 }
 
+function initChartinkTabs() {
+  $("#chartink-tabs").addEventListener("click", (e) => {
+    const btn = e.target.closest(".folder-tab[data-chartink-tab]");
+    if (!btn) return;
+    const tab = btn.dataset.chartinkTab;
+    $$("#chartink-tabs .folder-tab[data-chartink-tab]").forEach((b) => b.classList.toggle("active", b.dataset.chartinkTab === tab));
+    $$(".folder-panel[data-chartink-panel]").forEach((p) => p.classList.toggle("hidden", p.dataset.chartinkPanel !== tab));
+  });
+}
+
 function initScannersGroupTabs() {
   $("#scanners-tabs").addEventListener("click", (e) => {
     const btn = e.target.closest(".folder-tab[data-scanners-tab]");
@@ -2235,7 +2277,7 @@ const VIEW_FETCHERS = {
   scanner: [refreshScanner],
   fogainerslosers: [refreshScanner],
   scanners: [refreshScannersTab],
-  greencandle: [refreshGreenCandleScanner],
+  greencandle: [refreshBullishIntradayScreen, refreshBearishIntradayScreen],
   movers: [refreshTopMovers, refresh52Week, refreshVolumeShockers],
   ipos: [refreshRecentIpos, refreshUpcomingIpos],
   swing: [refreshSwingTrading, refreshSwingEtf, refreshSwingInternationalEtf],
@@ -2318,6 +2360,7 @@ function init() {
   initIpoTabs();
   initMoversTabs();
   initSwingTabs();
+  initChartinkTabs();
   initScannersGroupTabs();
 
   $("#drawer-close").addEventListener("click", closeDrawer);

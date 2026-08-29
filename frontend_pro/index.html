@@ -388,14 +388,36 @@
         <section class="view" data-view="greencandle">
           <div class="view-head">
             <h2>Chartink Screener</h2>
-            <p class="view-sub">
-              A best-effort approximation of a published Chartink scan (<a href="https://chartink.com/screener/srirangscanfut" target="_blank" rel="noopener noreferrer">srirangscanfut</a>)
-              whose actual filter is hidden by its creator - the only visible clue is a "Green candle on 15-min" tag, so this is exactly that: F&amp;O stocks whose latest 15-min candle is green (close &gt; open). Won't necessarily match that scan's exact list. For now, kept as its own separate tab rather than folded into Scanners.
-            </p>
+            <p class="view-sub">Scanners sourced from your own published Chartink scans - won't necessarily match those scans' exact stock lists, see each tab for how.</p>
           </div>
-          <p id="greencandle-status-note" class="status-note"></p>
-          <div class="card">
-            <div id="greencandle-table" class="data-table"><div class="skel-line"></div></div>
+
+          <div class="folder-tabs" id="chartink-tabs">
+            <button class="folder-tab active" data-chartink-tab="bullish">Bullish Intraday Stock</button>
+            <button class="folder-tab" data-chartink-tab="bearish">Bearish Intraday Scanner</button>
+          </div>
+
+          <div class="card folder-panel" data-chartink-panel="bullish">
+            <div class="card-head">
+              <div><h3>Bullish Intraday Stock</h3><p class="card-sub">
+                Daily and 1-hour, each: Close vs SMA(20) &middot; Close vs each of the last 5 bars' High &middot; RSI(14) &gt; 60. The exact rule from
+                <a href="https://chartink.com/screener/copy-bullish-intraday-stock-2545" target="_blank" rel="noopener noreferrer">vp-bullish-intraday-stock</a> -
+                same logic as Scanners &rarr; Buy/Sell Scanner's Buy direction at the 60-min timeframe, fixed here as its own tab.
+              </p></div>
+            </div>
+            <p id="bullish-intraday-status-note" class="status-note"></p>
+            <div id="bullish-intraday-table" class="data-table"><div class="skel-line"></div></div>
+          </div>
+
+          <div class="card folder-panel hidden" data-chartink-panel="bearish">
+            <div class="card-head">
+              <div><h3>Bearish Intraday Scanner</h3><p class="card-sub">
+                Daily and 1-hour, each: Close vs SMA(20) &middot; Close vs each of the last 5 bars' Low &middot; RSI(14) &lt; 40. The exact rule from
+                <a href="https://chartink.com/screener/copy-bearish-intraday-scanner-2251" target="_blank" rel="noopener noreferrer">vp-bearish-intraday-scanner</a> -
+                same logic as Scanners &rarr; Buy/Sell Scanner's Sell direction at the 60-min timeframe, fixed here as its own tab.
+              </p></div>
+            </div>
+            <p id="bearish-intraday-status-note" class="status-note"></p>
+            <div id="bearish-intraday-table" class="data-table"><div class="skel-line"></div></div>
           </div>
         </section>
 
