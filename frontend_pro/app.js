@@ -1215,7 +1215,7 @@ async function refreshBtstScanner() {
   }
 }
 
-// -- Downstox: Breakout Highs Scanner (10/20/50/100/200-day, 52-week) ------------
+// -- Breakout Scanner (10/20/50/100/200-day, 52-week) ------------
 // Native equivalent of downstox.com/breakouts - see the comment above
 // NSEClient.get_breakout_highs_scanner for why this isn't scraped instead.
 // The backend returns all 6 periods in one response, so switching the
