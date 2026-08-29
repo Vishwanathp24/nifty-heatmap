@@ -170,6 +170,7 @@ const VIEW_TITLES = {
   fogainerslosers: "F&O Gainers & Losers",
   scanners: "Scanners",
   greencandle: "Chartink Screener",
+  chartinklinks: "Chartink Links",
   breadth: "Market Breadth",
   heatmap: "Sector Heatmap",
   movers: "Market Movers",
