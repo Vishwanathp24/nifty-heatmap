@@ -346,6 +346,29 @@ DOWNTREND_RSI_MAX = 45.0  # "RSI < 45"
 DOWNTREND_ADX_MIN = 20.0  # "ADX > 20"
 DOWNTREND_VOLUME_SMA_PERIOD = 20  # "volume above average" - same convention as the 15-Min Breakout scanner
 
+# ---------------------------------------------------------------------------
+# Range Expansion Scanner - a user-supplied 15-condition daily rule (no
+# intraday leg at all, so unlike every scanner above it doesn't need any
+# self-tracked candle history to warm up - only the long daily history
+# below). ALL of the following must hold:
+#   1-7. Today's daily range (High - Low) > each of the last
+#        RANGE_EXPANSION_LOOKBACK_DAYS days' own range
+#   8.   Today's Close > Today's Open
+#   9.   Today's Close > yesterday's Close
+#   10.  This week's Close (latest bar) > this week's Open (first bar)
+#   11.  This month's Close (latest bar) > this month's Open (first bar)
+#   12.  Yesterday's Volume > RANGE_EXPANSION_MIN_VOLUME
+#   13.  SMA(Close, 20) > SMA(Close, 40)
+#   14.  SMA(Close, 40) > SMA(Close, 60)
+#   15.  Today's Volume > yesterday's Volume * RANGE_EXPANSION_VOLUME_MULTIPLIER
+# "Yesterday"/"N days ago" means the previous TRADING day (bar), same
+# convention as every other scanner in this file - not the literal
+# calendar day, which may be a weekend/holiday.
+RANGE_EXPANSION_LOOKBACK_DAYS = 7
+RANGE_EXPANSION_SMA_PERIODS = (20, 40, 60)
+RANGE_EXPANSION_MIN_VOLUME = 10_000
+RANGE_EXPANSION_VOLUME_MULTIPLIER = 1.25
+
 # A separate, much deeper daily history than DAILY_HISTORY_TARGET_DAYS above
 # (30 days - fine for RSI/SMA(20), nowhere near enough for EMA(200) or a
 # genuine 52-week high/low). Walking ~260 trading days (roughly a full NSE
@@ -1969,6 +1992,139 @@ class NSEClient:
             "totalFOSymbols": len(fo_symbols),
             "symbolsWithHistory": len(results),
             "status": self.get_downtrend_scanner_status(),
+            "stocks": results,
+        }
+
+    @staticmethod
+    def _week_month_open_close(candles: list[dict]) -> tuple[float | None, float | None, float | None, float | None]:
+        """Given ascending daily candles (oldest-first, each with a
+        "%d-%b-%Y" date string), returns (weeklyOpen, weeklyClose,
+        monthlyOpen, monthlyClose) for the CURRENT (most recent) calendar
+        week/month in the series - week-to-date/month-to-date using
+        whatever trading days already exist, not necessarily a complete
+        week or month."""
+        if not candles:
+            return None, None, None, None
+
+        def parse(s: str) -> dt.date:
+            return dt.datetime.strptime(s, "%d-%b-%Y").date()
+
+        latest_date = parse(candles[-1]["date"])
+        latest_iso_year, latest_iso_week, _ = latest_date.isocalendar()
+        week_bars = [c for c in candles if parse(c["date"]).isocalendar()[:2] == (latest_iso_year, latest_iso_week)]
+        month_bars = [
+            c for c in candles if (parse(c["date"]).year, parse(c["date"]).month) == (latest_date.year, latest_date.month)
+        ]
+        weekly_open = week_bars[0]["open"] if week_bars else None
+        weekly_close = week_bars[-1]["close"] if week_bars else None
+        monthly_open = month_bars[0]["open"] if month_bars else None
+        monthly_close = month_bars[-1]["close"] if month_bars else None
+        return weekly_open, weekly_close, monthly_open, monthly_close
+
+    def get_range_expansion_scanner_status(self) -> dict:
+        with self._long_daily_lock:
+            bars = max((len(v) for v in self._long_daily_history.values()), default=0)
+            ready = self._long_daily_ready
+        needed = max(RANGE_EXPANSION_SMA_PERIODS) + 1
+        return {"barsAvailable": bars, "barsNeeded": needed, "ready": ready and bars >= needed}
+
+    def get_range_expansion_scanner(self) -> dict:
+        """See the RANGE_EXPANSION_* constants above for the exact 15-
+        condition rule - a daily-only scan (range expansion vs the last 7
+        days + green candle + weekly/monthly uptrend + volume surge + a
+        20>40>60 SMA stack), so unlike the Buy/Sell/Breakout/Downtrend
+        scanners above it has no intraday leg to wait on; only the long
+        daily history needs to be ready."""
+        fo_symbols = self._fo_universe()
+        rows = {r.get("symbol"): r for r in self._fo_quote_rows()}
+        with self._long_daily_lock:
+            daily_history = {sym: list(bars) for sym, bars in self._long_daily_history.items()}
+
+        needed_bars = max(RANGE_EXPANSION_SMA_PERIODS) + 1
+        results = []
+        for sym in fo_symbols:
+            row = rows.get(sym)
+            if row is None:
+                continue
+            candles = daily_history.get(sym, [])
+            if len(candles) < max(needed_bars, RANGE_EXPANSION_LOOKBACK_DAYS + 1):
+                continue
+
+            closes = [c["close"] for c in candles]
+            ranges = [c["high"] - c["low"] for c in candles]
+            volumes = [c["volume"] for c in candles]
+
+            today = candles[-1]
+            today_range = ranges[-1]
+            prior_ranges = ranges[-1 - RANGE_EXPANSION_LOOKBACK_DAYS : -1]
+            range_pass = all(today_range > r for r in prior_ranges)
+
+            today_close = closes[-1]
+            today_open = today["open"]
+            yesterday_close = closes[-2]
+            yesterday_volume = volumes[-2]
+            today_volume = volumes[-1]
+
+            close_gt_open = today_close > today_open
+            close_gt_prev_close = today_close > yesterday_close
+            min_volume_pass = yesterday_volume > RANGE_EXPANSION_MIN_VOLUME
+            volume_surge_pass = today_volume > yesterday_volume * RANGE_EXPANSION_VOLUME_MULTIPLIER
+
+            sma20 = self._sma(closes, 20)
+            sma40 = self._sma(closes, 40)
+            sma60 = self._sma(closes, 60)
+            sma_pass = sma20 is not None and sma40 is not None and sma60 is not None and sma20 > sma40 > sma60
+
+            weekly_open, weekly_close, monthly_open, monthly_close = self._week_month_open_close(candles)
+            weekly_pass = weekly_open is not None and weekly_close is not None and weekly_close > weekly_open
+            monthly_pass = monthly_open is not None and monthly_close is not None and monthly_close > monthly_open
+
+            qualifies = bool(
+                range_pass
+                and close_gt_open
+                and close_gt_prev_close
+                and weekly_pass
+                and monthly_pass
+                and min_volume_pass
+                and sma_pass
+                and volume_surge_pass
+            )
+
+            results.append(
+                {
+                    "symbol": sym,
+                    "sector": self._sector_for(sym),
+                    "ltp": row.get("lastPrice"),
+                    "pChange": row.get("pChange"),
+                    "todayRange": round(today_range, 2),
+                    "todayOpen": today_open,
+                    "todayClose": today_close,
+                    "yesterdayClose": yesterday_close,
+                    "rangePass": range_pass,
+                    "closePass": close_gt_open and close_gt_prev_close,
+                    "weeklyOpen": weekly_open,
+                    "weeklyClose": weekly_close,
+                    "weeklyPass": weekly_pass,
+                    "monthlyOpen": monthly_open,
+                    "monthlyClose": monthly_close,
+                    "monthlyPass": monthly_pass,
+                    "yesterdayVolume": yesterday_volume,
+                    "todayVolume": today_volume,
+                    "minVolumePass": min_volume_pass,
+                    "volumeSurgePass": volume_surge_pass,
+                    "sma20": round(sma20, 2) if sma20 is not None else None,
+                    "sma40": round(sma40, 2) if sma40 is not None else None,
+                    "sma60": round(sma60, 2) if sma60 is not None else None,
+                    "smaPass": sma_pass,
+                    "qualifies": qualifies,
+                }
+            )
+
+        results.sort(key=lambda r: (not r["qualifies"], -abs(r.get("pChange") or 0)))
+        return {
+            "totalFOSymbols": len(fo_symbols),
+            "symbolsWithHistory": len(results),
+            "status": self.get_range_expansion_scanner_status(),
             "stocks": results,
         }
 

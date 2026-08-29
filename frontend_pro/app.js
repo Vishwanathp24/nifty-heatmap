@@ -1061,6 +1061,74 @@ function refreshBearishIntradayScreen() {
   return refreshFixedBuySellScreen("sell", "bearish-intraday-status-note", "bearish-intraday-table");
 }
 
+// -- Range Expansion (own tab) -------------------------------------------
+// A user-supplied 15-condition daily-only rule (no intraday leg at all -
+// see backend/nse_client.py's RANGE_EXPANSION_* constants for the exact
+// rule), so this is ready as soon as the long daily history is, unlike
+// the two Bullish/Bearish tabs above which wait on self-tracked data.
+const RANGE_EXPANSION_COLUMNS = [
+  { header: "Symbol", render: (r) => symbolLink(r.symbol), cls: "cell-left" },
+  { header: "Sector", render: (r) => sectorLabel(r.sector), cls: "cell-left" },
+  { header: "LTP", render: (r) => fmtNum(r.ltp), sortKey: "ltp" },
+  {
+    header: "Chg %",
+    render: (r) => `<span class="${chgClass(r.pChange)}">${sign(r.pChange)}${fmtNum(r.pChange)}%</span>`,
+    sortKey: "pChange",
+  },
+  {
+    header: "Today's Range (vs last 7 days)",
+    render: (r) => `<span class="${r.rangePass ? "up" : "flat"}">${fmtNum(r.todayRange)}</span>`,
+    sortKey: "todayRange",
+  },
+  {
+    header: "SMA 20 / 40 / 60",
+    render: (r) =>
+      `<span class="${r.smaPass ? "up" : "flat"}">${fmtNum(r.sma20)} / ${fmtNum(r.sma40)} / ${fmtNum(r.sma60)}</span>`,
+  },
+  {
+    header: "Weekly Open &rarr; Close",
+    render: (r) => `<span class="${r.weeklyPass ? "up" : "flat"}">${fmtNum(r.weeklyOpen)} &rarr; ${fmtNum(r.weeklyClose)}</span>`,
+  },
+  {
+    header: "Monthly Open &rarr; Close",
+    render: (r) => `<span class="${r.monthlyPass ? "up" : "flat"}">${fmtNum(r.monthlyOpen)} &rarr; ${fmtNum(r.monthlyClose)}</span>`,
+  },
+  {
+    header: "Volume (Today vs Y'day)",
+    render: (r) =>
+      `<span class="${r.volumeSurgePass && r.minVolumePass ? "up" : "flat"}">${fmtInt(r.todayVolume)} / ${fmtInt(r.yesterdayVolume)}</span>`,
+  },
+  {
+    header: "Status",
+    render: (r) => (r.qualifies ? `<span class="up">&check; All 15 conditions</span>` : `<span class="flat">&mdash;</span>`),
+  },
+];
+
+function renderRangeExpansionStatusNote(status) {
+  const note = $("#rangeexp-status-note");
+  if (!status) {
+    note.textContent = "";
+    return;
+  }
+  note.textContent = status.ready
+    ? `Ready (${status.barsAvailable} real trading days of history).`
+    : `Building (${status.barsAvailable}/${status.barsNeeded} real trading days).`;
+}
+
+async function refreshRangeExpansionScanner() {
+  try {
+    const data = await fetchJSON("/api/range-expansion-scanner");
+    renderRangeExpansionStatusNote(data.status);
+    const qualifying = data.stocks.filter((r) => r.qualifies);
+    renderMoversTable($("#rangeexp-table"), qualifying, {
+      emptyText: "No stocks currently pass all 15 conditions.",
+      columns: RANGE_EXPANSION_COLUMNS,
+    });
+  } catch (err) {
+    $("#rangeexp-table").innerHTML = `<div class="empty-note">Couldn't load Range Expansion data: ${err.message}</div>`;
+  }
+}
+
 // -- 15-Min Breakout Scanner ------------------------------------------------------
 
 let selectedBreakoutDirection = "buy";
@@ -2297,7 +2365,7 @@ const VIEW_FETCHERS = {
   scanner: [refreshScanner],
   fogainerslosers: [refreshScanner],
   scanners: [refreshScannersTab],
-  greencandle: [refreshBullishIntradayScreen, refreshBearishIntradayScreen],
+  greencandle: [refreshBullishIntradayScreen, refreshBearishIntradayScreen, refreshRangeExpansionScanner],
   movers: [refreshTopMovers, refresh52Week, refreshVolumeShockers],
   ipos: [refreshRecentIpos, refreshUpcomingIpos],
   swing: [refreshSwingTrading, refreshSwingEtf, refreshSwingInternationalEtf],

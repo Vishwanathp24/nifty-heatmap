@@ -265,6 +265,25 @@ def downtrend_scanner(mode: str = Query("daily", description="'daily' or 'intrad
     return _wrap(client.get_downtrend_scanner, mode)
 
 
+@app.get("/api/range-expansion-scanner/status")
+def range_expansion_scanner_status():
+    """How far along the daily (long-lookback, background-warmed) history
+    the Range Expansion Scanner's data is - no intraday leg, so this is
+    the only thing it needs ready."""
+    return _wrap(client.get_range_expansion_scanner_status)
+
+
+@app.get("/api/range-expansion-scanner")
+def range_expansion_scanner():
+    """A user-supplied 15-condition daily rule, ALL required: today's
+    daily range (High-Low) beats each of the last 7 days' own range,
+    green candle (Close > Open, Close > yesterday's Close), this week's
+    and this month's Close above their own Open, yesterday's volume
+    above 10,000, a 20>40>60 SMA(Close) stack, and today's volume above
+    1.25x yesterday's. See NSEClient.get_range_expansion_scanner."""
+    return _wrap(client.get_range_expansion_scanner)
+
+
 @app.get("/api/swing-trading/status")
 def swing_trading_status():
     """How far along the long-lookback (background-warmed) daily history
