@@ -1013,25 +1013,34 @@ async function refreshBuySellScanner() {
 
 // -- Bullish Intraday Stock / Bearish Intraday Scanner (own tabs) -------
 // Same /api/scanner endpoint and columns as the Scanners page's Buy/Sell
-// tab above, just pinned to one direction and the 60-min timeframe (the
-// exact rule these two are named after - see the two Chartink links in
-// index.html) instead of following the user's Scanners-page selection.
+// tab above, just pinned to one direction and a fixed timeframe instead
+// of following the user's Scanners-page selection.
 //
-// Filters on "qualifies" (ALL 14 conditions - both daily AND 1-hour legs),
-// not just "dailyPass" (7 of 14) like the Scanners page's Buy/Sell tab
-// does - these two pages exist specifically to mirror a named Chartink
-// scan's exact result count, and dailyPass alone is a much looser filter
-// that shows extra stocks Chartink wouldn't (confirmed live: dailyPass
-// matched 10 stocks against Chartink's own 3, since it ignores the other
-// 7 intraday conditions entirely).
+// Pinned to 15-min rather than the source Chartink scans' actual 1-hour
+// (see the two Chartink links in index.html for the literal rule) - by
+// request, since both need the same 21 bars (SMA(20)+1) to start
+// evaluating at all, and self-tracked history only builds up while this
+// app is running: 21 bars is ~5.25 hours at 15-min (same trading day)
+// vs ~21 hours at 60-min (~3.5 trading days). Same 14-condition shape
+// either way, just a faster-building, shorter-horizon variant - not a
+// literal replica of the two named scans anymore.
+const CHARTINK_FIXED_TIMEFRAME = 15;
+
+// Filters on "qualifies" (ALL 14 conditions - both daily AND intraday
+// legs), not just "dailyPass" (7 of 14) like the Scanners page's Buy/Sell
+// tab does - these two pages exist specifically to mirror a named
+// Chartink scan's exact result count, and dailyPass alone is a much
+// looser filter that shows extra stocks Chartink wouldn't (confirmed
+// live: dailyPass matched 10 stocks against Chartink's own 3, since it
+// ignores the other 7 intraday conditions entirely).
 async function refreshFixedBuySellScreen(direction, statusNoteId, tableId) {
-  const timeframe = 60;
+  const timeframe = CHARTINK_FIXED_TIMEFRAME;
   try {
     const data = await fetchJSON(`/api/scanner?direction=${direction}&timeframe=${timeframe}`);
     $(`#${statusNoteId}`).textContent = buySellStatusText(data.status, timeframe);
     const relevant = data.stocks.filter((s) => s.qualifies);
     renderMoversTable($(`#${tableId}`), relevant, {
-      emptyText: "No stocks currently pass all 14 conditions (daily + 1-hour).",
+      emptyText: `No stocks currently pass all 14 conditions (daily + ${timeframe}-min).`,
       columns: buysellColumns(true),
     });
   } catch (err) {
