@@ -2376,6 +2376,162 @@ class NSEClient:
             "periods": {str(p): {"count": len(stocks), "stocks": stocks} for p, stocks in periods.items()},
         }
 
+    # -- F&O Screener (reduced confluence scanner) -----------------------------
+    #
+    # A deliberately-reduced native equivalent of Downstox's own "F&O Signal
+    # Screener" (downstox.com/signals - see the Breakout Highs Scanner
+    # comment above for why this isn't scraped). Their real screener scores
+    # each stock against 5 readings at once (VWAP position, Open Interest
+    # direction, relative volume, day-range position, plus whichever lens is
+    # selected) into a 0-5 "confluence" count. This app has no Open Interest
+    # data source, so - by explicit user choice - OI is dropped entirely and
+    # the other 4 readings are used instead, as a 0-4 count:
+    #
+    #   1. VWAP position   - today's LTP vs today's own volume-weighted
+    #                         average price (self-tracked from this app's
+    #                         5-min intraday candles - see INTRADAY_5M_TF).
+    #   2. Momentum        - % change from FO_SCREENER_MOM_CANDLES candles
+    #                         ago to the latest completed 5-min candle (a
+    #                         short-term reading, deliberately distinct from
+    #                         the day's overall %Chg).
+    #   3. Relative volume - today's cumulative traded volume vs. its own
+    #                         trailing FO_SCREENER_VOL_SMA_DAYS-day daily
+    #                         average (same shape as BTST_VOLUME_SMA_PERIOD
+    #                         above); only counted as a reading once it
+    #                         clears FO_SCREENER_RELVOL_THRESHOLD, and then
+    #                         only confirms whichever direction %Chg already
+    #                         points (high relative volume has no direction
+    #                         of its own).
+    #   4. Day-range position - where LTP currently sits between today's Low
+    #                         and High, as a percentage; only counted once
+    #                         it's past FO_SCREENER_RANGE_BULL_PCT (near the
+    #                         day's high) or below FO_SCREENER_RANGE_BEAR_PCT
+    #                         (near the day's low).
+    #
+    # A reading with no direction (a reading that couldn't be computed, or
+    # relvol/range sitting in its own neutral middle band) contributes to
+    # neither side. score = however many readings agree on the stronger
+    # side; signal is "BULL {score}/4", "BEAR {score}/4", or "MIXED" on a
+    # tie (including 0/4).
+    FO_SCREENER_MOM_CANDLES = 3
+    FO_SCREENER_VOL_SMA_DAYS = 5
+    FO_SCREENER_RELVOL_THRESHOLD = 1.5
+    FO_SCREENER_RANGE_BULL_PCT = 70.0
+    FO_SCREENER_RANGE_BEAR_PCT = 30.0
+
+    def get_fo_screener_status(self) -> dict:
+        """Unlike every other scanner in this app, readiness here isn't
+        about deep multi-day history - it's about how far TODAY's own
+        session has built up (VWAP/momentum are both purely intraday
+        readings), so this is naturally not ready for the first few minutes
+        after each day's market open, every day, regardless of how long the
+        app has been running."""
+        now = dt.datetime.now(IST)
+        today_str = now.date().isoformat()
+        candles_needed = self.FO_SCREENER_MOM_CANDLES + 1
+        fo_symbols = self._fo_universe()
+        best_today_bars = 0
+        for sym in fo_symbols:
+            candles = self._intraday_candles_for(sym, INTRADAY_5M_TF)
+            today_bars = sum(1 for c in candles if c.get("date") == today_str)
+            best_today_bars = max(best_today_bars, today_bars)
+            if best_today_bars >= candles_needed:
+                break
+        return {
+            "todayBarsAvailable": best_today_bars,
+            "todayBarsNeeded": candles_needed,
+            "ready": best_today_bars >= candles_needed,
+        }
+
+    def get_fo_screener(self) -> dict:
+        """See the FO_SCREENER_* constants and the module comment above for
+        the exact (reduced, no-Open-Interest) 4-reading rule."""
+        now = dt.datetime.now(IST)
+        today_str = now.date().isoformat()
+        fo_symbols = self._fo_universe()
+        rows = {r.get("symbol"): r for r in self._fo_quote_rows()}
+        with self._long_daily_lock:
+            daily_history = {sym: list(bars) for sym, bars in self._long_daily_history.items()}
+
+        results = []
+        symbols_with_today_data = 0
+        for sym in fo_symbols:
+            row = rows.get(sym)
+            if row is None:
+                continue
+            ltp, p_change = row.get("lastPrice"), row.get("pChange")
+            day_high, day_low = row.get("dayHigh"), row.get("dayLow")
+            today_volume = row.get("totalTradedVolume")
+
+            candles = self._intraday_candles_for(sym, INTRADAY_5M_TF)
+            today_candles = [c for c in candles if c.get("date") == today_str]
+            if not today_candles:
+                continue
+            symbols_with_today_data += 1
+
+            total_pv = sum(((c["high"] + c["low"] + c["close"]) / 3) * c["volume"] for c in today_candles)
+            total_vol = sum(c["volume"] for c in today_candles)
+            vwap = total_pv / total_vol if total_vol else None
+            vwap_pct = round((ltp / vwap - 1) * 100, 2) if vwap and ltp is not None else None
+
+            if len(today_candles) > self.FO_SCREENER_MOM_CANDLES:
+                mom_base = today_candles[-(self.FO_SCREENER_MOM_CANDLES + 1)]["close"]
+                mom_pct = round((today_candles[-1]["close"] / mom_base - 1) * 100, 2) if mom_base else None
+            else:
+                mom_pct = None
+
+            daily_bars = daily_history.get(sym, [])
+            vol_sma = self._sma(
+                [c["volume"] for c in daily_bars[-self.FO_SCREENER_VOL_SMA_DAYS :]], self.FO_SCREENER_VOL_SMA_DAYS
+            )
+            relvol = (today_volume / vol_sma) if vol_sma and today_volume is not None else None
+
+            range_pct = (
+                round((ltp - day_low) / (day_high - day_low) * 100, 2)
+                if ltp is not None and day_high is not None and day_low is not None and day_high != day_low
+                else None
+            )
+
+            bull = bear = 0
+            if vwap_pct is not None:
+                bull += vwap_pct > 0
+                bear += vwap_pct < 0
+            if mom_pct is not None:
+                bull += mom_pct > 0
+                bear += mom_pct < 0
+            if relvol is not None and relvol >= self.FO_SCREENER_RELVOL_THRESHOLD and p_change is not None:
+                bull += p_change > 0
+                bear += p_change < 0
+            if range_pct is not None:
+                bull += range_pct >= self.FO_SCREENER_RANGE_BULL_PCT
+                bear += range_pct <= self.FO_SCREENER_RANGE_BEAR_PCT
+
+            score = max(bull, bear)
+            signal = "MIXED" if bull == bear else (f"BULL {score}/4" if bull > bear else f"BEAR {score}/4")
+
+            results.append(
+                {
+                    "symbol": sym,
+                    "sector": self._sector_for(sym),
+                    "ltp": ltp,
+                    "pChange": p_change,
+                    "vwapPct": vwap_pct,
+                    "momPct": mom_pct,
+                    "relVol": round(relvol, 2) if relvol is not None else None,
+                    "rangePct": range_pct,
+                    "score": score,
+                    "signal": signal,
+                }
+            )
+
+        results.sort(key=lambda r: (-r["score"], -abs(r.get("pChange") or 0)))
+        return {
+            "totalFOSymbols": len(fo_symbols),
+            "symbolsWithTodayData": symbols_with_today_data,
+            "status": self.get_fo_screener_status(),
+            "stocks": results,
+        }
+
     # -- Swing Trading (NIFTY 500, DMA + 52-week high/low + selection score) --
     #
     # Phase 1 (raw data: 5/20/50/100/200-day moving averages, 52-week high/

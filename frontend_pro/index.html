@@ -448,8 +448,12 @@
 
           <div class="scanner-section folder-panel hidden" data-group="fosignal" data-scanners-panel="fosignal">
             <h3 class="scanner-section-title">F&amp;O Screener</h3>
-            <p class="view-sub">Coming soon.</p>
-            <div class="empty-note">Not built yet - Downstox's version scores each stock against several readings taken at once (VWAP position, open interest direction, relative volume, day-range position), and this app doesn't track Open Interest yet. Ask to add it once that's sorted out.</div>
+            <p class="view-sub">
+              A reduced native equivalent of Downstox's own F&amp;O Signal Screener - Open Interest is dropped (this app has no OI data source, by explicit choice), so this scores
+              4 readings instead of their 5: today's LTP vs its own volume-weighted average price &middot; short-term momentum (last 3 5-min candles) &middot; today's volume vs
+              its own 5-day average &middot; where LTP sits in today's High-Low range. Score is however many of the 4 agree on one side - <span id="fo-screener-status-note"></span>
+            </p>
+            <div id="fo-screener-table" class="data-table"><div class="skel-line"></div></div>
           </div>
         </section>
 

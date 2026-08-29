@@ -1275,6 +1275,65 @@ async function refreshBreakoutHighsScanner() {
   }
 }
 
+// -- F&O Screener (reduced confluence scanner, no Open Interest) -----------------
+// See the FO_SCREENER_* comment in nse_client.py for the exact 4-reading
+// rule and why Open Interest is dropped.
+
+const FO_SCREENER_COLUMNS = [
+  { header: "Symbol", render: (r) => symbolLink(r.symbol), cls: "cell-left" },
+  { header: "Sector", render: (r) => sectorLabel(r.sector), cls: "cell-left" },
+  { header: "LTP", render: (r) => fmtNum(r.ltp), sortKey: "ltp" },
+  {
+    header: "Chg %",
+    render: (r) => `<span class="${chgClass(r.pChange)}">${sign(r.pChange)}${fmtNum(r.pChange)}%</span>`,
+    sortKey: "pChange",
+  },
+  {
+    header: "VWAP %",
+    render: (r) => (r.vwapPct != null ? `<span class="${chgClass(r.vwapPct)}">${sign(r.vwapPct)}${fmtNum(r.vwapPct)}%</span>` : "--"),
+    sortKey: "vwapPct",
+  },
+  {
+    header: "Momentum %",
+    render: (r) => (r.momPct != null ? `<span class="${chgClass(r.momPct)}">${sign(r.momPct)}${fmtNum(r.momPct)}%</span>` : "--"),
+    sortKey: "momPct",
+  },
+  { header: "Rel Volume", render: (r) => (r.relVol != null ? `${fmtNum(r.relVol)}&times;` : "--"), sortKey: "relVol" },
+  { header: "Range %", render: (r) => (r.rangePct != null ? `${fmtNum(r.rangePct)}%` : "--"), sortKey: "rangePct" },
+  {
+    header: "Signal",
+    render: (r) =>
+      r.signal === "MIXED"
+        ? `<span class="flat">MIXED</span>`
+        : `<span class="${r.signal.startsWith("BULL") ? "up" : "down"}">${r.signal}</span>`,
+    sortKey: "score",
+  },
+];
+
+function renderFoScreenerStatusNote(status) {
+  const note = $("#fo-screener-status-note");
+  if (!status) {
+    note.textContent = "";
+    return;
+  }
+  note.textContent = status.ready
+    ? `ready (${status.todayBarsAvailable} 5-min candles built today).`
+    : `building (${status.todayBarsAvailable}/${status.todayBarsNeeded} 5-min candles today - ready shortly after each day's open).`;
+}
+
+async function refreshFoScreener() {
+  try {
+    const data = await fetchJSON("/api/fo-screener");
+    renderFoScreenerStatusNote(data.status);
+    renderMoversTable($("#fo-screener-table"), data.stocks, {
+      emptyText: "No F&O stocks have today's intraday data built up yet.",
+      columns: FO_SCREENER_COLUMNS,
+    });
+  } catch (err) {
+    $("#fo-screener-table").innerHTML = `<div class="empty-note">Couldn't load F&O Screener data: ${err.message}</div>`;
+  }
+}
+
 // -- 15-Min Breakout Scanner ------------------------------------------------------
 
 let selectedBreakoutDirection = "buy";
@@ -1515,6 +1574,7 @@ async function refreshScannersTab() {
     refreshBullishMorningScanner(),
     refreshBtstScanner(),
     refreshBreakoutHighsScanner(),
+    refreshFoScreener(),
   ]);
 }
 

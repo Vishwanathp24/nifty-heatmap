@@ -325,6 +325,26 @@ def breakout_highs_scanner():
     return _wrap(client.get_breakout_highs_scanner)
 
 
+@app.get("/api/fo-screener/status")
+def fo_screener_status():
+    """How far along TODAY's own session (not multi-day history) the F&O
+    Screener's data is - VWAP/momentum are both purely intraday readings,
+    so this is naturally not ready for the first few minutes after each
+    day's market open, every day."""
+    return _wrap(client.get_fo_screener_status)
+
+
+@app.get("/api/fo-screener")
+def fo_screener():
+    """A deliberately-reduced native equivalent of Downstox's own F&O
+    Signal Screener page - by explicit user choice, Open Interest is
+    dropped (this app has no OI data source) and the other 4 readings
+    (VWAP position, momentum, relative volume, day-range position) are
+    scored as a 0-4 confluence count instead of their 0-5. See
+    NSEClient.get_fo_screener for the exact rule."""
+    return _wrap(client.get_fo_screener)
+
+
 @app.get("/api/swing-trading/status")
 def swing_trading_status():
     """How far along the long-lookback (background-warmed) daily history
