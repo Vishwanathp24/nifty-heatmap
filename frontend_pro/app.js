@@ -1016,27 +1016,24 @@ async function refreshBuySellScanner() {
 // tab above, just pinned to one direction and a fixed timeframe instead
 // of following the user's Scanners-page selection.
 //
-// Pinned to 15-min rather than the source Chartink scans' actual 1-hour
-// (see the two Chartink links in index.html for the literal rule) - by
-// request, since both need the same 21 bars (SMA(20)+1) to start
-// evaluating at all, and self-tracked history only builds up while this
-// app is running: 21 bars is ~5.25 hours at 15-min (same trading day)
-// vs ~21 hours at 60-min (~3.5 trading days). Same 14-condition shape
-// either way, just a faster-building, shorter-horizon variant - not a
-// literal replica of the two named scans anymore.
-const CHARTINK_FIXED_TIMEFRAME = 15;
+// Pinned to 1-hour - the literal, exact timeframe both named Chartink
+// scans use (see the two Chartink links in index.html). Self-tracked
+// history takes longer to build at 1-hour (~21 hours, ~3.5 trading
+// days, for the 21 bars SMA(20) needs) than a shorter timeframe would,
+// but this is the real, confirmed rule - not an approximation.
+const CHARTINK_FIXED_TIMEFRAME = 60;
 
 // Filters on "dailyPass" (7 of the 14 conditions - the daily leg), same
 // as the Scanners page's Buy/Sell tab - not "qualifies" (all 14, both
 // legs). A stricter qualifies-only filter is the textbook-correct match
 // for the named Chartink scans, but showed literally nothing while the
-// self-tracked intraday leg has no history yet (which, per
-// CHARTINK_FIXED_TIMEFRAME's comment, is most of the time right after a
-// deploy) - an empty page that might stay empty for hours is worse than
-// a labeled partial list. The "Status" column (from buysellColumns'
-// intraday set, shown once intradayReady) makes the distinction
-// explicit per row: "✓ Qualified (daily + intraday)" vs "Daily only" -
-// so nothing here claims to be a full 14-condition match unless it is.
+// self-tracked intraday leg has no history yet (which, at 1-hour, can be
+// most of the time right after a deploy) - an empty page that might stay
+// empty for days is worse than a labeled partial list. The "Status"
+// column (from buysellColumns' intraday set, shown once intradayReady)
+// makes the distinction explicit per row: "✓ Qualified (daily +
+// intraday)" vs "Daily only" - so nothing here claims to be a full
+// 14-condition match unless it is.
 async function refreshFixedBuySellScreen(direction, statusNoteId, tableId) {
   const timeframe = CHARTINK_FIXED_TIMEFRAME;
   try {
@@ -1061,12 +1058,19 @@ function refreshBearishIntradayScreen() {
   return refreshFixedBuySellScreen("sell", "bearish-intraday-status-note", "bearish-intraday-table");
 }
 
-// -- Range Expansion (own tab) -------------------------------------------
-// A user-supplied 15-condition daily-only rule (no intraday leg at all -
-// see backend/nse_client.py's RANGE_EXPANSION_* constants for the exact
-// rule), so this is ready as soon as the long daily history is, unlike
-// the two Bullish/Bearish tabs above which wait on self-tracked data.
-const RANGE_EXPANSION_COLUMNS = [
+// -- Bullish Morning Scanner (own tab) -----------------------------------
+// A user-supplied 16-condition rule (15 daily/weekly/monthly + one
+// 15-min self-tracked check - see backend/nse_client.py's
+// BULLISH_MORNING_* constants for the exact rule). "ROCE < 30"/"EPS > 0"
+// from the original spec are not evaluated (no fundamentals data
+// source) - every row here is at most a 16-of-16-minus-those-2 match.
+//
+// Filters on dailyWeeklyMonthlyPass (conditions 1-15), not qualifies
+// (all 16) - same reasoning as the Bullish/Bearish Intraday tabs: an
+// empty page while the 15-min leg has no history yet is worse than a
+// labeled partial list. The Status column makes the distinction
+// explicit per row.
+const BULLISH_MORNING_COLUMNS = [
   { header: "Symbol", render: (r) => symbolLink(r.symbol), cls: "cell-left" },
   { header: "Sector", render: (r) => sectorLabel(r.sector), cls: "cell-left" },
   { header: "LTP", render: (r) => fmtNum(r.ltp), sortKey: "ltp" },
@@ -1099,33 +1103,47 @@ const RANGE_EXPANSION_COLUMNS = [
       `<span class="${r.volumeSurgePass && r.minVolumePass ? "up" : "flat"}">${fmtInt(r.todayVolume)} / ${fmtInt(r.yesterdayVolume)}</span>`,
   },
   {
+    header: "15m Close vs Open",
+    render: (r) =>
+      r.intraday15Ready
+        ? `<span class="${r.intraday15Pass ? "up" : "down"}">${fmtNum(r.intraday15Close)} / ${fmtNum(r.intraday15Open)}</span>`
+        : `<span class="flat">&mdash;</span>`,
+  },
+  {
     header: "Status",
-    render: (r) => (r.qualifies ? `<span class="up">&check; All 15 conditions</span>` : `<span class="flat">&mdash;</span>`),
+    render: (r) =>
+      r.qualifies
+        ? `<span class="up">&check; All 16 conditions</span>`
+        : `<span class="flat">15 of 16 (daily/weekly/monthly)</span>`,
   },
 ];
 
-function renderRangeExpansionStatusNote(status) {
-  const note = $("#rangeexp-status-note");
+function renderBullishMorningStatusNote(status) {
+  const note = $("#bullishmorning-status-note");
   if (!status) {
     note.textContent = "";
     return;
   }
-  note.textContent = status.ready
-    ? `Ready (${status.barsAvailable} real trading days of history).`
-    : `Building (${status.barsAvailable}/${status.barsNeeded} real trading days).`;
+  const daily = status.daily.ready
+    ? `Daily/weekly/monthly: ready (${status.daily.barsAvailable} real trading days).`
+    : `Daily/weekly/monthly: building (${status.daily.barsAvailable}/${status.daily.barsNeeded} trading days).`;
+  const intraday = !status.intraday15m.todayBarCompleted
+    ? "15-min: waiting for today's first 15-min candle to close."
+    : "15-min: ready.";
+  note.textContent = `${daily} ${intraday}`;
 }
 
-async function refreshRangeExpansionScanner() {
+async function refreshBullishMorningScanner() {
   try {
-    const data = await fetchJSON("/api/range-expansion-scanner");
-    renderRangeExpansionStatusNote(data.status);
-    const qualifying = data.stocks.filter((r) => r.qualifies);
-    renderMoversTable($("#rangeexp-table"), qualifying, {
-      emptyText: "No stocks currently pass all 15 conditions.",
-      columns: RANGE_EXPANSION_COLUMNS,
+    const data = await fetchJSON("/api/bullish-morning-scanner");
+    renderBullishMorningStatusNote(data.status);
+    const relevant = data.stocks.filter((r) => r.dailyWeeklyMonthlyPass);
+    renderMoversTable($("#bullishmorning-table"), relevant, {
+      emptyText: "No stocks currently pass the 15 daily/weekly/monthly conditions.",
+      columns: BULLISH_MORNING_COLUMNS,
     });
   } catch (err) {
-    $("#rangeexp-table").innerHTML = `<div class="empty-note">Couldn't load Range Expansion data: ${err.message}</div>`;
+    $("#bullishmorning-table").innerHTML = `<div class="empty-note">Couldn't load Bullish Morning Scanner data: ${err.message}</div>`;
   }
 }
 
@@ -2365,7 +2383,7 @@ const VIEW_FETCHERS = {
   scanner: [refreshScanner],
   fogainerslosers: [refreshScanner],
   scanners: [refreshScannersTab],
-  greencandle: [refreshBullishIntradayScreen, refreshBearishIntradayScreen, refreshRangeExpansionScanner],
+  greencandle: [refreshBullishIntradayScreen, refreshBearishIntradayScreen, refreshBullishMorningScanner],
   movers: [refreshTopMovers, refresh52Week, refreshVolumeShockers],
   ipos: [refreshRecentIpos, refreshUpcomingIpos],
   swing: [refreshSwingTrading, refreshSwingEtf, refreshSwingInternationalEtf],

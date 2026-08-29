@@ -347,27 +347,34 @@ DOWNTREND_ADX_MIN = 20.0  # "ADX > 20"
 DOWNTREND_VOLUME_SMA_PERIOD = 20  # "volume above average" - same convention as the 15-Min Breakout scanner
 
 # ---------------------------------------------------------------------------
-# Range Expansion Scanner - a user-supplied 15-condition daily rule (no
-# intraday leg at all, so unlike every scanner above it doesn't need any
-# self-tracked candle history to warm up - only the long daily history
-# below). ALL of the following must hold:
+# Bullish Morning Scanner - a user-supplied 16-condition rule (15 daily/
+# weekly/monthly + one 15-min intraday check). ALL of the following must
+# hold:
 #   1-7. Today's daily range (High - Low) > each of the last
-#        RANGE_EXPANSION_LOOKBACK_DAYS days' own range
+#        BULLISH_MORNING_LOOKBACK_DAYS days' own range
 #   8.   Today's Close > Today's Open
 #   9.   Today's Close > yesterday's Close
 #   10.  This week's Close (latest bar) > this week's Open (first bar)
 #   11.  This month's Close (latest bar) > this month's Open (first bar)
-#   12.  Yesterday's Volume > RANGE_EXPANSION_MIN_VOLUME
+#   12.  Yesterday's Volume > BULLISH_MORNING_MIN_VOLUME
 #   13.  SMA(Close, 20) > SMA(Close, 40)
 #   14.  SMA(Close, 40) > SMA(Close, 60)
-#   15.  Today's Volume > yesterday's Volume * RANGE_EXPANSION_VOLUME_MULTIPLIER
+#   15.  Today's Volume > yesterday's Volume * BULLISH_MORNING_VOLUME_MULTIPLIER
+#   16.  Latest 15-min candle's Close > its own Open (self-tracked - see
+#        _intraday_candles_for; the only condition here needing that data)
 # "Yesterday"/"N days ago" means the previous TRADING day (bar), same
 # convention as every other scanner in this file - not the literal
 # calendar day, which may be a weekend/holiday.
-RANGE_EXPANSION_LOOKBACK_DAYS = 7
-RANGE_EXPANSION_SMA_PERIODS = (20, 40, 60)
-RANGE_EXPANSION_MIN_VOLUME = 10_000
-RANGE_EXPANSION_VOLUME_MULTIPLIER = 1.25
+#
+# Two conditions from the original spec are NOT evaluated - "ROCE < 30"
+# and "EPS > 0" - since this app has no fundamentals/financial-ratio data
+# source at all (only price/volume technicals from NSE). Explicitly
+# skipped rather than faked; get_bullish_morning_scanner's result flags
+# this via "fundamentalsSkipped".
+BULLISH_MORNING_LOOKBACK_DAYS = 7
+BULLISH_MORNING_SMA_PERIODS = (20, 40, 60)
+BULLISH_MORNING_MIN_VOLUME = 10_000
+BULLISH_MORNING_VOLUME_MULTIPLIER = 1.25
 
 # A separate, much deeper daily history than DAILY_HISTORY_TARGET_DAYS above
 # (30 days - fine for RSI/SMA(20), nowhere near enough for EMA(200) or a
@@ -2021,33 +2028,53 @@ class NSEClient:
         monthly_close = month_bars[-1]["close"] if month_bars else None
         return weekly_open, weekly_close, monthly_open, monthly_close
 
-    def get_range_expansion_scanner_status(self) -> dict:
+    def get_bullish_morning_scanner_status(self) -> dict:
         with self._long_daily_lock:
-            bars = max((len(v) for v in self._long_daily_history.values()), default=0)
-            ready = self._long_daily_ready
-        needed = max(RANGE_EXPANSION_SMA_PERIODS) + 1
-        return {"barsAvailable": bars, "barsNeeded": needed, "ready": ready and bars >= needed}
+            daily_bars = max((len(v) for v in self._long_daily_history.values()), default=0)
+            daily_ready = self._long_daily_ready
+        daily_needed = max(BULLISH_MORNING_SMA_PERIODS) + 1
+        with self._intraday_lock:
+            bars_15m = max((len(v) for v in self._intraday_history[BREAKOUT_TIMEFRAME_MIN].values()), default=0)
+            today_bars_15m = max(self._intraday_persisted_today.get(BREAKOUT_TIMEFRAME_MIN, {}).values(), default=0)
+        return {
+            "daily": {
+                "barsAvailable": daily_bars,
+                "barsNeeded": daily_needed,
+                "ready": daily_ready and daily_bars >= daily_needed,
+            },
+            # Condition 16 only needs the latest 15-min candle to exist
+            # today - no lookback depth like the other self-tracked
+            # scanners, so "ready" is really just "has today's first bar
+            # completed".
+            "intraday15m": {"barsAvailable": bars_15m, "barsNeeded": 1, "ready": bars_15m >= 1, "todayBarCompleted": today_bars_15m > 0},
+        }
 
-    def get_range_expansion_scanner(self) -> dict:
-        """See the RANGE_EXPANSION_* constants above for the exact 15-
-        condition rule - a daily-only scan (range expansion vs the last 7
-        days + green candle + weekly/monthly uptrend + volume surge + a
-        20>40>60 SMA stack), so unlike the Buy/Sell/Breakout/Downtrend
-        scanners above it has no intraday leg to wait on; only the long
-        daily history needs to be ready."""
+    def get_bullish_morning_scanner(self) -> dict:
+        """See the BULLISH_MORNING_* constants above for the exact 16-
+        condition rule - daily range expansion vs the last 7 days + green
+        candle + weekly/monthly uptrend + volume surge + a 20>40>60 SMA
+        stack (conditions 1-15, ready as soon as the long daily history
+        is - no intraday leg needed for those), plus one 15-min self-
+        tracked check (condition 16: latest 15-min candle's Close > its
+        own Open). "ROCE < 30" and "EPS > 0" from the original spec are
+        NOT evaluated (no fundamentals data source - see the comment
+        above BULLISH_MORNING_LOOKBACK_DAYS); every result is flagged
+        with fundamentalsSkipped=True so callers can't mistake a
+        qualifies=True row for a full match against the original spec."""
         fo_symbols = self._fo_universe()
         rows = {r.get("symbol"): r for r in self._fo_quote_rows()}
         with self._long_daily_lock:
             daily_history = {sym: list(bars) for sym, bars in self._long_daily_history.items()}
+        today_str = dt.datetime.now(IST).date().isoformat()
 
-        needed_bars = max(RANGE_EXPANSION_SMA_PERIODS) + 1
+        needed_bars = max(BULLISH_MORNING_SMA_PERIODS) + 1
         results = []
         for sym in fo_symbols:
             row = rows.get(sym)
             if row is None:
                 continue
             candles = daily_history.get(sym, [])
-            if len(candles) < max(needed_bars, RANGE_EXPANSION_LOOKBACK_DAYS + 1):
+            if len(candles) < max(needed_bars, BULLISH_MORNING_LOOKBACK_DAYS + 1):
                 continue
 
             closes = [c["close"] for c in candles]
@@ -2056,7 +2083,7 @@ class NSEClient:
 
             today = candles[-1]
             today_range = ranges[-1]
-            prior_ranges = ranges[-1 - RANGE_EXPANSION_LOOKBACK_DAYS : -1]
+            prior_ranges = ranges[-1 - BULLISH_MORNING_LOOKBACK_DAYS : -1]
             range_pass = all(today_range > r for r in prior_ranges)
 
             today_close = closes[-1]
@@ -2067,8 +2094,8 @@ class NSEClient:
 
             close_gt_open = today_close > today_open
             close_gt_prev_close = today_close > yesterday_close
-            min_volume_pass = yesterday_volume > RANGE_EXPANSION_MIN_VOLUME
-            volume_surge_pass = today_volume > yesterday_volume * RANGE_EXPANSION_VOLUME_MULTIPLIER
+            min_volume_pass = yesterday_volume > BULLISH_MORNING_MIN_VOLUME
+            volume_surge_pass = today_volume > yesterday_volume * BULLISH_MORNING_VOLUME_MULTIPLIER
 
             sma20 = self._sma(closes, 20)
             sma40 = self._sma(closes, 40)
@@ -2079,7 +2106,17 @@ class NSEClient:
             weekly_pass = weekly_open is not None and weekly_close is not None and weekly_close > weekly_open
             monthly_pass = monthly_open is not None and monthly_close is not None and monthly_close > monthly_open
 
-            qualifies = bool(
+            candles15 = self._intraday_candles_for(sym, BREAKOUT_TIMEFRAME_MIN)
+            intraday15_current = self._intraday_leg_is_current(candles15, today_str)
+            intraday15_open = candles15[-1]["open"] if intraday15_current else None
+            intraday15_close = candles15[-1]["close"] if intraday15_current else None
+            intraday15_pass = bool(intraday15_current and intraday15_close > intraday15_open)
+
+            # Conditions 1-15 (everything except the 15-min check) - lets
+            # the frontend show a labeled 15-of-16 partial list while the
+            # self-tracked 15-min leg isn't current yet, same pattern as
+            # the Buy/Sell Scanner's dailyPass.
+            daily_weekly_monthly_pass = bool(
                 range_pass
                 and close_gt_open
                 and close_gt_prev_close
@@ -2089,6 +2126,7 @@ class NSEClient:
                 and sma_pass
                 and volume_surge_pass
             )
+            qualifies = bool(daily_weekly_monthly_pass and intraday15_pass)
 
             results.append(
                 {
@@ -2116,6 +2154,12 @@ class NSEClient:
                     "sma40": round(sma40, 2) if sma40 is not None else None,
                     "sma60": round(sma60, 2) if sma60 is not None else None,
                     "smaPass": sma_pass,
+                    "intraday15Ready": intraday15_current,
+                    "intraday15Open": intraday15_open,
+                    "intraday15Close": intraday15_close,
+                    "intraday15Pass": intraday15_pass,
+                    "dailyWeeklyMonthlyPass": daily_weekly_monthly_pass,
+                    "fundamentalsSkipped": True,
                     "qualifies": qualifies,
                 }
             )
@@ -2124,7 +2168,7 @@ class NSEClient:
         return {
             "totalFOSymbols": len(fo_symbols),
             "symbolsWithHistory": len(results),
-            "status": self.get_range_expansion_scanner_status(),
+            "status": self.get_bullish_morning_scanner_status(),
             "stocks": results,
         }
 
