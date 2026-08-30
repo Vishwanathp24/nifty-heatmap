@@ -468,7 +468,14 @@ function renderMarketBias(bias) {
 
 // ---------------------------------------------------------------- advance/decline
 
-const adExpanded = {};
+// Market Breadth's own per-stock table starts expanded - it was collapsed
+// behind a "Show all 50 stocks" toggle by default, which made the page
+// look like it had no stock data at all until that button was noticed and
+// clicked. The Dashboard's compact advance/decline widget (dash-ad-body)
+// is unaffected - it always navigates to Market Breadth instead of
+// expanding in place (see the `navigateTo` param below), so it never
+// consults this map.
+const adExpanded = { "breadth-body": true };
 
 function renderAdvanceDecline(elId, data, navigateTo) {
   const { advances, declines, unchanged, total, stocks } = data;
