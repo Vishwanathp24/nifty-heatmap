@@ -306,6 +306,21 @@ def btst_scanner():
     return _wrap(client.get_btst_scanner)
 
 
+@app.get("/api/volume-surge-scanner/status")
+def volume_surge_scanner_status():
+    """How far along the daily (long-lookback, background-warmed) history
+    the Volume Surge Scanner's data is - needs a 20-trading-day window for
+    its SMA(Volume, 20)."""
+    return _wrap(client.get_volume_surge_scanner_status)
+
+
+@app.get("/api/volume-surge-scanner")
+def volume_surge_scanner():
+    """Single condition, daily-only: today's Volume > its own 20-day
+    SMA(Volume) x 3 - see NSEClient.get_volume_surge_scanner."""
+    return _wrap(client.get_volume_surge_scanner)
+
+
 @app.get("/api/breakout-highs-scanner/status")
 def breakout_highs_scanner_status():
     """How far along the daily (long-lookback, background-warmed) history

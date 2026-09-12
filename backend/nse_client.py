@@ -2295,6 +2295,64 @@ class NSEClient:
             "stocks": results,
         }
 
+    # -- Volume Surge Scanner ------------------------------------------------
+    # Single condition, daily-only: today's Volume > its own 20-day
+    # SMA(Volume) x VOLUME_SURGE_MULTIPLIER, real NSE EOD history (same
+    # long-lookback daily history as BTST/Breakout Highs above). No
+    # intraday leg, so this is ready as soon as 20 trading days of history
+    # exist.
+    VOLUME_SURGE_SMA_PERIOD = 20
+    VOLUME_SURGE_MULTIPLIER = 3
+
+    def get_volume_surge_scanner_status(self) -> dict:
+        with self._long_daily_lock:
+            bars = max((len(v) for v in self._long_daily_history.values()), default=0)
+            ready = self._long_daily_ready
+        needed = self.VOLUME_SURGE_SMA_PERIOD
+        return {"barsAvailable": bars, "barsNeeded": needed, "ready": ready and bars >= needed}
+
+    def get_volume_surge_scanner(self) -> dict:
+        """See the VOLUME_SURGE_* constants above: today's Volume > its own
+        20-day SMA(Volume) x 3, daily-only, no other conditions."""
+        fo_symbols = self._fo_universe()
+        rows = {r.get("symbol"): r for r in self._fo_quote_rows()}
+        with self._long_daily_lock:
+            daily_history = {sym: list(bars) for sym, bars in self._long_daily_history.items()}
+
+        results = []
+        for sym in fo_symbols:
+            row = rows.get(sym)
+            if row is None:
+                continue
+            candles = daily_history.get(sym, [])
+            if len(candles) < self.VOLUME_SURGE_SMA_PERIOD:
+                continue
+
+            volumes = [c["volume"] for c in candles]
+            today_volume = volumes[-1]
+            vol_sma = self._sma(volumes, self.VOLUME_SURGE_SMA_PERIOD)
+            qualifies = vol_sma is not None and today_volume > vol_sma * self.VOLUME_SURGE_MULTIPLIER
+
+            results.append(
+                {
+                    "symbol": sym,
+                    "sector": self._sector_for(sym),
+                    "ltp": row.get("lastPrice"),
+                    "pChange": row.get("pChange"),
+                    "todayVolume": today_volume,
+                    "volSma20": round(vol_sma, 2) if vol_sma is not None else None,
+                    "qualifies": qualifies,
+                }
+            )
+
+        results.sort(key=lambda r: (not r["qualifies"], -abs(r.get("pChange") or 0)))
+        return {
+            "totalFOSymbols": len(fo_symbols),
+            "symbolsWithHistory": len(results),
+            "status": self.get_volume_surge_scanner_status(),
+            "stocks": results,
+        }
+
     # -- Breakout Highs Scanner (10/20/50/100/200-day + 52-week highs) --------
     #
     # A native equivalent to Downstox's own "Breakouts" page

@@ -852,71 +852,9 @@ function renderMoversTable(el, rows, opts = {}) {
 }
 
 // ---------------------------------------------------------------- Scanners (self-tracked)
-// Opening Range Breakout / Buy-Sell (Bullish-Bearish) / 15-Min Breakout -
-// ported from the classic dashboard's identical scanners (same backend
-// routes, same rules). See frontend/app.js for the original.
-
-// -- ORB Scanner --------------------------------------------------------------
-
-let selectedOrbWindow = 5;
-let orbStatusByWindow = {};
-
-const ORB_COLUMNS = [
-  { header: "Symbol", render: (r) => symbolLink(r.symbol), cls: "cell-left" },
-  { header: "Sector", render: (r) => sectorLabel(r.sector), cls: "cell-left" },
-  { header: "ORB Time", render: (r) => r.orbTime },
-  { header: "ORB High", render: (r) => fmtNum(r.orbHigh) },
-  { header: "ORB Low", render: (r) => fmtNum(r.orbLow) },
-  { header: "LTP", render: (r) => fmtNum(r.ltp) },
-  { header: "Chg %", render: (r) => `<span class="${chgClass(r.pChange)}">${sign(r.pChange)}${fmtNum(r.pChange)}%</span>` },
-  {
-    header: "Breakout",
-    render: (r) =>
-      r.breakout === "up"
-        ? `<span class="breakout-up">▲ Above ${fmtNum(r.breakoutPrice)}</span>`
-        : r.breakout === "down"
-        ? `<span class="breakout-down">▼ Below ${fmtNum(r.breakoutPrice)}</span>`
-        : `<span class="breakout-none">Inside range</span>`,
-  },
-  { header: "Since", render: (r) => fmtSince(r.since) },
-];
-
-function renderOrbStatusNote() {
-  const note = $("#orb-status-note");
-  const status = orbStatusByWindow[selectedOrbWindow];
-  if (!status) {
-    note.textContent = "";
-    return;
-  }
-  note.textContent = status.formed
-    ? `Range formed ${status.label} IST — tracking breakouts live.`
-    : `Range not formed yet — forms at ${status.label.split("–")[1]} IST. ` +
-      `This only works while the app has been running since 09:15 IST; nothing shows outside a live session.`;
-}
-
-async function refreshOrb() {
-  try {
-    const { windows } = await fetchJSON("/api/orb/status");
-    orbStatusByWindow = Object.fromEntries(windows.map((w) => [w.window, w]));
-    renderOrbStatusNote();
-
-    const data = await fetchJSON(`/api/orb?window=${selectedOrbWindow}`);
-    const el = $("#orb-table");
-
-    if (!data.formed) {
-      el.innerHTML = `<div class="empty-note">No range captured for this window yet today.</div>`;
-      return;
-    }
-
-    const breakouts = data.stocks.filter((s) => s.breakout !== "none");
-    renderMoversTable(el, breakouts, {
-      emptyText: `No stocks have broken their ${selectedOrbWindow}-min opening range yet (${data.stocks.length} tracked, all still inside range).`,
-      columns: ORB_COLUMNS,
-    });
-  } catch (err) {
-    $("#orb-table").innerHTML = `<div class="empty-note">Couldn't load ORB data: ${err.message}</div>`;
-  }
-}
+// Buy-Sell (Bullish-Bearish) - ported from the classic dashboard's
+// identical scanner (same backend routes, same rules). See
+// frontend/app.js for the original.
 
 // -- Buy/Sell Scanner -----------------------------------------------------------
 
@@ -1154,74 +1092,6 @@ async function refreshBullishMorningScanner() {
   }
 }
 
-// -- BTST Scanner (own tab) -----------------------------------------------
-// A user-supplied 5-condition daily-only rule (Buy Today, Sell Tomorrow -
-// see backend/nse_client.py's BTST_* constants for the exact rule),
-// scoped to the F&O universe rather than the source scan's cash-segment
-// universe (~2000 NSE stocks) - by request. No intraday leg, so this is
-// ready as soon as the long daily history is (a 250-day window, the
-// deepest of any scanner in this app).
-const BTST_COLUMNS = [
-  { header: "Symbol", render: (r) => symbolLink(r.symbol), cls: "cell-left" },
-  { header: "Sector", render: (r) => sectorLabel(r.sector), cls: "cell-left" },
-  { header: "LTP", render: (r) => fmtNum(r.ltp), sortKey: "ltp" },
-  {
-    header: "Chg %",
-    render: (r) => `<span class="${chgClass(r.pChange)}">${sign(r.pChange)}${fmtNum(r.pChange)}%</span>`,
-    sortKey: "pChange",
-  },
-  {
-    header: "Volume (Today vs 5D Avg &times;3)",
-    render: (r) => `<span class="${r.volumePass ? "up" : "flat"}">${fmtInt(r.todayVolume)} / ${fmtInt(r.volSma5)}</span>`,
-  },
-  {
-    header: "RSI(14)",
-    render: (r) => `<span class="${r.rsiPass ? "up" : "flat"}">${fmtNum(r.rsi)}</span>`,
-    sortKey: "rsi",
-  },
-  {
-    header: "Open (Today vs Y'day)",
-    render: (r) => `<span class="${r.openPass ? "up" : "flat"}">${fmtNum(r.todayOpen)} / ${fmtNum(r.yesterdayOpen)}</span>`,
-  },
-  {
-    header: "Close (Today vs Y'day)",
-    render: (r) => `<span class="${r.closePass ? "up" : "flat"}">${fmtNum(r.todayClose)} / ${fmtNum(r.yesterdayClose)}</span>`,
-  },
-  {
-    header: "Close vs 250D High",
-    render: (r) => `<span class="${r.nearHighPass ? "up" : "flat"}">${fmtNum(r.todayClose)} / ${fmtNum(r.high250)}</span>`,
-  },
-  {
-    header: "Status",
-    render: (r) => (r.qualifies ? `<span class="up">&check; All 5 conditions</span>` : `<span class="flat">&mdash;</span>`),
-  },
-];
-
-function renderBtstStatusNote(status) {
-  const note = $("#btst-status-note");
-  if (!status) {
-    note.textContent = "";
-    return;
-  }
-  note.textContent = status.ready
-    ? `Ready (${status.barsAvailable} real trading days of history).`
-    : `Building (${status.barsAvailable}/${status.barsNeeded} real trading days).`;
-}
-
-async function refreshBtstScanner() {
-  try {
-    const data = await fetchJSON("/api/btst-scanner");
-    renderBtstStatusNote(data.status);
-    const qualifying = data.stocks.filter((r) => r.qualifies);
-    renderMoversTable($("#btst-table"), qualifying, {
-      emptyText: "No F&O stocks currently pass all 5 conditions.",
-      columns: BTST_COLUMNS,
-    });
-  } catch (err) {
-    $("#btst-table").innerHTML = `<div class="empty-note">Couldn't load BTST Scanner data: ${err.message}</div>`;
-  }
-}
-
 // -- Breakout Scanner (10/20/50/100/200-day, 52-week) ------------
 // Native equivalent of downstox.com/breakouts - see the comment above
 // NSEClient.get_breakout_highs_scanner for why this isn't scraped instead.
@@ -1282,11 +1152,11 @@ async function refreshBreakoutHighsScanner() {
   }
 }
 
-// -- F&O Screener (reduced confluence scanner, no Open Interest) -----------------
-// See the FO_SCREENER_* comment in nse_client.py for the exact 4-reading
-// rule and why Open Interest is dropped.
+// -- Volume Surge Scanner ------------------------------------------------
+// Single condition, daily-only: today's Volume > its own 20-day
+// SMA(Volume) x 3 - real NSE EOD history, no intraday leg.
 
-const FO_SCREENER_COLUMNS = [
+const VOLUME_SURGE_COLUMNS = [
   { header: "Symbol", render: (r) => symbolLink(r.symbol), cls: "cell-left" },
   { header: "Sector", render: (r) => sectorLabel(r.sector), cls: "cell-left" },
   { header: "LTP", render: (r) => fmtNum(r.ltp), sortKey: "ltp" },
@@ -1296,256 +1166,37 @@ const FO_SCREENER_COLUMNS = [
     sortKey: "pChange",
   },
   {
-    header: "VWAP %",
-    render: (r) => (r.vwapPct != null ? `<span class="${chgClass(r.vwapPct)}">${sign(r.vwapPct)}${fmtNum(r.vwapPct)}%</span>` : "--"),
-    sortKey: "vwapPct",
-  },
-  {
-    header: "Momentum %",
-    render: (r) => (r.momPct != null ? `<span class="${chgClass(r.momPct)}">${sign(r.momPct)}${fmtNum(r.momPct)}%</span>` : "--"),
-    sortKey: "momPct",
-  },
-  { header: "Rel Volume", render: (r) => (r.relVol != null ? `${fmtNum(r.relVol)}&times;` : "--"), sortKey: "relVol" },
-  { header: "Range %", render: (r) => (r.rangePct != null ? `${fmtNum(r.rangePct)}%` : "--"), sortKey: "rangePct" },
-  {
-    header: "Signal",
-    render: (r) =>
-      r.signal === "MIXED"
-        ? `<span class="flat">MIXED</span>`
-        : `<span class="${r.signal.startsWith("BULL") ? "up" : "down"}">${r.signal}</span>`,
-    sortKey: "score",
+    header: "Volume (Today vs SMA20 &times;3)",
+    render: (r) => `${fmtInt(r.todayVolume)} / ${fmtInt(r.volSma20)}`,
   },
 ];
 
-function renderFoScreenerStatusNote(status) {
-  const note = $("#fo-screener-status-note");
+function renderVolumeSurgeStatusNote(status) {
+  const note = $("#volumesurge-status-note");
   if (!status) {
     note.textContent = "";
     return;
   }
   note.textContent = status.ready
-    ? `ready (${status.todayBarsAvailable} 5-min candles built today).`
-    : `building (${status.todayBarsAvailable}/${status.todayBarsNeeded} 5-min candles today - ready shortly after each day's open).`;
+    ? `Ready (${status.barsAvailable} real trading days of history).`
+    : `Building (${status.barsAvailable}/${status.barsNeeded} real trading days).`;
 }
 
-async function refreshFoScreener() {
+async function refreshVolumeSurgeScanner() {
   try {
-    const data = await fetchJSON("/api/fo-screener");
-    renderFoScreenerStatusNote(data.status);
-    renderMoversTable($("#fo-screener-table"), data.stocks, {
-      emptyText: "No F&O stocks have today's intraday data built up yet.",
-      columns: FO_SCREENER_COLUMNS,
+    const data = await fetchJSON("/api/volume-surge-scanner");
+    renderVolumeSurgeStatusNote(data.status);
+    const qualifying = data.stocks.filter((r) => r.qualifies);
+    renderMoversTable($("#volumesurge-table"), qualifying, {
+      emptyText: "No F&O stocks currently have today's volume above 3x their own 20-day average.",
+      columns: VOLUME_SURGE_COLUMNS,
     });
   } catch (err) {
-    $("#fo-screener-table").innerHTML = `<div class="empty-note">Couldn't load F&O Screener data: ${err.message}</div>`;
-  }
-}
-
-// -- 15-Min Breakout Scanner ------------------------------------------------------
-
-let selectedBreakoutDirection = "buy";
-
-const BREAKOUT_COLUMNS = [
-  { header: "Symbol", render: (r) => symbolLink(r.symbol), cls: "cell-left" },
-  { header: "Sector", render: (r) => sectorLabel(r.sector), cls: "cell-left" },
-  { header: "LTP", render: (r) => fmtNum(r.ltp), sortKey: "ltp" },
-  {
-    header: "Chg %",
-    render: (r) => `<span class="${chgClass(r.pChange)}">${sign(r.pChange)}${fmtNum(r.pChange)}%</span>`,
-    sortKey: "pChange",
-  },
-  { header: "15m Close", render: (r) => fmtNum(r.close15m), sortKey: "close15m" },
-  { header: "Prior 20-bar Close High", render: (r) => fmtNum(r.priorMaxClose20), sortKey: "priorMaxClose20" },
-  { header: "15m Volume", render: (r) => fmtInt(r.volume15m), sortKey: "volume15m" },
-  { header: "Vol SMA(20)", render: (r) => fmtInt(r.volSma20), sortKey: "volSma20" },
-  {
-    header: "Status",
-    render: (r) => (r.qualifies ? `<span class="up">✓ Qualified</span>` : `<span class="flat">—</span>`),
-  },
-  { header: "Since", render: (r) => fmtSince(r.since) },
-  {
-    header: "Signal %",
-    render: (r) => `<span class="${chgClass(r.signalPct)}">${sign(r.signalPct)}${fmtNum(r.signalPct)}%</span>`,
-  },
-  { header: "R-Factor", render: (r) => (r.rFactor == null ? "--" : `${sign(r.rFactor)}${fmtNum(r.rFactor)}R`) },
-];
-
-function renderBreakoutStatusNote(status) {
-  const note = $("#breakout-status-note");
-  if (!status) {
-    note.textContent = "";
-    return;
-  }
-  if (!status.todayBarCompleted) {
-    note.textContent = "Waiting for today's first 15-min candle to close — no fresh breakouts to show yet.";
-  } else {
-    note.textContent = status.ready
-      ? `Ready (${status.barsAvailable} 15-min bars, self-tracked, persisted across days).`
-      : `Building (${status.barsAvailable}/${status.barsNeeded} 15-min bars) — fills within a single session once tracking starts.`;
-  }
-}
-
-async function refreshBreakoutScanner() {
-  try {
-    const data = await fetchJSON(`/api/breakout-scanner?direction=${selectedBreakoutDirection}`);
-    renderBreakoutStatusNote(data.status);
-    renderMoversTable($("#breakout-table"), data.stocks, {
-      emptyText: `No stocks currently pass the ${selectedBreakoutDirection} breakout conditions.`,
-      columns: BREAKOUT_COLUMNS,
-    });
-  } catch (err) {
-    $("#breakout-table").innerHTML = `<div class="empty-note">Couldn't load breakout scanner data: ${err.message}</div>`;
-  }
-}
-
-// -- 15-Min Green Candle Scanner ---------------------------------------
-// Best-effort approximation of a published Chartink scan whose real
-// filter is hidden - see index.html's card-sub and
-// NSEClient.get_green_candle_scanner for the full explanation. Reuses
-// the same self-tracked 15-min candle history / status as the 15-Min
-// Breakout Scanner above.
-
-const GREEN_CANDLE_COLUMNS = [
-  { header: "Symbol", render: (r) => symbolLink(r.symbol), cls: "cell-left" },
-  { header: "Sector", render: (r) => sectorLabel(r.sector), cls: "cell-left" },
-  { header: "LTP", render: (r) => fmtNum(r.ltp), sortKey: "ltp" },
-  {
-    header: "Chg %",
-    render: (r) => `<span class="${chgClass(r.pChange)}">${sign(r.pChange)}${fmtNum(r.pChange)}%</span>`,
-    sortKey: "pChange",
-  },
-  { header: "15m Open", render: (r) => fmtNum(r.open15m), sortKey: "open15m" },
-  { header: "15m Close", render: (r) => fmtNum(r.close15m), sortKey: "close15m" },
-  {
-    header: "Candle",
-    render: (r) => (r.isGreen ? `<span class="up">▲ Green</span>` : `<span class="down">▼ Red</span>`),
-  },
-];
-
-function renderGreenCandleStatusNote(status) {
-  const note = $("#greencandle-status-note");
-  if (!status) {
-    note.textContent = "";
-    return;
-  }
-  if (!status.todayBarCompleted) {
-    note.textContent = "Waiting for today's first 15-min candle to close — nothing to show yet.";
-  } else {
-    note.textContent = status.ready
-      ? `Ready (${status.barsAvailable} 15-min bars, self-tracked, persisted across days).`
-      : `Building (${status.barsAvailable}/${status.barsNeeded} 15-min bars) — fills within a single session once tracking starts.`;
-  }
-}
-
-async function refreshGreenCandleScanner() {
-  try {
-    const data = await fetchJSON("/api/green-candle-scanner");
-    renderGreenCandleStatusNote(data.status);
-    const green = data.stocks.filter((r) => r.isGreen);
-    renderMoversTable($("#greencandle-table"), green, {
-      emptyText: "No F&O stocks currently have a green 15-min candle.",
-      columns: GREEN_CANDLE_COLUMNS,
-    });
-  } catch (err) {
-    $("#greencandle-table").innerHTML = `<div class="empty-note">Couldn't load green candle scanner data: ${err.message}</div>`;
-  }
-}
-
-// -- Downtrend Scanner ------------------------------------------------------
-
-let selectedDowntrendMode = "daily";
-
-const DOWNTREND_DAILY_COLUMNS = [
-  { header: "Symbol", render: (r) => symbolLink(r.symbol), cls: "cell-left" },
-  { header: "Sector", render: (r) => sectorLabel(r.sector), cls: "cell-left" },
-  { header: "LTP", render: (r) => fmtNum(r.ltp), sortKey: "ltp" },
-  {
-    header: "Chg %",
-    render: (r) => `<span class="${chgClass(r.pChange)}">${sign(r.pChange)}${fmtNum(r.pChange)}%</span>`,
-    sortKey: "pChange",
-  },
-  { header: "Close", render: (r) => fmtNum(r.close), sortKey: "close" },
-  {
-    header: "EMA 20 / 50 / 200",
-    render: (r) => `${fmtNum(r.emas["20"])} / ${fmtNum(r.emas["50"])} / ${fmtNum(r.emas["200"])}`,
-  },
-  { header: "RSI(14)", render: (r) => fmtNum(r.rsi), sortKey: "rsi" },
-  { header: "ADX(14)", render: (r) => fmtNum(r.adx), sortKey: "adx" },
-  {
-    header: "Status",
-    render: (r) => (r.qualifies ? `<span class="down">✓ Downtrend</span>` : `<span class="flat">—</span>`),
-  },
-];
-
-const DOWNTREND_INTRADAY_COLUMNS = [
-  { header: "Symbol", render: (r) => symbolLink(r.symbol), cls: "cell-left" },
-  { header: "Sector", render: (r) => sectorLabel(r.sector), cls: "cell-left" },
-  { header: "LTP", render: (r) => fmtNum(r.ltp), sortKey: "ltp" },
-  {
-    header: "Chg %",
-    render: (r) => `<span class="${chgClass(r.pChange)}">${sign(r.pChange)}${fmtNum(r.pChange)}%</span>`,
-    sortKey: "pChange",
-  },
-  { header: "15m Close / EMA200", render: (r) => `${fmtNum(r.close15m)} / ${fmtNum(r.ema200_15m)}` },
-  {
-    header: "5m Close / EMA 20-50-200",
-    render: (r) => `${fmtNum(r.close5m)} / ${fmtNum(r.emas5m["20"])} / ${fmtNum(r.emas5m["50"])} / ${fmtNum(r.emas5m["200"])}`,
-  },
-  { header: "15m RSI(14)", render: (r) => fmtNum(r.rsi15m), sortKey: "rsi15m" },
-  { header: "15m ADX(14)", render: (r) => fmtNum(r.adx15m), sortKey: "adx15m" },
-  { header: "15m Vol / SMA(20)", render: (r) => `${fmtInt(r.volume15m)} / ${fmtInt(r.volSma20)}` },
-  {
-    header: "Status",
-    render: (r) => (r.qualifies ? `<span class="down">✓ Downtrend</span>` : `<span class="flat">—</span>`),
-  },
-];
-
-function renderDowntrendStatusNote(status) {
-  const note = $("#downtrend-status-note");
-  if (!status) {
-    note.textContent = "";
-    return;
-  }
-  if (selectedDowntrendMode === "daily") {
-    const d = status.daily;
-    note.textContent = d.ready
-      ? `Daily: ready (${d.barsAvailable} real trading days, background-warmed).`
-      : `Daily: building EMA(200) history in the background (${d.barsAvailable}/${d.barsNeeded} trading days) — this can take a while after a restart.`;
-    return;
-  }
-  const m5 = status.intraday5m;
-  const m15 = status.intraday15m;
-  const leg = (label, tf) =>
-    !tf.todayBarCompleted
-      ? `${label}: waiting for today's first candle to close.`
-      : tf.ready
-        ? `${label}: ready (${tf.barsAvailable} bars).`
-        : `${label}: building (${tf.barsAvailable}/${tf.barsNeeded} bars, self-tracked).`;
-  note.textContent = `${leg("5-min", m5)} ${leg("15-min", m15)}`;
-}
-
-async function refreshDowntrendScanner() {
-  try {
-    const data = await fetchJSON(`/api/downtrend-scanner?mode=${selectedDowntrendMode}`);
-    renderDowntrendStatusNote(data.status);
-    renderMoversTable($("#downtrend-table"), data.stocks, {
-      emptyText: `No stocks currently pass the ${selectedDowntrendMode} downtrend conditions.`,
-      columns: selectedDowntrendMode === "daily" ? DOWNTREND_DAILY_COLUMNS : DOWNTREND_INTRADAY_COLUMNS,
-    });
-  } catch (err) {
-    $("#downtrend-table").innerHTML = `<div class="empty-note">Couldn't load downtrend scanner data: ${err.message}</div>`;
+    $("#volumesurge-table").innerHTML = `<div class="empty-note">Couldn't load Volume Surge Scanner data: ${err.message}</div>`;
   }
 }
 
 function initScannersTabControls() {
-  $("#orb-tabs").addEventListener("click", (e) => {
-    const btn = e.target.closest(".qf-chip");
-    if (!btn) return;
-    selectedOrbWindow = Number(btn.dataset.window);
-    $$("#orb-tabs .qf-chip").forEach((b) => b.classList.toggle("active", b === btn));
-    renderOrbStatusNote();
-    refreshOrb();
-  });
   $("#buysell-tabs").addEventListener("click", (e) => {
     const btn = e.target.closest(".qf-chip");
     if (!btn) return;
@@ -1553,13 +1204,6 @@ function initScannersTabControls() {
     selectedScanDirection = btn.dataset.direction;
     $$("#buysell-tabs .qf-chip").forEach((b) => b.classList.toggle("active", b === btn));
     refreshBuySellScanner();
-  });
-  $("#breakout-tabs").addEventListener("click", (e) => {
-    const btn = e.target.closest(".qf-chip");
-    if (!btn) return;
-    selectedBreakoutDirection = btn.dataset.direction;
-    $$("#breakout-tabs .qf-chip").forEach((b) => b.classList.toggle("active", b === btn));
-    refreshBreakoutScanner();
   });
   $("#breakouthighs-tabs").addEventListener("click", (e) => {
     const btn = e.target.closest(".qf-chip");
@@ -1572,16 +1216,12 @@ function initScannersTabControls() {
 
 async function refreshScannersTab() {
   await Promise.allSettled([
-    refreshOrb(),
     refreshBuySellScanner(),
-    refreshBreakoutScanner(),
-    refreshDowntrendScanner(),
     refreshBullishIntradayScreen(),
     refreshBearishIntradayScreen(),
     refreshBullishMorningScanner(),
-    refreshBtstScanner(),
     refreshBreakoutHighsScanner(),
-    refreshFoScreener(),
+    refreshVolumeSurgeScanner(),
   ]);
 }
 
