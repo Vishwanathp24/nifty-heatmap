@@ -1,0 +1,28 @@
+# Publishes just the static frontend (frontend_pro/) to Netlify - the
+# backend (FastAPI + its self-tracked scanners) stays on Render, since
+# Netlify Functions can't run the persistent background threads this app
+# depends on (see REBUILD_SPEC.md section 4 for why).
+#
+# Both redirects below run server-side at Netlify's edge, so the browser
+# only ever talks to ONE origin (this Netlify site) - no CORS needed, and
+# app.js's existing relative /api/... calls work completely unchanged.
+
+[build]
+  publish = "frontend_pro"
+
+# Proxy every /api/* call straight through to the real backend on Render.
+[[redirects]]
+  from = "/api/*"
+  to = "https://nifty-heatmap.onrender.com/api/:splat"
+  status = 200
+  force = true
+
+# index.html references its own assets as /pro/static/styles.css and
+# /pro/static/app.js (an artifact of how FastAPI mounts them on Render -
+# see backend/main.py). Rewrite that prefix back to the site root, where
+# Netlify actually publishes them, rather than editing index.html (which
+# would break the Render-hosted copy's own asset loading).
+[[redirects]]
+  from = "/pro/static/*"
+  to = "/:splat"
+  status = 200
