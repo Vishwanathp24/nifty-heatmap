@@ -16,3 +16,6 @@ backend/hourly_history.json
 .DS_Store
 backend/long_daily_history.json
 backend/*.tmp
+
+# Local Netlify folder
+.netlify
