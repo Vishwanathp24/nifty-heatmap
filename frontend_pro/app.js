@@ -858,10 +858,6 @@ function renderMoversTable(el, rows, opts = {}) {
 
 // -- Buy/Sell Scanner -----------------------------------------------------------
 
-let selectedScanDirection = "buy";
-let selectedScanTimeframe = 60;
-let scannerAutoSync = true; // stays true until the user manually picks buy/sell
-
 // Daily-leg columns - always shown, meaningfully different per row (real
 // NSE EOD history, ready almost immediately).
 const BUYSELL_DAILY_COLUMNS = [
@@ -871,7 +867,7 @@ const BUYSELL_DAILY_COLUMNS = [
   { header: "Chg %", render: (r) => `<span class="${chgClass(r.pChange)}">${sign(r.pChange)}${fmtNum(r.pChange)}%</span>` },
   { header: "Daily RSI(14)", render: (r) => fmtNum(r.dailyRsi14) },
   { header: "Daily vs SMA20", render: (r) => `${fmtNum(r.dailyClose)} / ${fmtNum(r.dailySma20)}` },
-  // Every row here is already a daily-pass row (see refreshBuySellScanner's
+  // Every row here is already a daily-pass row (see refreshFixedBuySellScreen's
   // dailyPass filter below), so "qualifies"/"since" - which needs both legs
   // to pass - reduces to "does the intraday leg pass" for these rows: this
   // is the actual per-stock breakout moment on the selected timeframe's
@@ -907,8 +903,8 @@ function buysellColumns(intradayReady) {
   return intradayReady ? [...BUYSELL_DAILY_COLUMNS, ...BUYSELL_INTRADAY_COLUMNS] : BUYSELL_DAILY_COLUMNS;
 }
 
-// Shared by the Scanners page's Buy/Sell tab (variable timeframe) and the
-// two fixed-timeframe Bullish/Bearish Intraday pages below (always 60).
+// Shared by the two fixed-timeframe Bullish/Bearish Intraday pages below
+// (both always timeframe 60).
 function buySellStatusText(status, timeframe) {
   if (!status) return "";
   const daily = status.dailyReady
@@ -926,40 +922,9 @@ function buySellStatusText(status, timeframe) {
   return `${daily} ${intraday}`;
 }
 
-function renderBuySellStatusNote(status) {
-  $("#buysell-status-note").textContent = buySellStatusText(status, selectedScanTimeframe);
-}
-
-function syncScannerToBias(label) {
-  if (!scannerAutoSync) return;
-  const lower = label.toLowerCase();
-  const wanted = lower.startsWith("bull") ? "buy" : lower.startsWith("bear") ? "sell" : null;
-  if (!wanted || wanted === selectedScanDirection) return;
-  selectedScanDirection = wanted;
-  $$("#buysell-tabs .qf-chip").forEach((b) => b.classList.toggle("active", b.dataset.direction === wanted));
-  refreshBuySellScanner();
-}
-
-async function refreshBuySellScanner() {
-  try {
-    const data = await fetchJSON(`/api/scanner?direction=${selectedScanDirection}&timeframe=${selectedScanTimeframe}`);
-    renderBuySellStatusNote(data.status);
-    const tf = data.status.timeframes[String(selectedScanTimeframe)];
-    const columns = buysellColumns(Boolean(tf && tf.ready));
-    const relevant = data.stocks.filter((s) => s.dailyPass);
-    renderMoversTable($("#buysell-table"), relevant, {
-      emptyText: `No stocks currently pass the daily ${selectedScanDirection} conditions.`,
-      columns,
-    });
-  } catch (err) {
-    $("#buysell-table").innerHTML = `<div class="empty-note">Couldn't load scanner data: ${err.message}</div>`;
-  }
-}
-
 // -- Bullish Intraday Scanner / Bearish Intraday Scanner (own tabs) -----
-// Same /api/scanner endpoint and columns as the Scanners page's Buy/Sell
-// tab above, just pinned to one direction and a fixed timeframe instead
-// of following the user's Scanners-page selection.
+// Same /api/scanner endpoint and columns as before, just pinned to one
+// direction and a fixed timeframe.
 //
 // Pinned to 1-hour - the literal, exact timeframe both named Chartink
 // scans use (see the two Chartink links in index.html). Self-tracked
@@ -968,9 +933,8 @@ async function refreshBuySellScanner() {
 // but this is the real, confirmed rule - not an approximation.
 const CHARTINK_FIXED_TIMEFRAME = 60;
 
-// Filters on "dailyPass" (7 of the 14 conditions - the daily leg), same
-// as the Scanners page's Buy/Sell tab - not "qualifies" (all 14, both
-// legs). A stricter qualifies-only filter is the textbook-correct match
+// Filters on "dailyPass" (7 of the 14 conditions - the daily leg), not
+// "qualifies" (all 14, both legs). A stricter qualifies-only filter is the textbook-correct match
 // for the named Chartink scans, but showed literally nothing while the
 // self-tracked intraday leg has no history yet (which, at 1-hour, can be
 // most of the time right after a deploy) - an empty page that might stay
@@ -1197,14 +1161,6 @@ async function refreshVolumeSurgeScanner() {
 }
 
 function initScannersTabControls() {
-  $("#buysell-tabs").addEventListener("click", (e) => {
-    const btn = e.target.closest(".qf-chip");
-    if (!btn) return;
-    scannerAutoSync = false; // user took control - stop auto-following Market Bias
-    selectedScanDirection = btn.dataset.direction;
-    $$("#buysell-tabs .qf-chip").forEach((b) => b.classList.toggle("active", b === btn));
-    refreshBuySellScanner();
-  });
   $("#breakouthighs-tabs").addEventListener("click", (e) => {
     const btn = e.target.closest(".qf-chip");
     if (!btn) return;
@@ -1216,7 +1172,6 @@ function initScannersTabControls() {
 
 async function refreshScannersTab() {
   await Promise.allSettled([
-    refreshBuySellScanner(),
     refreshBullishIntradayScreen(),
     refreshBearishIntradayScreen(),
     refreshBullishMorningScanner(),
@@ -2285,7 +2240,6 @@ async function refreshAll() {
     latestIndices = overviewRes.value.indices;
     latestBias = overviewRes.value.bias;
     renderMarketBias(overviewRes.value.bias);
-    syncScannerToBias(overviewRes.value.bias.label);
   }
   if (heatmapRes.status === "fulfilled") {
     renderHeatmap(heatmapRes.value.sectors);

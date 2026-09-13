@@ -314,29 +314,14 @@
           </div>
 
           <div class="folder-tabs" id="scanners-tabs">
-            <button class="folder-tab active" data-scanners-tab="buysell">Buy / Sell (Bullish / Bearish)</button>
-            <button class="folder-tab" data-scanners-tab="bullish">Bullish Scanner</button>
+            <button class="folder-tab active" data-scanners-tab="bullish">Bullish Scanner</button>
             <button class="folder-tab" data-scanners-tab="bearish">Bearish Scanner</button>
             <button class="folder-tab" data-scanners-tab="bullishmorning">Bullish Morning Scanner</button>
             <button class="folder-tab" data-scanners-tab="breakouthighs">Breakout Scanner</button>
             <button class="folder-tab" data-scanners-tab="volumesurge">Volume Surge Scanner</button>
           </div>
 
-          <div class="scanner-section folder-panel" data-group="buysell" data-scanners-panel="buysell">
-            <h3 class="scanner-section-title">Buy / Sell (Bullish / Bearish)</h3>
-            <p class="view-sub">
-              Daily and intraday, each: Close vs SMA(20) &middot; Close vs each of the last 5 bars' High/Low &middot; RSI(14) vs 60 (buy) / 40 (sell).
-              Daily uses real NSE EOD history (ready now); intraday is self-tracked and persisted across days. A stock only "qualifies" once both timeframes pass.
-            </p>
-            <div id="buysell-tabs" class="qf-chips">
-              <button class="qf-chip active" data-direction="buy">Buy Scanner</button>
-              <button class="qf-chip" data-direction="sell">Sell Scanner</button>
-            </div>
-            <p id="buysell-status-note" class="status-note"></p>
-            <div id="buysell-table" class="data-table"><div class="skel-line"></div></div>
-          </div>
-
-          <div class="scanner-section folder-panel hidden" data-group="bullish" data-scanners-panel="bullish">
+          <div class="scanner-section folder-panel" data-group="bullish" data-scanners-panel="bullish">
             <h3 class="scanner-section-title">Bullish Scanner</h3>
             <p class="view-sub">
               Daily and 1-hour, each: Close vs SMA(20) &middot; Close vs each of the last 5 bars' High &middot; RSI(14) &gt; 60 - the exact rule from
