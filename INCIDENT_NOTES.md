@@ -40,3 +40,41 @@ If the Render logs get pasted back, revisit this file with the actual root cause
 ### Follow-up
 
 _(Add findings here once Render logs are available.)_
+
+## 2026-09-25 — Recurrence, same shape
+
+Hit again while verifying a frontend change (TradingView index links) on
+the Netlify-hosted copy - the page never got past its loading skeleton.
+Checked the Render backend directly:
+
+```
+/api/market-overview   -> 502
+/api/heatmap           -> 503
+/api/advance-decline   -> timeout (15s, no response)
+/api/fo-scanner        -> timeout
+/api/fii-dii           -> timeout
+/api/pcr               -> timeout
+/api/sensex            -> 200 (fine)
+/api/global-cues       -> 200 (fine)
+```
+
+Same mixed 502/503/timeout shape as the first incident - some routes
+fail outright, others hang completely, a few unrelated ones (Sensex,
+Global Cues - both non-NSE data sources, see global_markets_client.py)
+keep working. This split points at something wrong specifically in the
+NSE-data path (nse_client.py / its session-bootstrap / its background
+threads) rather than the whole process being down, since a fully-dead
+process would fail every route identically, including the two that kept
+working.
+
+Confirmed NOT caused by the code just shipped: the TradingView link
+change was verified working against a healthy local `uvicorn` instance
+(all 3 links present, correct hrefs, no console errors) before this was
+noticed - this is a production-only, backend-only issue.
+
+Still no Render dashboard/API access from this environment to see the
+actual crash/exception. Same ask as before: Logs + Events tabs, manual
+restart if it's just stuck. Recurring, unresolved - worth checking
+whether this correlates with something time-based (market open/close
+transition, the 6-hour long-daily-history refresh cycle, etc.) once
+real logs are available.
