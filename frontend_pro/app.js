@@ -49,6 +49,25 @@ function tvLink(symbol) {
   return `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(`NSE:${symbol}`)}`;
 }
 
+// Index-strip cards (NIFTY 50, NIFTY BANK, Sensex) use their own
+// TradingView index symbols, not the plain "NSE:<symbol>" shape stock
+// tickers use above - Sensex specifically trades on BSE, not NSE.
+const INDEX_TV_SYMBOLS = { "NIFTY 50": "NSE:NIFTY", "NIFTY BANK": "NSE:BANKNIFTY", Sensex: "BSE:SENSEX" };
+
+function tvIndexLink(name) {
+  const sym = INDEX_TV_SYMBOLS[name];
+  return sym ? `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(sym)}` : null;
+}
+
+// Same mobile-app-handoff link attrs symbolLink() uses below - see the
+// comment there for why iOS is excluded from the "no target/rel" branch.
+function idxNameLink(name) {
+  const href = tvIndexLink(name);
+  if (!href) return `<div class="idx-name">${name}</div>`;
+  const linkAttrs = isMobileDevice() && !isIOSDevice() ? "" : ` target="_blank" rel="noopener noreferrer"`;
+  return `<div class="idx-name"><a class="idx-name-link" href="${href}"${linkAttrs} title="Open ${name} chart on TradingView">${name}</a></div>`;
+}
+
 // iOS Universal Links / Android App Links (what hands a tap on a
 // tradingview.com link off to the installed TradingView app instead of
 // opening it in the mobile browser) only intercept a top-level, same-tab
@@ -250,7 +269,7 @@ function renderIndexStrip() {
     .map(
       (idx) => `
     <div class="idx-card">
-      <div class="idx-name">${idx.symbol}</div>
+      ${idxNameLink(idx.symbol)}
       <div class="idx-val">${fmtNum(idx.last, 2)}</div>
       <div class="idx-chg ${chgClass(idx.pChange)}">${sign(idx.change)}${fmtNum(idx.change, 2)} (${sign(idx.pChange)}${fmtNum(idx.pChange, 2)}%)</div>
     </div>`
@@ -262,11 +281,11 @@ function renderIndexStrip() {
   const sensexCard = latestSensex
     ? `
     <div class="idx-card">
-      <div class="idx-name">Sensex</div>
+      ${idxNameLink("Sensex")}
       <div class="idx-val">${fmtNum(latestSensex.last, 2)}</div>
       <div class="idx-chg ${chgClass(latestSensex.pChange)}">${sign(latestSensex.change)}${fmtNum(latestSensex.change, 2)} (${sign(latestSensex.pChange)}${fmtNum(latestSensex.pChange, 2)}%)</div>
     </div>`
-    : `<div class="idx-card"><div class="idx-name">Sensex</div><div class="idx-val">&mdash;</div></div>`;
+    : `<div class="idx-card">${idxNameLink("Sensex")}<div class="idx-val">&mdash;</div></div>`;
 
   const adCard = latestAdSummary
     ? `

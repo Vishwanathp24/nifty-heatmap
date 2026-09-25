@@ -157,6 +157,12 @@ a { color: inherit; }
    "24,311.00" at 19px bold can run wider than the tile; ellipsis is a
    safety net, but .cue-grid's wider floor below is the real fix. */
 .idx-name { font-size: 11px; font-weight: 700; color: var(--muted); letter-spacing: 0.03em; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* NIFTY 50 / NIFTY BANK / Sensex - the idx-name itself becomes a
+   TradingView chart link (see idxNameLink() in app.js); inherits the
+   plain .idx-name look until hovered, so it doesn't look like a
+   generic blue web link. */
+.idx-name-link { color: inherit; text-decoration: none; }
+.idx-name-link:hover { color: var(--purple); text-decoration: underline; }
 .idx-val { font-size: 19px; font-weight: 800; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .idx-chg { font-size: 12px; font-weight: 700; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* India VIX's own Bullish/Bearish read (falling VIX = bullish, same logic
