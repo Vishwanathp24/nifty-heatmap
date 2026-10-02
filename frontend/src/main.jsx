@@ -37,7 +37,7 @@ function App() {
   const [tf, setTf] = useSessionState('orb.tf.v4', 15)  // break candle: 5 or 15 min
   const [confirm3, setConfirm3] = useSessionState('orb.confirmMode', 1)  // 3-min confirmation: 0 off, 1 beyond break close, 2 beyond OR level
   const [orbFilters, setOrbFilters] = useSessionState('orb.filters.v3', DEFAULT_FILTERS)  // v3: defaults = full-day volume basis, F&O universe
-  const [orbView, setOrbView] = useSessionState('orb.view', 60)  // ORB Scanner sub-tab: 60 = 1 Hour ORB, 15 = 15 Min ORB
+  const [orbView, setOrbView] = useSessionState('orb.view', 15)  // ORB Scanner sub-tab: 15 = 15 Min ORB (default), 60 = 1 Hour ORB
   // 15-minute ORB scanner: same rules, its own independent settings
   const [tf15, setTf15] = useSessionState('orb15.tf', 15)
   const [confirm15, setConfirm15] = useSessionState('orb15.confirmMode', 1)
@@ -71,7 +71,7 @@ function App() {
       {page === 'heatmap' && <Heatmap live={live.data} selected={selected} setSelected={setSelected} toggle={toggleSector} goto={setPage} />}
       {page === 'scanner' && <>
         <div className="orb-switch" role="tablist" aria-label="Opening range">
-          {[[60, '1 Hour ORB', '09:15–10:15', orbCount], [15, '15 Min ORB', '09:15–09:30', orb15Count]].map(([v, label, range, n]) =>
+          {[[15, '15 Min ORB', '09:15–09:30', orb15Count], [60, '1 Hour ORB', '09:15–10:15', orbCount]].map(([v, label, range, n]) =>
             <button key={v} role="tab" aria-selected={orbView === v} className={orbView === v ? 'on' : ''} onClick={() => setOrbView(v)}>
               {label} <small>{range}</small>{n != null && <span className="count">{n}</span>}</button>)}
         </div>
