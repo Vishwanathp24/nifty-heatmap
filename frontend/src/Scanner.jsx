@@ -258,7 +258,7 @@ export default function Scanner({ orb, live, selected, setSelected, tf, setTf, c
       <div className="tabs" role="tablist">
         {[['all', 'All'], ['breakout', 'Breakout'], ['breakdown', 'Breakdown']].map(([id, label]) =>
           <button key={id} role="tab" aria-selected={tab === id}
-            className={(tab === id ? 'on ' : '') + ((id === 'breakout' && bias === 'BULLISH') || (id === 'breakdown' && bias === 'BEARISH') ? 'emph ' + id : '')}
+            className={id + (tab === id ? ' on' : '') + ((id === 'breakout' && bias === 'BULLISH') || (id === 'breakdown' && bias === 'BEARISH') ? ' emph' : '')}
             onClick={() => setTab(id)} title={(id === 'breakout' && bias === 'BULLISH') || (id === 'breakdown' && bias === 'BEARISH') ? 'Aligned with current market bias' : ''}>
             {label} <span className="count">{counts[id]}</span></button>)}
       </div>

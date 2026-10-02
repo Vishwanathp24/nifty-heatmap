@@ -249,7 +249,7 @@ th .arrow { font-size: 9px; margin-left: 4px; opacity: .6 }
 .tabs button.on .count { color: #d0d4da }
 .tabs button.emph.breakout:not(.on) { color: var(--up); background: var(--up-bg); font-weight: 600 }
 .tabs button.emph.breakdown:not(.on) { color: var(--down); background: var(--down-bg); font-weight: 600 }
-.tabs button.emph.on.breakout { background: var(--up) } .tabs button.emph.on.breakdown { background: var(--down) }
+.tabs button.on.breakout { background: var(--up); color: #fff } .tabs button.on.breakdown { background: var(--down); color: #fff }  /* selected: green / red regardless of bias */
 .engine { color: var(--muted) }
 .multi { position: relative }
 .multi-box { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; min-height: 30px; border: 1px solid var(--border-strong); background: var(--panel); border-radius: var(--radius); padding: 3px 26px 3px 8px; cursor: pointer; min-width: 260px; position: relative }
