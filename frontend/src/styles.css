@@ -62,6 +62,7 @@ input:focus, select:focus, button:focus-visible, [role=button]:focus-visible { o
 .seg button { border: 0; background: transparent; padding: 5px 10px; cursor: pointer; font-size: 12px; border-right: 1px solid var(--border) }
 .seg button:last-child { border-right: 0 }
 .seg button.on { background: var(--ink); color: #fff }
+.seg button.on.up { background: var(--up) } .seg button.on.down { background: var(--down) }  /* gainers green, losers red */
 
 /* ---------- links ---------- */
 .tv-link { color: inherit; cursor: pointer }

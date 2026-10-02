@@ -75,7 +75,7 @@ export function BreadthBar({ up, down, unchanged }) {
 
 export function Seg({ options, value, onChange, className = '' }) {
   return <div className={'seg ' + className} role="group">
-    {options.map(o => <button key={o.value} className={value === o.value ? 'on' : ''} onClick={() => onChange(o.value)}
+    {options.map(o => <button key={o.value} className={(value === o.value ? 'on ' : '') + (o.tone || '')} onClick={() => onChange(o.value)}
       title={o.title}>{o.label}</button>)}
   </div>
 }

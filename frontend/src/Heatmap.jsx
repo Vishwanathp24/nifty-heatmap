@@ -150,7 +150,7 @@ export default function Heatmap({ live, selected, setSelected, toggle, goto }) {
       <span className="muted small">Click a card to see its stocks · ☐ selects it for the ORB Scanner · ↗ opens the TradingView chart</span></div>
     <div className="toolbar">
       <input className="search" placeholder="Search sector" value={search} onChange={e => setSearch(e.target.value)} />
-      <Seg value={view} onChange={setView} options={[{ value: 'all', label: 'All' }, { value: 'pos', label: 'Positive' }, { value: 'neg', label: 'Negative' }, { value: 'gain', label: 'Top Gainers' }, { value: 'lose', label: 'Top Losers' }]} />
+      <Seg value={view} onChange={setView} options={[{ value: 'all', label: 'All' }, { value: 'pos', label: 'Positive', tone: 'up' }, { value: 'neg', label: 'Negative', tone: 'down' }, { value: 'gain', label: 'Top Gainers', tone: 'up' }, { value: 'lose', label: 'Top Losers', tone: 'down' }]} />
       <select value={sort} onChange={e => setSort(e.target.value)} aria-label="Sort sectors">
         <option value="desc">% Change High → Low</option><option value="asc">% Change Low → High</option><option value="alpha">Alphabetical</option>
       </select>
