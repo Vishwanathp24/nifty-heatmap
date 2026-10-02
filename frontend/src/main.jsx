@@ -10,7 +10,8 @@ const REFRESH_MS = 10000
 const PAGES = [
   { id: 'overview', label: 'Market Overview', key: '1' },
   { id: 'heatmap', label: 'Sector Heatmap', key: '2' },
-  { id: 'scanner', label: 'ORB Scanner', key: '3' },
+  { id: 'scanner', label: 'ORB 1 Hour', key: '3' },
+  { id: 'scanner15', label: 'ORB 15 Min', key: '4' },
 ]
 
 function StatusBar({ live, auto, setAuto }) {
@@ -35,15 +36,21 @@ function App() {
   const [selected, setSelected] = useSessionState('sectors', [])
   const [auto, setAuto] = usePersistentState('auto', true)
   const [tf, setTf] = useSessionState('orb.tf.v4', 15)  // break candle: 5 or 15 min
-  const [confirm3, setConfirm3] = useSessionState('orb.confirm3', true)  // + next 3-min candle must also close beyond
+  const [confirm3, setConfirm3] = useSessionState('orb.confirmMode', 1)  // 3-min confirmation: 0 off, 1 beyond break close, 2 beyond OR level
   const [orbFilters, setOrbFilters] = useSessionState('orb.filters.v3', DEFAULT_FILTERS)  // v3: defaults = full-day volume basis, F&O universe
+  // 15-minute ORB scanner: same rules, its own independent settings
+  const [tf15, setTf15] = useSessionState('orb15.tf', 15)
+  const [confirm15, setConfirm15] = useSessionState('orb15.confirmMode', 1)
+  const [orbFilters15, setOrbFilters15] = useSessionState('orb15.filters', DEFAULT_FILTERS)
 
   const live = usePoll(() => api('/api/live'), auto ? REFRESH_MS : 3.6e6, [auto])
-  const orb = usePoll(() => api(`/api/orb?tf=${tf}&confirm=${confirm3 ? 1 : 0}`), auto ? REFRESH_MS : 3.6e6, [auto, tf, confirm3])
+  const orb = usePoll(() => api(`/api/orb?tf=${tf}&confirm=${Number(confirm3)}&orm=60`), auto ? REFRESH_MS : 3.6e6, [auto, tf, confirm3])
+  const orb15 = usePoll(() => api(`/api/orb?tf=${tf15}&confirm=${Number(confirm15)}&orm=15`), auto ? REFRESH_MS : 3.6e6, [auto, tf15, confirm15])
   const ctx = usePoll(() => api('/api/context'), 60000, [])
 
   const toggleSector = useCallback(sym => setSelected(s => s.includes(sym) ? s.filter(x => x !== sym) : [...s, sym]), [setSelected])
   const orbCount = orb.data?.rows ? filterRows(orb.data.rows, orbFilters, selected, orb.data).length : null
+  const orb15Count = orb15.data?.rows ? filterRows(orb15.data.rows, orbFilters15, selected, orb15.data).length : null
 
   return <div className="app">
     <header className="hdr">
@@ -54,6 +61,7 @@ function App() {
           {p.label}
           {p.id === 'heatmap' && selected.length ? <span className="badge">{selected.length}</span> : null}
           {p.id === 'scanner' && orbCount != null ? <span className="badge" title="Signals passing the current scanner filters">{orbCount}</span> : null}
+          {p.id === 'scanner15' && orb15Count != null ? <span className="badge" title="Signals passing the current scanner filters">{orb15Count}</span> : null}
         </button>)}
       </nav>
       <StatusBar live={live} auto={auto} setAuto={setAuto} />
@@ -62,7 +70,8 @@ function App() {
       {live.error && !live.data && <div className="alert">{live.error}</div>}
       {page === 'overview' && <Overview live={live.data} ctx={ctx.data} />}
       {page === 'heatmap' && <Heatmap live={live.data} selected={selected} setSelected={setSelected} toggle={toggleSector} goto={setPage} />}
-      {page === 'scanner' && <Scanner orb={orb} live={live.data} selected={selected} setSelected={setSelected} tf={tf} setTf={setTf} confirm3={confirm3} setConfirm3={setConfirm3} f={orbFilters} setF={setOrbFilters} />}
+      {page === 'scanner' && <Scanner key="orb60" orm={60} orb={orb} live={live.data} selected={selected} setSelected={setSelected} tf={tf} setTf={setTf} confirm3={confirm3} setConfirm3={setConfirm3} f={orbFilters} setF={setOrbFilters} />}
+      {page === 'scanner15' && <Scanner key="orb15" orm={15} orb={orb15} live={live.data} selected={selected} setSelected={setSelected} tf={tf15} setTf={setTf15} confirm3={confirm15} setConfirm3={setConfirm15} f={orbFilters15} setF={setOrbFilters15} />}
     </main>
     <footer className="foot">
       Decision-support scanner — no buy/sell, target or stop-loss recommendations. Data: NSE (indices, quotes, per-minute prices, bhavcopy volumes, FII/DII, GIFT Nifty, market status), BSE (Sensex), Yahoo Finance (overseas indices only).

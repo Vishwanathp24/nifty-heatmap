@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { BreadthBar, ChartIcon, Drawer, Empty, IndexLink, Pct, Seg, SortTh, StockLink } from './components.jsx'
+import { StockDrawer } from './Scanner.jsx'
 import { api, fmtNum, fmtPct, fmtRatio, fmtSigned, fmtVol, heatClass, isNum, istTime, sortRows, tone, useSessionState } from './lib.js'
 
 const pctOf = (s, basis) => s.quote?.[basis === 'open' ? 'pct_open' : 'pct_prev']
@@ -89,7 +90,7 @@ function SectorPanel({ sector, basis, selected, toggle }) {
 
 // Top 20 F&O gainers / losers by % change vs previous close (same basis as NSE's
 // "Top Gainers / Losers" page), from the F&O quotes polled every 10 s.
-function FoMovers({ stocks, selected, labels }) {
+function FoMovers({ stocks, selected, labels, onOpen, openSym }) {
   // Follows the heatmap selection: with sectors ticked, only their F&O stocks are ranked.
   const fo = stocks.filter(s => s.fo && isNum(s.pct_prev) && (!selected.length || s.sectors.some(x => selected.includes(x))))
     .sort((a, b) => b.pct_prev - a.pct_prev)
@@ -99,7 +100,7 @@ function FoMovers({ stocks, selected, labels }) {
     <div className="panel-head"><h3 className={cls}>{title}</h3><span className="muted small">F&O · {scope} · vs prev close</span></div>
     <div className="tbl-wrap"><table className="tbl compact">
       <thead><tr><th className="num">#</th><th>Symbol</th><th>Sector</th><th className="num">LTP</th><th className="num hide-m">Chg</th><th className="num">Chg %</th><th className="num hide-m">Volume</th></tr></thead>
-      <tbody>{rows.map((s, i) => <tr key={s.symbol}>
+      <tbody>{rows.map((s, i) => <tr key={s.symbol} className={'clickable' + (openSym === s.symbol ? ' active' : '')} onClick={() => onOpen(s.symbol)} title="Click for chart and details">
         <td className="num muted">{i + 1}</td>
         <td><StockLink symbol={s.symbol} company={s.company} className="strong" /></td>
         <td className="muted" title={s.sectors.map(x => labels[x] || x).join(', ')}>{s.sector}</td>
@@ -124,6 +125,7 @@ export default function Heatmap({ live, selected, setSelected, toggle, goto }) {
   const [sort, setSort] = useSessionState('hm.sort', 'desc')
   const [basis, setBasis] = useSessionState('hm.basis', 'open')
   const [detail, setDetail] = useState(null)
+  const [stockSym, setStockSym] = useState(null)  // Top 20 row opened in the details drawer
 
   const sectors = live?.sectors || []
   const shown = useMemo(() => {
@@ -192,7 +194,8 @@ export default function Heatmap({ live, selected, setSelected, toggle, goto }) {
       {[['heat-dn-4', '≤ −2%'], ['heat-dn-3', '−1 to −2%'], ['heat-dn-2', '−0.5 to −1%'], ['heat-dn-1', '−0.1 to −0.5%'], ['heat-0', '±0.1%'], ['heat-up-1', '+0.1 to +0.5%'], ['heat-up-2', '+0.5 to +1%'], ['heat-up-3', '+1 to +2%'], ['heat-up-4', '≥ +2%']].map(([c, l]) =>
         <span key={c} className="legend-item"><i className={c} />{l}</span>)}
     </div>
-    <FoMovers stocks={live.stocks} selected={selected} labels={Object.fromEntries(sectors.map(x => [x.symbol, x.label]))} />
+    <FoMovers stocks={live.stocks} selected={selected} labels={Object.fromEntries(sectors.map(x => [x.symbol, x.label]))} onOpen={setStockSym} openSym={stockSym} />
+    {stockSym && <StockDrawer stock={live.stocks.find(x => x.symbol === stockSym)} onClose={() => setStockSym(null)} />}
     <Drawer open={!!detailSector} onClose={() => setDetail(null)} wide title={detailSector?.label ? `${detailSector.label} · ${detailSector.symbol}` : ''}>
       {detailSector && <SectorPanel sector={detailSector} basis={basis} selected={selected} toggle={toggle} />}
     </Drawer>

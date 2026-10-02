@@ -129,18 +129,18 @@ def context():
 
 
 @app.get("/api/orb")
-def orb(tf: int = 15, confirm: int = 1):
+def orb(tf: int = 15, confirm: int = 1, orm: int = 60):
     try:
-        return engine.scan(tf, bool(confirm))
+        return engine.scan(tf, confirm if confirm in (0, 1, 2) else 1, orm)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
 
 @app.get("/api/orb/candles")
-def orb_candles(symbol: str, tf: int = 15, confirm: int = 1):
-    if tf not in (5, 15):
-        raise HTTPException(status_code=400, detail="tf must be 5 or 15")
-    return engine.candles(symbol.strip().upper(), tf, bool(confirm))
+def orb_candles(symbol: str, tf: int = 15, confirm: int = 1, orm: int = 60):
+    if tf not in (5, 15) or orm not in (15, 60):
+        raise HTTPException(status_code=400, detail="tf must be 5 or 15; orm must be 15 or 60")
+    return engine.candles(symbol.strip().upper(), tf, confirm if confirm in (0, 1, 2) else 1, orm)
 
 
 @app.get("/api/sector")

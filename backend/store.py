@@ -17,7 +17,7 @@ from pathlib import Path
 
 import os
 
-# DATA_DIR points at Render's persistent disk in production; locally it is backend/data.
+# On Render the DB lives on the persistent disk (NIFTY_DATA_DIR / DATA_DIR); locally backend/data.
 DB_PATH = Path(os.environ.get("DATA_DIR") or os.environ.get("NIFTY_DATA_DIR") or Path(__file__).resolve().parent / "data") / "market.db"
 
 
@@ -31,6 +31,7 @@ class Store:
             CREATE TABLE IF NOT EXISTS bars (d TEXT, sym TEXT, m INT, o REAL, h REAL, l REAL, c REAL,
                                              v REAL, cum REAL, src TEXT, PRIMARY KEY (d, sym, m));
             CREATE TABLE IF NOT EXISTS orx (d TEXT, sym TEXT, hi REAL, lo REAL, PRIMARY KEY (d, sym));
+            CREATE TABLE IF NOT EXISTS orx15 (d TEXT, sym TEXT, hi REAL, lo REAL, PRIMARY KEY (d, sym));
             CREATE TABLE IF NOT EXISTS dvol (d TEXT, sym TEXT, vol REAL, PRIMARY KEY (d, sym));
             CREATE INDEX IF NOT EXISTS bars_sym ON bars (sym, d);
         """)
@@ -75,11 +76,12 @@ class Store:
 
     # -- opening range / daily volume --------------------------------------------------------
 
-    def save_orx(self, rows):
-        self.many("INSERT OR REPLACE INTO orx VALUES (?,?,?,?)", rows)
+    # orx = 1-hour range (to 10:15), orx15 = 15-minute range (to 09:30)
+    def save_orx(self, rows, table="orx"):
+        self.many(f"INSERT OR REPLACE INTO {table} VALUES (?,?,?,?)", rows)
 
-    def orx(self, d):
-        return {sym: (hi, lo) for sym, hi, lo in self.q("SELECT sym, hi, lo FROM orx WHERE d=?", (d,))}
+    def orx(self, d, table="orx"):
+        return {sym: (hi, lo) for sym, hi, lo in self.q(f"SELECT sym, hi, lo FROM {table} WHERE d=?", (d,))}
 
     def save_dvol(self, d, vols):
         self.many("INSERT OR REPLACE INTO dvol VALUES (?,?,?)", [(d, s, v) for s, v in vols.items()])

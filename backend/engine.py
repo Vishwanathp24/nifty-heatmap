@@ -30,7 +30,7 @@ from statistics import mean
 from zoneinfo import ZoneInfo
 
 import sources
-from config import (BASELINE_SESSIONS, BROAD, CLOSE_MIN, FO_INDEX, KEY_INDICES, OPEN_MIN, OR_END_MIN,
+from config import (BASELINE_SESSIONS, BROAD, CLOSE_MIN, FO_INDEX, KEY_INDICES, OPEN_MIN, OR_END_MIN, OR_MINUTES,
                     POLL_SECONDS, SECTOR_LABELS, SECTORS)
 
 IST = ZoneInfo("Asia/Kolkata")
@@ -73,7 +73,7 @@ class Engine:
         self.indices, self.quotes, self.sensex = {}, {}, None
         self.session = None          # ISO date of the session in memory
         self.bars = {}               # sym -> {minute: [o, h, l, c, v, cum, src]}
-        self.orx = {}                # sym -> (hi, lo) exact opening range
+        self.orx = {60: {}, 15: {}}  # OR minutes -> {sym: (hi, lo)} exact opening range
         self.snap = {}               # sym -> {"high", "low"} from the previous snapshot
         self.until = {}              # sym -> fractional minute up to which bars are complete
         self.baseline = ([], {})     # (recorded session dates, {sym: {d: {m: cum}}})
@@ -184,7 +184,7 @@ class Engine:
     def _switch_session(self, session, now):
         self.session = session
         self.bars = self.store.session_bars(session)
-        self.orx = self.store.orx(session)
+        self.orx = {60: self.store.orx(session, "orx"), 15: self.store.orx(session, "orx15")}
         self.snap = {}
         over = self._session_over(now)
         self.until = {s: (DONE if over else max(b) + 1) for s, b in self.bars.items() if b}
@@ -199,7 +199,7 @@ class Engine:
     def _record(self, quotes, now):
         m = _m(now)
         frac = m + now.second / 60
-        rows, or_rows = [], []
+        rows, or_rows, or15_rows = [], [], []
         for sym in self.uni["scan"]:
             q = quotes.get(sym)
             if not q or not q.get("ltp"):
@@ -220,11 +220,16 @@ class Engine:
             self.snap[sym] = {"high": dh, "low": dl}
             self.until[sym] = max(self.until.get(sym, 0), frac)
             rows.append((self.session, sym, m, *bar))
+            # NSE's day high/low at the last snapshot before the range ends = exact range
             if m < OR_END_MIN and dh and dl:
-                self.orx[sym] = (dh, dl)
+                self.orx[60][sym] = (dh, dl)
                 or_rows.append((self.session, sym, dh, dl))
+            if m < OPEN_MIN + 15 and dh and dl:
+                self.orx[15][sym] = (dh, dl)
+                or15_rows.append((self.session, sym, dh, dl))
         self.store.save_bars(rows)
-        self.store.save_orx(or_rows)
+        self.store.save_orx(or_rows, "orx")
+        self.store.save_orx(or15_rows, "orx15")
 
     # ---- housekeeping: back-fill + bhavcopies -------------------------------------------------
 
@@ -328,20 +333,21 @@ class Engine:
 
     # ---- ORB ----------------------------------------------------------------------------------
 
-    def _signal(self, sym, meta, tf, clock, over, confirm3=False):
+    def _signal(self, sym, meta, tf, clock, over, confirm3=False, orm=60):
         day = self.bars.get(sym)
         if not day:
             return None
         until = DONE if over else self.until.get(sym, 0) - 0.1
-        opening = [day[m] for m in range(OPEN_MIN, OR_END_MIN) if m in day]
-        exact = sym in self.orx
+        or_end = OPEN_MIN + orm  # 10:15 for the 1-hour range, 09:30 for 15 minutes
+        opening = [day[m] for m in range(OPEN_MIN, or_end) if m in day]
+        exact = sym in self.orx[orm]
         if exact:
-            or_hi, or_lo = self.orx[sym]
+            or_hi, or_lo = self.orx[orm][sym]
         elif opening:
             or_hi, or_lo = max(b[1] for b in opening), min(b[2] for b in opening)
         else:
             return None
-        if until < OR_END_MIN:
+        if until < or_end:
             return None
         # Break candle: first completed tf-minute candle (5 or 15, aligned to 10:15)
         # closing beyond the range. With confirm3, the 3-minute candle right after
@@ -353,8 +359,12 @@ class Engine:
             ms = [day[m] for m in range(a, b) if m in day]
             return ms[-1][3] if ms else None
 
+        # confirm3: 0/False = off, 1/True = 3-min close beyond the BREAK CANDLE's close,
+        # 2 = 3-min close merely beyond the opening-range level.
+        mode = int(confirm3)
         up = down = None
-        for start in range(OR_END_MIN, CLOSE_MIN, tf):
+        rejected = {"up": [], "down": []}  # breaks that failed their 3-min confirmation
+        for start in range(or_end, CLOSE_MIN, tf):
             end = min(start + tf, CLOSE_MIN)
             if end > until:
                 break
@@ -365,16 +375,19 @@ class Engine:
                 beyond = (lambda x: x > or_hi) if side == "up" else (lambda x: x < or_lo)
                 if (up if side == "up" else down) is not None or not beyond(c):
                     continue
-                if not confirm3:
+                if not mode:
                     hit = (end, c, None, None)
                 else:
                     c_end = min(end + 3, CLOSE_MIN)
                     if c_end > until or c_end <= end:
                         continue  # confirmation candle not complete yet (or no time left)
                     cc = close_between(end, c_end)
-                    follow = cc is not None and (cc > c if side == "up" else cc < c)
+                    ref = c if mode == 1 else (or_hi if side == "up" else or_lo)
+                    follow = cc is not None and (cc > ref if side == "up" else cc < ref)
                     if not follow:
-                        continue  # no follow-through beyond the break close -> keep looking
+                        rejected[side].append({"time": hhmm(end), "min": end, "price": round(c, 2),
+                                               "confirm_close": round(cc, 2) if cc is not None else None})
+                        continue  # no follow-through -> keep looking
                     hit = (c_end, cc, end, c)
                 if side == "up":
                     up = hit
@@ -400,13 +413,14 @@ class Engine:
         vol_now, vol_now_basis = self.volume_now(sym, q.get("volume"), datetime.now(IST))
         level = or_hi if signal == "BREAKOUT" else or_lo
         dist = (ltp - or_hi) / or_hi * 100 if signal == "BREAKOUT" else (or_lo - ltp) / or_lo * 100
-        chart_or = any(day[m][6] == "chart" for m in range(OPEN_MIN, OR_END_MIN) if m in day)
+        chart_or = any(day[m][6] == "chart" for m in range(OPEN_MIN, or_end) if m in day)
         return {
             **meta, "signal": signal, "ltp": round(ltp, 2), "pct_prev": _pct(ltp, prev),
             "or_high": round(or_hi, 2), "or_low": round(or_lo, 2), "or_range_pct": _pct(or_hi, or_lo),
             "or_exact": exact or not chart_or,
             "break_price": round(brk_px, 2), "break_min": brk, "break_time": hhmm(brk), "age_min": clock - brk,
             "break_candle": {"time": hhmm(bc_end), "price": round(bc_px, 2)} if bc_end else None,
+            "rejected": [r for r in rejected["up" if signal == "BREAKOUT" else "down"] if r["min"] < brk],
             "cum_volume": cum_brk, "avg_volume": round(avg_brk) if avg_brk else None, "vol_sessions": n_brk,
             "vol_ratio": round(cum_brk / avg_brk, 2) if cum_brk and avg_brk else None,
             "vol_ratio_now": vol_now, "vol_now_basis": vol_now_basis,
@@ -418,9 +432,11 @@ class Engine:
                             "time": hhmm(other[0]), "price": round(other[1], 2)} if other else None,
         }
 
-    def scan(self, tf, confirm3=False):
+    def scan(self, tf, confirm3=False, orm=60):
         if tf not in (5, 15):
             raise ValueError("tf must be 5 or 15")
+        if orm not in OR_MINUTES:
+            raise ValueError("opening range must be 60 or 15 minutes")
         now = datetime.now(IST)
         with self.lock:
             over = self._session_over(now)
@@ -428,23 +444,24 @@ class Engine:
             rows = []
             if self.uni and self.session:
                 for sym in self.uni["scan"]:
-                    sig = self._signal(sym, self.uni["stocks"][sym], tf, clock, over, confirm3)
+                    sig = self._signal(sym, self.uni["stocks"][sym], tf, clock, over, confirm3, orm)
                     if sig:
                         rows.append(sig)
             loaded = sum(1 for s in (self.uni or {}).get("scan", []) if self.bars.get(s))
             return {
                 "session_date": self.session, "live": not over and self.session == now.date().isoformat(),
-                "as_of_time": hhmm(clock), "or_complete": clock >= OR_END_MIN and self.session is not None,
+                "as_of_time": hhmm(clock), "or_complete": clock >= OPEN_MIN + orm and self.session is not None,
+                "or_minutes": orm, "or_end": hhmm(OPEN_MIN + orm),
                 "tf": tf, "confirm3": confirm3, "rows": rows,
                 "engine": {
                     "universe": len(self.uni["scan"]) if self.uni else 0, "loaded": loaded,
                     "backfill": dict(self.backfill), "poll_ok": self.poll_ok.isoformat() if self.poll_ok else None,
                     "poll_error": self.poll_err,
-                    "recorded_sessions": self.baseline[0], "exact_or": len(self.orx),
+                    "recorded_sessions": self.baseline[0], "exact_or": len(self.orx[orm]),
                 },
             }
 
-    def candles(self, sym, tf, confirm3=False):
+    def candles(self, sym, tf, confirm3=False, orm=60):
         """5-minute bars for the drawer chart; volume from cumulative-volume differences."""
         now = datetime.now(IST)
         with self.lock:
@@ -452,7 +469,7 @@ class Engine:
             over = self._session_over(now)
             clock = CLOSE_MIN if over else min(max(_m(now), OPEN_MIN), CLOSE_MIN)
             meta = self.uni["stocks"].get(sym) if self.uni else None
-            sig = self._signal(sym, meta, tf, clock, over, confirm3) if meta else None
+            sig = self._signal(sym, meta, tf, clock, over, confirm3, orm) if meta else None
         out, prev_cum = [], 0.0
         for start in range(OPEN_MIN, CLOSE_MIN, 5):
             ms = [day[m] for m in range(start, start + 5) if m in day]
@@ -465,7 +482,8 @@ class Engine:
             prev_cum = cums[-1] if cums else None
             out.append({"t": hhmm(start), "m": start, "o": ms[0][0], "h": max(b[1] for b in ms), "l": min(b[2] for b in ms),
                         "c": ms[-1][3], "v": vol, "src": "live" if all(b[6] == "live" for b in ms) else "chart"})
-        return {"symbol": sym, "session_date": self.session, "candles": out, "signal": sig}
+        return {"symbol": sym, "session_date": self.session, "candles": out, "signal": sig,
+                "or_end_min": OPEN_MIN + orm, "quote": quote_view(self.quotes.get(sym)), "meta": meta}
 
     # ---- live snapshot -------------------------------------------------------------------------
 

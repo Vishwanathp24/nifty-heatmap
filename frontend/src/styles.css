@@ -213,6 +213,10 @@ th .arrow { font-size: 9px; margin-left: 4px; opacity: .6 }
 .fo-movers { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 4px 0 12px }
 .fo-movers h3.up { color: var(--up) } .fo-movers h3.down { color: var(--down) }
 
+.fo-movers tbody tr.clickable { cursor: pointer }
+.fo-movers tbody tr.clickable:hover { background: #F7F9FC }
+.fo-movers tbody tr.active { background: var(--accent-bg) }
+
 /* ---------- drawer ---------- */
 .drawer-scrim { position: fixed; inset: 0; background: rgba(15,18,24,.18); z-index: 40 }
 .drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(520px, 100vw); background: var(--panel); border-left: 1px solid var(--border); z-index: 41; display: flex; flex-direction: column }
@@ -279,15 +283,19 @@ th .arrow { font-size: 9px; margin-left: 4px; opacity: .6 }
 
 /* ---------- chart ---------- */
 .ichart { width: 100%; height: auto; display: block; background: #FCFCFD; border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 12px }
-.ichart .or-zone { fill: #EEF1F6 }
+.ichart .or-zone { fill: #E3EEFB }   /* 1-hour range: light blue */
 .ichart .or-line { stroke-width: 1; stroke-dasharray: 4 3 }
 .ichart .or-line.hi { stroke: var(--up) } .ichart .or-line.lo { stroke: var(--down) }
+.ichart .or-line.or15 { stroke: var(--accent); stroke-dasharray: 1 3; stroke-width: 1.4 }
+.ichart .or-zone15 { fill: #FBE1E6 }   /* 15-min range: light pink */
+.ichart .axis-t.or15 { fill: var(--accent) }
 .ichart .cu line, .ichart .cu rect { stroke: var(--up); fill: var(--up) }
 .ichart .cd line, .ichart .cd rect { stroke: var(--down); fill: var(--down) }
 .ichart .vbar { opacity: .35; stroke: none !important }
 .ichart .brk-line { stroke: var(--ink); stroke-width: 1; stroke-dasharray: 2 2 }
 .ichart .brk-dot { stroke: #fff; stroke-width: 1.5 }
 .ichart .brk-dot.up { fill: var(--up) } .ichart .brk-dot.down { fill: var(--down) }
+.ichart .rej-dot { fill: #fff; stroke: var(--amber); stroke-width: 1.8 }
 .ichart .axis-t { font-size: 10px; fill: var(--muted) }
 .ichart .axis-t.up { fill: var(--up) } .ichart .axis-t.down { fill: var(--down) }
 .ichart .axis-t.strong { fill: var(--ink); font-weight: 600 }

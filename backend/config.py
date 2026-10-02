@@ -39,7 +39,8 @@ BROAD = {"n50": "NIFTY 50", "n100": "NIFTY 100", "n200": "NIFTY 200", "mid150": 
 KEY_INDICES = {"nifty50": "NIFTY 50", "niftybank": "NIFTY BANK", "indiavix": "INDIA VIX"}
 
 OPEN_MIN = 9 * 60 + 15      # 09:15
-OR_END_MIN = 10 * 60 + 15   # 10:15
+OR_END_MIN = 10 * 60 + 15   # 10:15 (1-hour opening range)
+OR_MINUTES = (60, 15)       # supported opening-range lengths: 1 hour, 15 minutes
 CLOSE_MIN = 15 * 60 + 30    # 15:30
 POLL_SECONDS = 10
 BASELINE_SESSIONS = 5
