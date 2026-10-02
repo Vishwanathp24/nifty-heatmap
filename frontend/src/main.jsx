@@ -1,0 +1,74 @@
+import React, { useCallback, useState } from 'react'
+import { createRoot } from 'react-dom/client'
+import './styles.css'
+import { api, istDate, istTime, nseTs, useClock, usePersistentState, useSessionState, usePoll } from './lib.js'
+import Overview from './Overview.jsx'
+import Heatmap from './Heatmap.jsx'
+import Scanner, { DEFAULT_FILTERS, filterRows } from './Scanner.jsx'
+
+const REFRESH_MS = 10000
+const PAGES = [
+  { id: 'overview', label: 'Market Overview', key: '1' },
+  { id: 'heatmap', label: 'Sector Heatmap', key: '2' },
+  { id: 'scanner', label: 'ORB Scanner', key: '3' },
+]
+
+function StatusBar({ live, auto, setAuto }) {
+  const now = useClock()
+  const status = live.data?.market_status?.label
+  const delayed = !!live.error && !!live.data
+  const ok = !!live.data && !live.error && !live.data.poll_error
+  return <div className="hdr-status">
+    <span className={'mkt ' + (status === 'Market Open' ? 'open' : status === 'Pre-Open' ? 'pre' : 'closed')}>{status || '—'}</span>
+    <span className="hdr-clock" title="Indian Standard Time">{istTime(now)} <small>IST</small></span>
+    {delayed || live.data?.poll_error
+      ? <span className="hdr-delayed" title={live.error || live.data?.poll_error}><i className="dot amber" />Data delayed · Last successful update: {istTime(live.data?.as_of || live.lastOk)}</span>
+      : <span className="hdr-upd"><i className={'dot ' + (ok && auto ? 'green' : 'grey')} />Last updated: {live.data?.as_of ? istTime(live.data.as_of) : '…'}</span>}
+    <button className={'hdr-auto' + (auto ? ' on' : '')} onClick={() => setAuto(a => !a)} title="Toggle auto refresh">
+      Auto Refresh: {auto ? 'ON' : 'OFF'}</button>
+    <span className="hdr-muted">Refresh interval: 10 sec</span>
+  </div>
+}
+
+function App() {
+  const [page, setPage] = useState('overview')  // every load/refresh starts on the homepage
+  const [selected, setSelected] = useSessionState('sectors', [])
+  const [auto, setAuto] = usePersistentState('auto', true)
+  const [tf, setTf] = useSessionState('orb.tf.v4', 15)  // break candle: 5 or 15 min
+  const [confirm3, setConfirm3] = useSessionState('orb.confirm3', true)  // + next 3-min candle must also close beyond
+  const [orbFilters, setOrbFilters] = useSessionState('orb.filters.v3', DEFAULT_FILTERS)  // v3: defaults = full-day volume basis, F&O universe
+
+  const live = usePoll(() => api('/api/live'), auto ? REFRESH_MS : 3.6e6, [auto])
+  const orb = usePoll(() => api(`/api/orb?tf=${tf}&confirm=${confirm3 ? 1 : 0}`), auto ? REFRESH_MS : 3.6e6, [auto, tf, confirm3])
+  const ctx = usePoll(() => api('/api/context'), 60000, [])
+
+  const toggleSector = useCallback(sym => setSelected(s => s.includes(sym) ? s.filter(x => x !== sym) : [...s, sym]), [setSelected])
+  const orbCount = orb.data?.rows ? filterRows(orb.data.rows, orbFilters, selected, orb.data).length : null
+
+  return <div className="app">
+    <header className="hdr">
+      <button className="hdr-brand" onClick={() => { setPage('overview'); window.scrollTo({ top: 0 }) }} title="Go to homepage (Market Overview)">
+        <span>NSE Sector Heatmap</span></button>
+      <nav className="hdr-nav">
+        {PAGES.map(p => <button key={p.id} className={page === p.id ? 'active' : ''} onClick={() => setPage(p.id)}>
+          {p.label}
+          {p.id === 'heatmap' && selected.length ? <span className="badge">{selected.length}</span> : null}
+          {p.id === 'scanner' && orbCount != null ? <span className="badge" title="Signals passing the current scanner filters">{orbCount}</span> : null}
+        </button>)}
+      </nav>
+      <StatusBar live={live} auto={auto} setAuto={setAuto} />
+    </header>
+    <main className="page">
+      {live.error && !live.data && <div className="alert">{live.error}</div>}
+      {page === 'overview' && <Overview live={live.data} ctx={ctx.data} />}
+      {page === 'heatmap' && <Heatmap live={live.data} selected={selected} setSelected={setSelected} toggle={toggleSector} goto={setPage} />}
+      {page === 'scanner' && <Scanner orb={orb} live={live.data} selected={selected} setSelected={setSelected} tf={tf} setTf={setTf} confirm3={confirm3} setConfirm3={setConfirm3} f={orbFilters} setF={setOrbFilters} />}
+    </main>
+    <footer className="foot">
+      Decision-support scanner — no buy/sell, target or stop-loss recommendations. Data: NSE (indices, quotes, per-minute prices, bhavcopy volumes, FII/DII, GIFT Nifty, market status), BSE (Sensex), Yahoo Finance (overseas indices only).
+      {live.data?.source_ts && <> Latest NSE quote: {istDate(nseTs(live.data.source_ts))} {istTime(nseTs(live.data.source_ts))} IST.</>}
+    </footer>
+  </div>
+}
+
+createRoot(document.getElementById('root')).render(<App />)

@@ -1,115 +1,67 @@
-# Nifty Sector Dashboard
+# NSE Sector heatmap
 
-A FastAPI backend + vanilla JS frontend for tracking NSE's F&O (futures &
-options) universe: sector heatmap, breadth, movers, and several self-tracked
-intraday scanners. Two frontends ship from the same API — `/` (light,
-original build) and `/pro` (dark, restyled pass) — for side-by-side
-comparison.
-
-## Features
-
-- **Sectoral heatmap** — all 23 NSE sectoral indices as color-coded tiles,
-  unfiltered, matching NSE's own site tile-for-tile. Click a tile for every
-  constituent stock's LTP, change %, open, and volume (with a TradingView
-  chart link on every symbol).
-- **Market Bias** — a same-session breadth reading (Nifty 50, India VIX,
-  advance/decline, F&O and sector breadth) — explicitly *not* a prediction,
-  and doesn't include Sensex or global indices (no reliable free source for
-  either was found).
-- **Nifty 50 Advance vs Decline vs today's open** — vs *open*, not previous
-  close (NSE's own advance/decline counters use previous close).
-- **F&O Gainers / Losers**, **Most Active Equities**, **Volume Gainers**,
-  **52-Week High/Low** — all filtered to the F&O universe, all sortable.
-- **F&O Stock List (Volume & RSI)** — a liquidity/valuation screener (market
-  cap, cap-to-turnover ratio, turnover, run-up from 52w low), RSI(14) shown
-  for reference. One condition from the source screener (ROCE vs its 3-year
-  average) is intentionally not applied — no accessible data source for
-  financial-statement ratios.
-All of the below live together in one tabbed "Scanners" panel (Opening
-Range Breakout / Buy-Sell / 15-Min Breakout / Screener) so only one is
-rendered at a time — this keeps the page short on a phone instead of
-stacking four full sections:
-
-- **Opening Range Breakout (ORB) Scanner** — 5/15/30/45/60-min windows,
-  self-tracked (see below).
-- **Buy/Sell Scanner (Bullish/Bearish Intraday)** — daily (SMA20/RSI14/5-day
-  range, from real EOD history) + a selectable intraday timeframe (self-
-  tracked), a stock only "qualifies" once both agree.
-- **15-Min Breakout Scanner** — an independent, pure 15-min scanner (close
-  vs rolling 20-bar close-high, volume vs its own 20-bar SMA), replicated
-  from two published screeners.
-- **F&O Screener** — 5 independent daily-technical screens (Bullish Trend
-  MA+ADX+MACD, Open=High/Low, Strong Uptrend, Volume Shockers, a price-range
-  scan), each replicated from a published Chartink scanner, all real (no
-  self-tracking - runs on ~65 real trading days of Bhavcopy history). A
-  second batch of published screens needing weekly/monthly bars and a
-  Camarilla pivot isn't built yet.
-
-## Running it
+A standalone NSE intraday dashboard: market breadth, sector heatmap and a 1-hour
+Opening Range Breakout scanner. **No broker login** — it uses only the exchanges'
+public data.
 
 ```bash
-pip install -r requirements.txt
-uvicorn backend.main:app --reload --port 8420
+./start.sh          # builds the UI, starts the server
 ```
+Open **http://127.0.0.1:8100**. Needs Python 3.10+ and Node 20+.
+(For UI development: `cd frontend && npm run dev` → http://127.0.0.1:5180, proxying /api to :8100.)
 
-Then open http://localhost:8420 (classic) or http://localhost:8420/pro (dark).
+**Keep it running during market hours.** The backend polls NSE every 10 seconds and
+records its own 1-minute bars and cumulative volume (in `backend/data/market.db`).
 
-The page auto-refreshes every 20 seconds while the tab is open.
+## Data sources
 
-## How it talks to NSE
+| Data | Source |
+|---|---|
+| Indices, sector indices, India VIX, advance/decline | NSE `allIndices` |
+| Live stock quotes (F&O universe, Nifty 50/100/200, sector constituents), free-float market cap | NSE market-watch `getIndicesData` |
+| Per-minute price history for the current session (back-fill) | NSE `getSymbolChartData` |
+| Daily volume history (5-day averages) | NSE CM bhavcopy archive |
+| Market status, FII/DII, GIFT Nifty | NSE |
+| Sensex | BSE (NSE does not publish it) |
+| Dow, S&P 500, Nasdaq, Nikkei, Hang Seng | Yahoo Finance (Global Cues panel only) |
 
-NSE doesn't publish a public API — `backend/nse_client.py` calls the same
-undocumented endpoints nseindia.com's own pages use, plus its daily
-"Bhavcopy" (EOD settlement) archive, which turned out to be real, working,
-and *not* behind the same bot-protection as the JSON APIs:
+These are public website feeds, not contracted APIs: they can change or rate-limit
+without notice. The backend paces requests (≤ ~4.5/s to NSE), keeps the last good
+data on any failure, and the UI shows "Data delayed" when refreshes fail.
 
-- `/api/allIndices`, `/api/equity-stock-indices` — live index/stock snapshots
-- `/api/live-analysis-variations`, `-volume-gainers`, `-most-active-securities`,
-  `-data-52weekhighstock/-lowstock` — movers lists
-- `/api/master-quote` — the current F&O-eligible symbol list
-- `archives.nseindia.com/.../sec_bhavdata_full_DDMMYYYY.csv` — real daily OHLC
-  history (SMA/RSI/range conditions), ~30 trading days fetched and cached
+## What NSE does and doesn't provide — and how the app handles it
 
-A `requests.Session()` first hits a normal nseindia.com page to pick up
-cookies, then reuses that session for API calls, re-bootstrapping on
-401/403. Responses are cached briefly in-process.
+* **Intraday volume history is not published by NSE.** The app records NSE's cumulative
+  day volume every 10 s. The ORB **at-break volume ratio** (cumulative volume to the
+  break time ÷ average cumulative volume to the same clock time over previous
+  sessions) therefore becomes available once the app has recorded at least one
+  earlier session, and uses up to 5. Until then the volume filter is paused and the
+  scanner says so. After the close, "Session so far / full day" compares full-day
+  volume with the 5-day bhavcopy average — exact from day one.
+* **Opening range** is exact (NSE day high/low captured just before 10:15) when the app
+  was running before 10:15. Otherwise it is rebuilt from NSE's 1-minute prices and
+  shown with **≈**, since intraminute wicks can be missed.
+* Signals use completed candles only: a 5- or 15-minute bar (aligned to 10:15) must
+  **close** beyond the range. Break time = that bar's close time.
 
-**No reliable source exists for true intraday candles** (NSE's own
-chart endpoint returns empty; the per-symbol quote endpoint is hard-blocked;
-historical intraday endpoints error out) — so the ORB/Buy-Sell/Breakout
-scanners **self-track**: a background thread polls the F&O universe every
-~20s during market hours (09:15–15:30 IST, Mon–Fri) and buckets those
-samples into candles itself. Completed intraday candles are persisted to
-`backend/intraday_history_{15,30,45,60}m.json` so history survives restarts
-and accumulates across trading days — a 20-period SMA/RSI needs ~20 bars,
-which 15-min bars reach within one session, but 30/45/60-min need several
-days of the process actually having run.
+## Pages
 
-**Caveat:** none of this is an official, versioned API — NSE can change
-endpoint shapes without notice. An error banner in the UI is the signal to
-check `backend/nse_client.py` against what NSE's own network tab shows.
+* **Market Overview** — Global cues and FII/DII (dated) at the top, then Market Bias (five ±1
+  votes: Nifty vs open, VIX vs prev close, Nifty 50 / F&O / sector breadth vs previous close —
+  NSE's own advance/decline convention), index cards, breadth panels and top movers.
+* **Sector Heatmap** — 27 NSE sector indices coloured by % change (vs open or vs prev
+  close). Click a card for its live constituents; the checkbox selects it as a scanner
+  filter; ↗ opens TradingView.
+* **ORB Scanner** — Breakout / Breakdown tabs, sector filter synced with the heatmap,
+  volume / time / distance / price / market-cap / universe filters, sortable columns,
+  and a detail drawer with an intraday chart.
 
-## Deploying it somewhere you can reach from your phone
+Decision support only — no buy/sell, target or stop-loss recommendations.
 
-This app is **not a static site or a simple stateless API** — the
-self-tracking background thread above needs to run continuously through
-market hours, and its persisted JSON files need to survive restarts. That
-rules out:
-- Free-tier PaaS instances that spin down when idle (kills the tracking
-  thread silently — the UI still loads, but scanners never accumulate data)
-- Ephemeral-filesystem hosts without a persistent volume/disk option
+## Hosting on Render
 
-**A `render.yaml` is included** for [Render.com](https://render.com) - use
-its **paid Starter plan** (not Free, for the reason above) with the attached
-persistent disk, which the config already wires up via `NIFTY_DATA_DIR`. Push
-this repo, connect it on Render as a Blueprint, and it deploys as-is.
-
-A small always-on VPS (DigitalOcean/Hetzner/Linode, ~$5-6/mo) works just as
-well if you'd rather run it yourself - `uvicorn backend.main:app --host 0.0.0.0
---port 8000` behind Nginx + a systemd service, with `NIFTY_DATA_DIR` pointed
-at a persistent path.
-
-Either way, this app can't run inside typical page-builder hosting
-(WordPress, Wix, Squarespace, Shopify, etc.) since those don't execute a
-Python backend — deploy it separately and link to it (or point a subdomain
-like `nifty.yoursite.com` at it via a CNAME).
+This repo deploys as a Render web service (see `render.yaml`): `pip install -r requirements.txt`,
+then `uvicorn backend.main:app`. The built UI (`frontend/dist`) is committed and served by the
+backend. Data (recorded bars, volume baseline, bhavcopy volumes) lives on the persistent disk at
+`DATA_DIR=/var/data`. Use the Starter plan: the free plan sleeps when idle, which stops the
+10-second NSE polling and the volume recording.
