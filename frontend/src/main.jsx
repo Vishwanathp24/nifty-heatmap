@@ -10,8 +10,7 @@ const REFRESH_MS = 10000
 const PAGES = [
   { id: 'overview', label: 'Market Overview', key: '1' },
   { id: 'heatmap', label: 'Sector Heatmap', key: '2' },
-  { id: 'scanner', label: 'ORB 1 Hour', key: '3' },
-  { id: 'scanner15', label: 'ORB 15 Min', key: '4' },
+  { id: 'scanner', label: 'ORB Scanner', key: '3' },
 ]
 
 function StatusBar({ live, auto, setAuto }) {
@@ -38,6 +37,7 @@ function App() {
   const [tf, setTf] = useSessionState('orb.tf.v4', 15)  // break candle: 5 or 15 min
   const [confirm3, setConfirm3] = useSessionState('orb.confirmMode', 1)  // 3-min confirmation: 0 off, 1 beyond break close, 2 beyond OR level
   const [orbFilters, setOrbFilters] = useSessionState('orb.filters.v3', DEFAULT_FILTERS)  // v3: defaults = full-day volume basis, F&O universe
+  const [orbView, setOrbView] = useSessionState('orb.view', 60)  // ORB Scanner sub-tab: 60 = 1 Hour ORB, 15 = 15 Min ORB
   // 15-minute ORB scanner: same rules, its own independent settings
   const [tf15, setTf15] = useSessionState('orb15.tf', 15)
   const [confirm15, setConfirm15] = useSessionState('orb15.confirmMode', 1)
@@ -60,8 +60,7 @@ function App() {
         {PAGES.map(p => <button key={p.id} className={page === p.id ? 'active' : ''} onClick={() => setPage(p.id)}>
           {p.label}
           {p.id === 'heatmap' && selected.length ? <span className="badge">{selected.length}</span> : null}
-          {p.id === 'scanner' && orbCount != null ? <span className="badge" title="Signals passing the current scanner filters">{orbCount}</span> : null}
-          {p.id === 'scanner15' && orb15Count != null ? <span className="badge" title="Signals passing the current scanner filters">{orb15Count}</span> : null}
+          {p.id === 'scanner' && (orbView === 15 ? orb15Count : orbCount) != null ? <span className="badge" title={`Signals passing the current ${orbView === 15 ? '15 Min' : '1 Hour'} ORB filters`}>{orbView === 15 ? orb15Count : orbCount}</span> : null}
         </button>)}
       </nav>
       <StatusBar live={live} auto={auto} setAuto={setAuto} />
@@ -70,8 +69,16 @@ function App() {
       {live.error && !live.data && <div className="alert">{live.error}</div>}
       {page === 'overview' && <Overview live={live.data} ctx={ctx.data} />}
       {page === 'heatmap' && <Heatmap live={live.data} selected={selected} setSelected={setSelected} toggle={toggleSector} goto={setPage} />}
-      {page === 'scanner' && <Scanner key="orb60" orm={60} orb={orb} live={live.data} selected={selected} setSelected={setSelected} tf={tf} setTf={setTf} confirm3={confirm3} setConfirm3={setConfirm3} f={orbFilters} setF={setOrbFilters} />}
-      {page === 'scanner15' && <Scanner key="orb15" orm={15} orb={orb15} live={live.data} selected={selected} setSelected={setSelected} tf={tf15} setTf={setTf15} confirm3={confirm15} setConfirm3={setConfirm15} f={orbFilters15} setF={setOrbFilters15} />}
+      {page === 'scanner' && <>
+        <div className="orb-switch" role="tablist" aria-label="Opening range">
+          {[[60, '1 Hour ORB', '09:15–10:15', orbCount], [15, '15 Min ORB', '09:15–09:30', orb15Count]].map(([v, label, range, n]) =>
+            <button key={v} role="tab" aria-selected={orbView === v} className={orbView === v ? 'on' : ''} onClick={() => setOrbView(v)}>
+              {label} <small>{range}</small>{n != null && <span className="count">{n}</span>}</button>)}
+        </div>
+        {orbView === 60
+          ? <Scanner key="orb60" orm={60} orb={orb} live={live.data} selected={selected} setSelected={setSelected} tf={tf} setTf={setTf} confirm3={confirm3} setConfirm3={setConfirm3} f={orbFilters} setF={setOrbFilters} />
+          : <Scanner key="orb15" orm={15} orb={orb15} live={live.data} selected={selected} setSelected={setSelected} tf={tf15} setTf={setTf15} confirm3={confirm15} setConfirm3={setConfirm15} f={orbFilters15} setF={setOrbFilters15} />}
+      </>}
     </main>
     <footer className="foot">
       Decision-support scanner — no buy/sell, target or stop-loss recommendations. Data: NSE (indices, quotes, per-minute prices, bhavcopy volumes, FII/DII, GIFT Nifty, market status), BSE (Sensex), Yahoo Finance (overseas indices only).

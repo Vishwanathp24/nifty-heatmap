@@ -237,6 +237,13 @@ th .arrow { font-size: 9px; margin-left: 4px; opacity: .6 }
 .facts-grid .v { font-weight: 600; font-variant-numeric: tabular-nums }
 
 /* ---------- scanner ---------- */
+.orb-switch { display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--panel); overflow: hidden; margin: 2px 0 10px }
+.orb-switch button { border: 0; border-right: 1px solid var(--border); background: transparent; padding: 8px 16px; cursor: pointer; font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 6px }
+.orb-switch button:last-child { border-right: 0 }
+.orb-switch button small { font-weight: 400; color: var(--muted); font-size: 11px }
+.orb-switch button .count { font-family: var(--mono); font-size: 11px; background: var(--panel-2); border-radius: 3px; padding: 0 5px; color: var(--ink-2) }
+.orb-switch button.on { background: var(--hdr); color: #fff }
+.orb-switch button.on small { color: #AEB6C4 } .orb-switch button.on .count { background: rgba(255,255,255,.15); color: #fff }
 .scan-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 10px }
 .bias-pill { font-weight: 600; font-size: 12px; padding: 4px 10px; border-radius: var(--radius); border: 1px solid }
 .bias-pill.bull { color: var(--up); background: var(--up-bg); border-color: #bfe3cd }
