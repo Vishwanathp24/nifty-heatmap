@@ -6,6 +6,7 @@ import Overview from './Overview.jsx'
 import Heatmap from './Heatmap.jsx'
 import Scanner, { DEFAULT_FILTERS, filterRows } from './Scanner.jsx'
 import Ipo from './Ipo.jsx'
+import Learning from './Learning.jsx'
 
 const REFRESH_MS = 10000
 const PAGES = [
@@ -13,6 +14,7 @@ const PAGES = [
   { id: 'heatmap', label: 'Sector Heatmap', key: '2' },
   { id: 'scanner', label: 'ORB Scanner', key: '3' },
   { id: 'ipo', label: 'IPO', key: '4' },
+  { id: 'learning', label: 'Learning', key: '5' },
 ]
 
 function StatusBar({ live, auto, setAuto }) {
@@ -73,6 +75,7 @@ function App() {
       {page === 'overview' && <Overview live={live.data} ctx={ctx.data} />}
       {page === 'heatmap' && <Heatmap live={live.data} selected={selected} setSelected={setSelected} toggle={toggleSector} goto={setPage} />}
       {page === 'ipo' && <Ipo ipo={ipo} />}
+      {page === 'learning' && <Learning />}
       {page === 'scanner' && <>
         <div className="orb-switch" role="tablist" aria-label="Opening range">
           {[[15, '15 Min ORB', '09:15–09:30', orb15Count], [60, '1 Hour ORB', '09:15–10:15', orbCount]].map(([v, label, range, n]) =>
