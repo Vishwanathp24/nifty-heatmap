@@ -225,7 +225,19 @@ th .arrow { font-size: 9px; margin-left: 4px; opacity: .6 }
 .ipo-page .tbl td, .ipo-page .tbl td a, .ipo-page .tbl td .strong, .ipo-page .tbl td .tv-link .ext { color: var(--muted) }
 .ipo-page .tbl td .up { color: var(--up) } .ipo-page .tbl td .down { color: var(--down) }
 
-/* Learning tab: course player */
+/* Learning tab: course list, click opens the player */
+.learn-grid { display: grid; grid-template-columns: 1fr; gap: 10px }
+.learn-card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius) }
+.learn-card.open { border-color: var(--border-strong) }
+.learn-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 12px; cursor: pointer }
+.learn-head:hover { background: #F7F9FC }
+.learn-title { font-weight: 600; font-size: 14px }
+.learn-actions { display: flex; gap: 6px }
+.learn-actions a.btn { color: var(--ink) }
+.cp { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 14px; padding: 0 12px 12px }
+.cp-side .syllabus { max-height: 470px }
+@media (max-width: 1000px) { .cp { grid-template-columns: 1fr } }
+
 .course-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px }
 .course-tabs button { border: 1px solid var(--border-strong); background: var(--panel); border-radius: var(--radius); padding: 7px 12px; cursor: pointer; text-align: left; display: flex; flex-direction: column; gap: 1px }
 .course-tabs button:hover { border-color: var(--ink-2) }
