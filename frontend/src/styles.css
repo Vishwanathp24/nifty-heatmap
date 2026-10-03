@@ -433,3 +433,10 @@ th .arrow { font-size: 9px; margin-left: 4px; opacity: .6 }
   .orb-switch.learn-cats button small { display: none }
   .orb-switch.learn-cats button:last-child:nth-child(3n+2) { grid-column: span 2 }
 }
+
+/* Top menu on phones: two rows (3 + 2) so every page, incl. IPO and Learning, is visible without sideways scrolling */
+@media (max-width: 768px) {
+  .hdr-nav { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0; overflow: visible }
+  .hdr-nav button { grid-column: span 2; justify-content: center; padding: 9px 2px; font-size: 12.5px; gap: 4px }
+  .hdr-nav button:nth-child(n+4) { grid-column: span 3; border-top: 1px solid #242C3A }
+}
