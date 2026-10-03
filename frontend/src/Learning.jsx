@@ -1,10 +1,16 @@
 import React, { useState } from 'react'
 import COURSES from './learning-data.json'
 
-// Five unique YouTube playlists (two shared links were dropped: their videos are
-// fully contained in a longer playlist from the same channel). Lesson lists were
-// captured from YouTube and are played through YouTube's official embedded player.
+// Unique YouTube courses: playlists whose videos are fully contained in another
+// were dropped, and overlapping playlists from one channel are merged with each
+// video listed once (a lesson's `list` names the playlist it came from). A course
+// with `list: null` is a single video. Lesson lists were captured from YouTube and
+// are played through YouTube's official embedded player.
 // Progress and bookmarks are a per-browser convenience (localStorage).
+
+const plist = c => c.list === undefined ? c.id : c.list
+const ytUrl = c => plist(c) ? `https://www.youtube.com/playlist?list=${plist(c)}` : `https://www.youtube.com/watch?v=${c.lessons[0].id}`
+const lessonQs = (course, lesson) => { const l = lesson.list || plist(course); return l ? `&list=${l}` : '' }
 
 const store = {
   get(key, fallback) { try { const v = localStorage.getItem('nseid:learn:' + key); return v == null ? fallback : JSON.parse(v) } catch { return fallback } },
@@ -38,7 +44,7 @@ function CoursePlayer({ course, onProgress }) {
   return <div className="cp">
     <div className="player-card">
       <div className="player-frame">
-        <iframe key={lesson.id} src={`https://www.youtube-nocookie.com/embed/${lesson.id}?rel=0&list=${course.id}`} title={lesson.title}
+        <iframe key={lesson.id} src={`https://www.youtube-nocookie.com/embed/${lesson.id}?rel=0${lessonQs(course, lesson)}`} title={lesson.title}
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
       </div>
       <div className="player-body">
@@ -52,7 +58,7 @@ function CoursePlayer({ course, onProgress }) {
         </div>
         <div className="player-links">
           <button className="link-btn" onClick={() => toggle(marks, setMarks, 'marks', lesson.id)}>{marks.has(lesson.id) ? '★ Bookmarked' : '☆ Bookmark lesson'}</button>
-          <a href={`https://www.youtube.com/watch?v=${lesson.id}&list=${course.id}`} target="_blank" rel="noopener noreferrer">Watch on YouTube ↗</a>
+          <a href={`https://www.youtube.com/watch?v=${lesson.id}${lessonQs(course, lesson)}`} target="_blank" rel="noopener noreferrer">Watch on YouTube ↗</a>
         </div>
         <div className="progress"><span style={{ width: pct + '%' }} /></div>
         <div className="muted small">Course progress: <b>{pct}%</b> · {done.size}/{n} lessons · saved in this browser</div>
@@ -69,21 +75,37 @@ function CoursePlayer({ course, onProgress }) {
           </button>
         </li>)}
       </ol>
-      <p className="muted small">▶ Video credit: <a href={`https://www.youtube.com/playlist?list=${course.id}`} target="_blank" rel="noopener noreferrer">{course.channel}</a> (YouTube), via YouTube's official embedded player.</p>
+      <p className="muted small">▶ Video credit: <a href={ytUrl(course)} target="_blank" rel="noopener noreferrer">{course.channel}</a> (YouTube), via YouTube's official embedded player.</p>
     </div>
   </div>
 }
+
+const CATEGORIES = [
+  ['buying', 'Option Buying'],
+  ['selling', 'Option Selling'],
+  ['strategy', 'Strategy'],
+  ['screeners', 'Screeners'],
+  ['basics', 'Basics', 'stock market, futures & F&O foundations'],
+]
 
 export default function Learning() {
   // Course list; clicking a course opens its player (one at a time).
   const [open, setOpen] = useState(() => store.get('open', COURSES[0].id))
   const [, bump] = useState(0)  // re-render list progress after a lesson is marked complete
+  const [cat, setCat] = useState(() => store.get('cat', 'buying'))
+  const pick = c => { setCat(c); store.set('cat', c) }
+  const shown = COURSES.filter(c => c.category === cat)
   const toggle = id => { const next = open === id ? null : id; setOpen(next); store.set('open', next) }
   return <div className="learning-page">
     <div className="page-title"><h1>Learning</h1>
-      <span className="muted small">Free F&O and options courses from YouTube · {COURSES.length} courses · third-party educational content, not advice</span></div>
+      <span className="muted small">Free stock market, F&O and options courses from YouTube · {COURSES.length} courses · third-party educational content, not advice</span></div>
+    <div className="orb-switch" role="tablist" aria-label="Course category">
+      {CATEGORIES.map(([v, label, sub]) =>
+        <button key={v} role="tab" aria-selected={cat === v} className={cat === v ? 'on' : ''} onClick={() => pick(v)}>
+          {label}{sub && <small>{sub}</small>}<span className="count">{COURSES.filter(c => c.category === v).length}</span></button>)}
+    </div>
     <div className="learn-grid">
-      {COURSES.map(c => {
+      {shown.map(c => {
         const doneN = store.get('done:' + c.id, []).length
         const total = hours(c.lessons.reduce((s, l) => s + seconds(l.len), 0))
         const isOpen = open === c.id
@@ -91,11 +113,11 @@ export default function Learning() {
           <div className="learn-head" role="button" tabIndex={0} onClick={() => toggle(c.id)} onKeyDown={e => e.key === 'Enter' && toggle(c.id)}>
             <div>
               <div className="learn-title">{c.title}</div>
-              <div className="muted small">{c.channel} · {c.lessons.length} lessons · {total} · {c.topic}{doneN ? ` · ${Math.round(doneN / c.lessons.length * 100)}% done` : ''}</div>
+              <div className="muted small">{c.channel} · {c.lessons.length} {c.lessons.length === 1 ? "lesson" : "lessons"} · {total} · {c.topic}{doneN ? ` · ${Math.round(doneN / c.lessons.length * 100)}% done` : ''}</div>
             </div>
             <div className="learn-actions">
               <button className="btn sm" onClick={e => { e.stopPropagation(); toggle(c.id) }}>{isOpen ? 'Close' : doneN ? 'Continue' : 'Start'}</button>
-              <a className="btn sm" href={`https://www.youtube.com/playlist?list=${c.id}`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}>YouTube ↗</a>
+              <a className="btn sm" href={ytUrl(c)} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}>YouTube ↗</a>
             </div>
           </div>
           {isOpen && <CoursePlayer course={c} onProgress={() => bump(x => x + 1)} />}
