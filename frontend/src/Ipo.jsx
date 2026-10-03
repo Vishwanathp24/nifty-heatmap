@@ -3,7 +3,8 @@ import { Empty, Seg, SortTh, StockLink } from './components.jsx'
 import { fmtNum, fmtVol, isNum, istTime, sortRows, useSessionState } from './lib.js'
 
 // GMP is unofficial (no exchange publishes it), so link out instead of showing a number.
-const GMP_URL = 'https://ipowatch.in/ipo-grey-market-premium-latest-ipo-gmp/'
+// Per-IPO web search: works for every issue, mainboard and SME.
+const gmpUrl = company => 'https://www.google.com/search?q=' + encodeURIComponent(`${(company || '').replace(/ Limited$/i, '')} IPO GMP today`)
 // Calendar days from the listing date to today (IST).
 const daysSince = iso => iso ? Math.floor((Date.now() - new Date(iso + 'T00:00:00+05:30').getTime()) / 86400000) : null
 const chg = v => isNum(v) ? <span className={v >= 0 ? 'up' : 'down'}>{v >= 0 ? '⇡' : '⇣'} {Math.abs(v).toFixed(2)}%</span> : '—'
@@ -30,7 +31,7 @@ function Upcoming({ rows, board }) {
         <SortTh label="Lot Size" k="lot_size" {...sp} num />
         <SortTh label="Issue Size (shares)" k="issue_shares" {...sp} num />
         <SortTh label="Subscription" k="subscription" {...sp} num title="Times subscribed so far (NSE, all categories)" />
-        <th title="Grey market premium is unofficial and unregulated; opens IPO Watch's GMP list in a new tab">GMP</th>
+        <th title="Grey market premium is unofficial and unregulated; opens a web search for this IPO's GMP in a new tab">GMP</th>
       </tr></thead>
       <tbody>{shown.map(r => <tr key={r.symbol}>
         <td><div className="strong">{r.company}</div><div className="muted small">{r.symbol}</div></td>
@@ -41,7 +42,7 @@ function Upcoming({ rows, board }) {
         <td className="num">{r.lot_size ? fmtNum(r.lot_size, 0) : 'N/A'}</td>
         <td className="num">{fmtVol(r.issue_shares)}</td>
         <td className="num strong">{isNum(r.subscription) ? r.subscription.toFixed(2) + 'x' : '—'}</td>
-        <td><a className="tv-link" href={GMP_URL} target="_blank" rel="noopener noreferrer" title="Unofficial grey market premium — opens IPO Watch's GMP list">GMP<span className="ext">↗</span></a></td>
+        <td><a className="tv-link" href={gmpUrl(r.company)} target="_blank" rel="noopener noreferrer" title={`Search “${r.company} IPO GMP today” — GMP is unofficial`}>GMP<span className="ext">↗</span></a></td>
       </tr>)}</tbody>
     </table>
     {!shown.length && <Empty>No upcoming or open IPOs on NSE{board !== 'all' ? ' for this board' : ''}.</Empty>}
@@ -113,6 +114,6 @@ export default function Ipo({ ipo }) {
     </div>
     {!data ? <Empty>{ipo.error || 'Loading IPO data from NSE…'}</Empty>
       : view === 'upcoming' ? <Upcoming rows={data.upcoming} board={board} /> : <Recent rows={data.recent} board={board} below={below} search={search} />}
-    <p className="muted small">BSE-only SME issues are not included (NSE data only). Subscription is NSE's live “times subscribed” across all categories. Listing price = opening price on the listing day (NSE bhavcopy). GMP links open IPO Watch's grey market premium list (unofficial; no exchange publishes GMP). % vs Issue Price uses NSE's official close after market hours and the live price during the session. Not investment advice.</p>
+    <p className="muted small">BSE-only SME issues are not included (NSE data only). Subscription is NSE's live “times subscribed” across all categories. Listing price = opening price on the listing day (NSE bhavcopy). GMP links open a web search for “[company] IPO GMP today” (GMP is unofficial; no exchange publishes it). % vs Issue Price uses NSE's official close after market hours and the live price during the session. Not investment advice.</p>
   </div>
 }
