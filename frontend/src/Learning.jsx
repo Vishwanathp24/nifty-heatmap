@@ -99,7 +99,7 @@ export default function Learning() {
   return <div className="learning-page">
     <div className="page-title"><h1>Learning</h1>
       <span className="muted small">Free stock market, F&O and options courses from YouTube · {COURSES.length} courses · third-party educational content, not advice</span></div>
-    <div className="orb-switch" role="tablist" aria-label="Course category">
+    <div className="orb-switch learn-cats" role="tablist" aria-label="Course category">
       {CATEGORIES.map(([v, label, sub]) =>
         <button key={v} role="tab" aria-selected={cat === v} className={cat === v ? 'on' : ''} onClick={() => pick(v)}>
           {label}{sub && <small>{sub}</small>}<span className="count">{COURSES.filter(c => c.category === v).length}</span></button>)}
