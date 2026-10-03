@@ -1,9 +1,9 @@
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
 
 :root {
   --bg: #F3F4F6;
   --hdr: #111722;
-  --mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+  --mono: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;  /* one font everywhere; numbers use tabular digits */
   --accent-bright: #4F8CFF;
   --panel: #FFFFFF;
   --panel-2: #F1F3F6;
@@ -30,7 +30,7 @@
 * { box-sizing: border-box }
 html, body { margin: 0; background: var(--bg); color: var(--ink); }
 body { font: 13px/1.4 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif; min-width: 320px; }
-.num, .card-v, .big, .tile-val, .tile-pct, .fact .v, .facts-grid .v, .tbl td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -.2px }
+.num, .card-v, .big, .tile-val, .tile-pct, .fact .v, .facts-grid .v, .tbl td.num, .hdr-clock, .badge, .count { font-family: var(--mono); font-variant-numeric: tabular-nums }
 button, input, select { font: inherit; color: inherit }
 a { color: var(--accent); text-decoration: none }
 h1, h2, h3, h4, p { margin: 0 }
@@ -173,7 +173,7 @@ input:focus, select:focus, button:focus-visible, [role=button]:focus-visible { o
 .tbl .ellipsis { max-width: 170px; overflow: hidden; text-overflow: ellipsis }
 th.sortable { cursor: pointer; user-select: none }
 th.sortable:hover { color: var(--ink) }
-th.sorted { color: var(--ink) }
+th.sorted .arrow { opacity: 1 }  /* sorted column keeps the normal header colour; only its arrow stands out */
 th .arrow { font-size: 9px; margin-left: 4px; opacity: .6 }
 .movers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px }
 
@@ -217,6 +217,13 @@ th .arrow { font-size: 9px; margin-left: 4px; opacity: .6 }
 .fo-movers tbody tr.clickable { cursor: pointer }
 .fo-movers tbody tr.clickable:hover { background: #F7F9FC }
 .fo-movers tbody tr.active { background: var(--accent-bg) }
+
+.ipo-status { font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 3px }
+.ipo-status.open { color: var(--up); background: var(--up-bg) } .ipo-status.soon { color: var(--accent); background: var(--accent-bg) }
+
+/* IPO tables: grey text throughout; only the gain/change columns keep green/red */
+.ipo-page .tbl td, .ipo-page .tbl td a, .ipo-page .tbl td .strong, .ipo-page .tbl td .tv-link .ext { color: var(--muted) }
+.ipo-page .tbl td .up { color: var(--up) } .ipo-page .tbl td .down { color: var(--down) }
 
 /* ---------- drawer ---------- */
 .drawer-scrim { position: fixed; inset: 0; background: rgba(15,18,24,.18); z-index: 40 }

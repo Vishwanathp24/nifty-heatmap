@@ -158,6 +158,23 @@ def sector(symbol: str):
     return data
 
 
+_ipo = None
+
+
+@app.get("/api/ipo")
+def ipo():
+    """Upcoming / open IPOs and recent listings (NSE mainboard + NSE SME)."""
+    global _ipo
+    from ipo import IpoData
+
+    if _ipo is None:
+        _ipo = IpoData()
+    try:
+        return _ipo.snapshot()
+    except sources.SourceError as exc:
+        raise HTTPException(status_code=502, detail=f"NSE IPO data unavailable ({exc}).")
+
+
 DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 if DIST.exists():
     app.mount("/assets", StaticFiles(directory=DIST / "assets"), name="assets")

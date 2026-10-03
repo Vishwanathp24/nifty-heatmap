@@ -5,12 +5,14 @@ import { api, istDate, istTime, nseTs, useClock, usePersistentState, useSessionS
 import Overview from './Overview.jsx'
 import Heatmap from './Heatmap.jsx'
 import Scanner, { DEFAULT_FILTERS, filterRows } from './Scanner.jsx'
+import Ipo from './Ipo.jsx'
 
 const REFRESH_MS = 10000
 const PAGES = [
   { id: 'overview', label: 'Market Overview', key: '1' },
   { id: 'heatmap', label: 'Sector Heatmap', key: '2' },
   { id: 'scanner', label: 'ORB Scanner', key: '3' },
+  { id: 'ipo', label: 'IPO', key: '4' },
 ]
 
 function StatusBar({ live, auto, setAuto }) {
@@ -47,6 +49,7 @@ function App() {
   const orb = usePoll(() => api(`/api/orb?tf=${tf}&confirm=${Number(confirm3)}&orm=60`), auto ? REFRESH_MS : 3.6e6, [auto, tf, confirm3])
   const orb15 = usePoll(() => api(`/api/orb?tf=${tf15}&confirm=${Number(confirm15)}&orm=15`), auto ? REFRESH_MS : 3.6e6, [auto, tf15, confirm15])
   const ctx = usePoll(() => api('/api/context'), 60000, [])
+  const ipo = usePoll(() => api('/api/ipo'), page === 'ipo' ? 30000 : 300000, [page === 'ipo'])
 
   const toggleSector = useCallback(sym => setSelected(s => s.includes(sym) ? s.filter(x => x !== sym) : [...s, sym]), [setSelected])
   const orbCount = orb.data?.rows ? filterRows(orb.data.rows, orbFilters, selected, orb.data).length : null
@@ -69,6 +72,7 @@ function App() {
       {live.error && !live.data && <div className="alert">{live.error}</div>}
       {page === 'overview' && <Overview live={live.data} ctx={ctx.data} />}
       {page === 'heatmap' && <Heatmap live={live.data} selected={selected} setSelected={setSelected} toggle={toggleSector} goto={setPage} />}
+      {page === 'ipo' && <Ipo ipo={ipo} />}
       {page === 'scanner' && <>
         <div className="orb-switch" role="tablist" aria-label="Opening range">
           {[[15, '15 Min ORB', '09:15–09:30', orb15Count], [60, '1 Hour ORB', '09:15–10:15', orbCount]].map(([v, label, range, n]) =>
