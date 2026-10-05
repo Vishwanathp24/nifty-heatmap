@@ -438,5 +438,27 @@ th .arrow { font-size: 9px; margin-left: 4px; opacity: .6 }
 @media (max-width: 768px) {
   .hdr-nav { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0; overflow: visible }
   .hdr-nav button { grid-column: span 2; justify-content: center; padding: 9px 2px; font-size: 12.5px; gap: 4px }
-  .hdr-nav button:nth-child(n+4) { grid-column: span 3; border-top: 1px solid #242C3A }
+  .hdr-nav button:nth-child(n+4) { border-top: 1px solid #242C3A }
 }
+
+/* Trend Scan */
+.check-label { display: inline-flex; align-items: center; gap: 5px; color: var(--ink-2); font-size: 12.5px }
+.field-inline { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-2) }
+.trend-wrap { overflow-x: auto }
+.trend-tbl td, .trend-tbl th { white-space: nowrap }
+.trend-tbl .grp th { border-bottom: 0; padding-bottom: 0 }
+.trend-tbl .grp-h { text-align: center; font-weight: 700; color: var(--ink); border-left: 2px solid var(--border-strong) }
+.trend-tbl td.ind { font-variant-numeric: tabular-nums }
+.trend-tbl td.ind.pass { background: #DDF3E4; color: #14532D }
+.trend-tbl td.ind.fail { background: #FBE3E3; color: #7F1D1D }
+.trend-tbl td.ind.neutral { background: var(--panel-2); color: var(--muted) }
+.trend-tbl:not(.cond-tbl) tr > td:nth-child(7), .trend-tbl:not(.cond-tbl) tr:not(.grp) > th:nth-child(7), .trend-tbl:not(.cond-tbl) tr > td:nth-child(15), .trend-tbl:not(.cond-tbl) tr:not(.grp) > th:nth-child(15) { border-left: 2px solid var(--border-strong) }
+@media (max-width: 700px) {
+  .orb-switch.learn-cats.scan-tabs { grid-template-columns: repeat(2, 1fr) }
+}
+
+.bias-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 9px 12px; margin: 2px 0 12px; border: 1px solid var(--border); border-left: 4px solid var(--muted); border-radius: var(--radius); background: var(--panel) }
+.bias-banner.bull { border-left-color: var(--up) } .bias-banner.bear { border-left-color: var(--down) } .bias-banner.neutral { border-left-color: var(--amber) }
+.bias-text { font-size: 13px; color: var(--ink-2) }
+.bias-text .link-btn { font-weight: 600 }
+.bias-comps { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-left: auto }

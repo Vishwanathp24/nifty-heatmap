@@ -134,11 +134,46 @@ def minute_series(symbol):
     [(date, minute_of_day, price)]. NSE encodes IST clock time as a UTC epoch."""
     d = nse.get(NEXT + "GetQuoteApi?functionName=getSymbolChartData&symbol=" + quote(symbol + "EQN") + "&days=1D")
     out = []
+    last_po, first_nm = None, True
     for p in d.get("grapthData") or []:
+        if len(p) >= 3 and p[2] == "PO" and p[1] is not None:
+            last_po = float(p[1])
         if len(p) < 3 or p[2] != "NM" or p[1] is None:
             continue
+        # The first normal-market point repeats the pre-open auction price (the
+        # official open). Charts leave it out of the 09:15 candle, so skip it too.
+        if first_nm:
+            first_nm = False
+            if last_po is not None and float(p[1]) == last_po:
+                continue
         t = datetime.fromtimestamp(p[0] / 1000, timezone.utc)
         out.append((t.date(), t.hour * 60 + t.minute, float(p[1])))
+    return out
+
+
+def yahoo_opening(symbol, session):
+    """Opening-range high/low from Yahoo's 1-minute OHLC candles for `session`
+    (YYYY-MM-DD): {orm_minutes: (high, low)} for each fully covered window.
+    Unlike NSE's per-minute series (one price per minute) these candles carry each
+    minute's true high/low, and the 09:15 candle starts at the first continuous-
+    market trade (no pre-open auction price), matching chart platforms."""
+    url = ("https://query1.finance.yahoo.com/v8/finance/chart/" + quote(symbol + ".NS", safe="")
+           + "?interval=1m&range=1d")
+    r = yahoo.get(url, timeout=10)["chart"]["result"][0]
+    q = r["indicators"]["quote"][0]
+    mins = {}
+    for t, h, l in zip(r.get("timestamp") or [], q.get("high") or [], q.get("low") or []):
+        if h is None or l is None:
+            continue
+        ist = datetime.fromtimestamp(t, timezone.utc) + timedelta(hours=5, minutes=30)
+        if ist.date().isoformat() == session:
+            mins[ist.hour * 60 + ist.minute] = (h, l)
+    out = {}
+    for orm in (15, 60):
+        window = [mins[m] for m in range(9 * 60 + 15, 9 * 60 + 15 + orm) if m in mins]
+        last = max(mins) if mins else 0
+        if window and last >= 9 * 60 + 15 + orm:  # window fully elapsed in Yahoo's data
+            out[orm] = (round(max(h for h, _ in window), 2), round(min(l for _, l in window), 2))
     return out
 
 

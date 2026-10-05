@@ -1,20 +1,22 @@
 import React, { useCallback, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import './styles.css'
-import { api, istDate, istTime, nseTs, useClock, usePersistentState, useSessionState, usePoll } from './lib.js'
+import { api, istDate, istTime, nseTs, setSessionValue, useClock, usePersistentState, useSessionState, usePoll } from './lib.js'
 import Overview from './Overview.jsx'
 import Heatmap from './Heatmap.jsx'
 import Scanner, { DEFAULT_FILTERS, filterRows } from './Scanner.jsx'
 import Ipo from './Ipo.jsx'
 import Learning from './Learning.jsx'
+import Scans, { BiasBanner } from './Scans.jsx'
 
 const REFRESH_MS = 10000
 const PAGES = [
   { id: 'overview', label: 'Market Overview', key: '1' },
   { id: 'heatmap', label: 'Sector Heatmap', key: '2' },
   { id: 'scanner', label: 'ORB Scanner', key: '3' },
-  { id: 'ipo', label: 'IPO', key: '4' },
-  { id: 'learning', label: 'Learning', key: '5' },
+  { id: 'trend', label: 'Intraday Scanner', key: '4' },
+  { id: 'ipo', label: 'IPO', key: '5' },
+  { id: 'learning', label: 'Learning', key: '6' },
 ]
 
 function StatusBar({ live, auto, setAuto }) {
@@ -51,6 +53,7 @@ function App() {
   const orb = usePoll(() => api(`/api/orb?tf=${tf}&confirm=${Number(confirm3)}&orm=60`), auto ? REFRESH_MS : 3.6e6, [auto, tf, confirm3])
   const orb15 = usePoll(() => api(`/api/orb?tf=${tf15}&confirm=${Number(confirm15)}&orm=15`), auto ? REFRESH_MS : 3.6e6, [auto, tf15, confirm15])
   const ctx = usePoll(() => api('/api/context'), 60000, [])
+  const trend = usePoll(() => api('/api/trend'), page === 'trend' ? 30000 : 3.6e6, [page === 'trend'])
   const ipo = usePoll(() => api('/api/ipo'), page === 'ipo' ? 30000 : 300000, [page === 'ipo'])
 
   const toggleSector = useCallback(sym => setSelected(s => s.includes(sym) ? s.filter(x => x !== sym) : [...s, sym]), [setSelected])
@@ -72,8 +75,10 @@ function App() {
     </header>
     <main className="page">
       {live.error && !live.data && <div className="alert">{live.error}</div>}
+      {page !== 'trend' && page !== 'overview' && <BiasBanner bias={live.data?.bias} onPick={id => { setSessionValue('scans.tab', id); setPage('trend'); window.scrollTo({ top: 0 }) }} />}
       {page === 'overview' && <Overview live={live.data} ctx={ctx.data} />}
       {page === 'heatmap' && <Heatmap live={live.data} selected={selected} setSelected={setSelected} toggle={toggleSector} goto={setPage} />}
+      {page === 'trend' && <Scans trend={trend} live={live.data} />}
       {page === 'ipo' && <Ipo ipo={ipo} />}
       {page === 'learning' && <Learning />}
       {page === 'scanner' && <>
@@ -88,7 +93,7 @@ function App() {
       </>}
     </main>
     <footer className="foot">
-      Decision-support scanner — no buy/sell, target or stop-loss recommendations. Data: NSE (indices, quotes, per-minute prices, bhavcopy volumes, FII/DII, GIFT Nifty, market status), BSE (Sensex), Yahoo Finance (overseas indices only).
+      Decision-support scanner — no buy/sell, target or stop-loss recommendations. Data: NSE (indices, quotes, per-minute prices, bhavcopy volumes, FII/DII, GIFT Nifty, market status), BSE (Sensex), Yahoo Finance (overseas indices, Scanner candles, opening-range fallback).
       {live.data?.source_ts && <> Latest NSE quote: {istDate(nseTs(live.data.source_ts))} {istTime(nseTs(live.data.source_ts))} IST.</>}
     </footer>
   </div>

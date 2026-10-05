@@ -137,6 +137,7 @@ export function usePersistentState(key, initial) {
 // Like useState, but kept in memory across page switches within one visit.
 // A page reload clears it, so every reload starts from the default filters.
 const sessionValues = new Map()
+export const setSessionValue = (key, value) => sessionValues.set(key, value)
 export function useSessionState(key, initial) {
   const [value, setValue] = useState(() => sessionValues.has(key) ? sessionValues.get(key) : initial)
   useEffect(() => { sessionValues.set(key, value) }, [key, value])

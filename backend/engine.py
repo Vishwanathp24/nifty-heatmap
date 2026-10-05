@@ -74,6 +74,8 @@ class Engine:
         self.session = None          # ISO date of the session in memory
         self.bars = {}               # sym -> {minute: [o, h, l, c, v, cum, src]}
         self.orx = {60: {}, 15: {}}  # OR minutes -> {sym: (hi, lo)} exact opening range
+        self.yor = {}  # sym -> {orm: (hi, lo)} opening range from Yahoo 1-min OHLC (fallback)
+        self.yor_tried = {}  # sym -> time.time() of the last Yahoo attempt
         self.snap = {}               # sym -> {"high", "low"} from the previous snapshot
         self.until = {}              # sym -> fractional minute up to which bars are complete
         self.baseline = ([], {})     # (recorded session dates, {sym: {d: {m: cum}}})
@@ -114,6 +116,7 @@ class Engine:
                     if self.need_backfill:
                         self.need_backfill = False
                         self._backfill()
+                    self._yahoo_ranges()
             except Exception:
                 traceback.print_exc()
             time.sleep(20)
@@ -185,6 +188,7 @@ class Engine:
         self.session = session
         self.bars = self.store.session_bars(session)
         self.orx = {60: self.store.orx(session, "orx"), 15: self.store.orx(session, "orx15")}
+        self.yor, self.yor_tried = {}, {}
         self.snap = {}
         over = self._session_over(now)
         self.until = {s: (DONE if over else max(b) + 1) for s, b in self.bars.items() if b}
@@ -220,13 +224,22 @@ class Engine:
             self.snap[sym] = {"high": dh, "low": dl}
             self.until[sym] = max(self.until.get(sym, 0), frac)
             rows.append((self.session, sym, m, *bar))
-            # NSE's day high/low at the last snapshot before the range ends = exact range
-            if m < OR_END_MIN and dh and dl:
-                self.orx[60][sym] = (dh, dl)
-                or_rows.append((self.session, sym, dh, dl))
-            if m < OPEN_MIN + 15 and dh and dl:
-                self.orx[15][sym] = (dh, dl)
-                or15_rows.append((self.session, sym, dh, dl))
+            # NSE's day high/low at the last snapshot before the range ends = exact range,
+            # except that NSE counts the 09:00-09:08 pre-open auction price (the official
+            # open) in them. Charts build the 09:15 candle from continuous trading only, so
+            # a high/low equal to the open may be the auction print alone: store None for
+            # that side and _signal falls back to the recorded 09:15+ bars (which never
+            # include the auction). A high above / low below the open is a real trade.
+            if dh and dl:
+                op = q.get("open")
+                hi = dh if not op or dh > op else None
+                lo = dl if not op or dl < op else None
+                if m < OR_END_MIN:
+                    self.orx[60][sym] = (hi, lo)
+                    or_rows.append((self.session, sym, hi, lo))
+                if m < OPEN_MIN + 15:
+                    self.orx[15][sym] = (hi, lo)
+                    or15_rows.append((self.session, sym, hi, lo))
         self.store.save_bars(rows)
         self.store.save_orx(or_rows, "orx")
         self.store.save_orx(or15_rows, "orx15")
@@ -278,6 +291,33 @@ class Engine:
             self.store.save_bars(rows)
             self.backfill["done"] += 1
         self.backfill["state"] = "idle"
+
+    def _yahoo_ranges(self):
+        """Fill opening-range sides NSE can't give exactly (app not running at the
+        open, or a high/low that is only the pre-open auction price) from Yahoo's
+        1-minute OHLC candles. Fetched once each window has fully elapsed."""
+        now = datetime.now(IST)
+        with self.lock:
+            session, scan = self.session, list(self.uni["scan"]) if self.uni else []
+            over = self._session_over(now)
+            clock = CLOSE_MIN if over else _m(now)
+            todo = []
+            for s in scan:
+                need = [orm for orm in OR_MINUTES if clock >= OPEN_MIN + orm + 2
+                        and None in self.orx[orm].get(s, (None, None))
+                        and orm not in self.yor.get(s, {})]
+                if need and time.time() - self.yor_tried.get(s, 0) > 300:
+                    todo.append(s)
+        for s in todo:
+            self.yor_tried[s] = time.time()
+            try:
+                got = sources.yahoo_opening(s, session)
+            except (sources.SourceError, KeyError, IndexError, TypeError, ValueError):
+                continue
+            with self.lock:
+                if session != self.session:
+                    return
+                self.yor.setdefault(s, {}).update(got)
 
     def _ensure_bhavcopies(self):
         have = self.store.dvol_days()
@@ -340,11 +380,24 @@ class Engine:
         until = DONE if over else self.until.get(sym, 0) - 0.1
         or_end = OPEN_MIN + orm  # 10:15 for the 1-hour range, 09:30 for 15 minutes
         opening = [day[m] for m in range(OPEN_MIN, or_end) if m in day]
-        exact = sym in self.orx[orm]
-        if exact:
-            or_hi, or_lo = self.orx[orm][sym]
+        ex_hi, ex_lo = self.orx[orm].get(sym, (None, None))
+        exact = ex_hi is not None and ex_lo is not None
+        # Per side: NSE exact (real trade) -> Yahoo 1-min OHLC -> NSE per-minute bars.
+        y_hi, y_lo = self.yor.get(sym, {}).get(orm, (None, None))
+        if ex_hi is not None:
+            or_hi = ex_hi
+        elif y_hi is not None:
+            or_hi = y_hi
         elif opening:
-            or_hi, or_lo = max(b[1] for b in opening), min(b[2] for b in opening)
+            or_hi = max(b[1] for b in opening)
+        else:
+            return None
+        if ex_lo is not None:
+            or_lo = ex_lo
+        elif y_lo is not None:
+            or_lo = y_lo
+        elif opening:
+            or_lo = min(b[2] for b in opening)
         else:
             return None
         if until < or_end:
@@ -457,7 +510,7 @@ class Engine:
                     "universe": len(self.uni["scan"]) if self.uni else 0, "loaded": loaded,
                     "backfill": dict(self.backfill), "poll_ok": self.poll_ok.isoformat() if self.poll_ok else None,
                     "poll_error": self.poll_err,
-                    "recorded_sessions": self.baseline[0], "exact_or": len(self.orx[orm]),
+                    "recorded_sessions": self.baseline[0], "exact_or": sum(1 for h, l in self.orx[orm].values() if h is not None and l is not None),
                 },
             }
 

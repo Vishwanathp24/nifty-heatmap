@@ -48,6 +48,7 @@ async def require_key_when_tunnelled(request: Request, call_next):
 @app.on_event("startup")
 def _start():
     engine.start()
+    trend_scan.ensure_started()
 
 
 class Cached:
@@ -173,6 +174,17 @@ def ipo():
         return _ipo.snapshot()
     except sources.SourceError as exc:
         raise HTTPException(status_code=502, detail=f"NSE IPO data unavailable ({exc}).")
+
+
+from trend import TrendScan
+
+trend_scan = TrendScan(engine)
+
+
+@app.get("/api/trend")
+def trend():
+    """Trend Scan tab: VWAP, EMA 5/9, Supertrend, RSI, ADX/DI on 15-min and 1-hour candles."""
+    return trend_scan.snapshot()
 
 
 DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
