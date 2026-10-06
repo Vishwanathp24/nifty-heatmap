@@ -462,3 +462,5 @@ th .arrow { font-size: 9px; margin-left: 4px; opacity: .6 }
 .bias-text { font-size: 13px; color: var(--ink-2) }
 .bias-text .link-btn { font-weight: 600 }
 .bias-comps { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-left: auto }
+
+.hdr-clock .hdr-date { font-weight: 500; color: #C9CFDA; margin-right: 2px }

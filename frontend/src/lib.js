@@ -92,7 +92,7 @@ export function fmtCr(v) {
 const IST_TIME = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
 const IST_DATE = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' })
 export const istTime = d => d ? IST_TIME.format(new Date(d)) : NA
-export const istDate = d => d ? IST_DATE.format(new Date(d)) : NA
+export const istDate = d => d ? IST_DATE.format(new Date(d)).replace('Sept', 'Sep') : NA  // en-GB writes "Sept"
 
 // NSE timestamps arrive as naive IST ("2026-09-25T16:00:28"); pin them to +05:30.
 export const nseTs = s => s ? (/[zZ]|[+-]\d\d:\d\d$/.test(s) ? s : s + '+05:30') : null

@@ -26,7 +26,7 @@ function StatusBar({ live, auto, setAuto }) {
   const ok = !!live.data && !live.error && !live.data.poll_error
   return <div className="hdr-status">
     <span className={'mkt ' + (status === 'Market Open' ? 'open' : status === 'Pre-Open' ? 'pre' : 'closed')}>{status || '—'}</span>
-    <span className="hdr-clock" title="Indian Standard Time">{istTime(now)} <small>IST</small></span>
+    <span className="hdr-clock" title="Indian Standard Time"><span className="hdr-date">{istDate(now)}</span> {istTime(now)} <small>IST</small></span>
     {delayed || live.data?.poll_error
       ? <span className="hdr-delayed" title={live.error || live.data?.poll_error}><i className="dot amber" />Data delayed · Last successful update: {istTime(live.data?.as_of || live.lastOk)}</span>
       : <span className="hdr-upd"><i className={'dot ' + (ok && auto ? 'green' : 'grey')} />Last updated: {live.data?.as_of ? istTime(live.data.as_of) : '…'}</span>}
