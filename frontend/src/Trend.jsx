@@ -72,7 +72,6 @@ export function useTrendSettings() {
 export default function Trend({ trend, settings }) {
   const { dir, setDir, tfs, setTfs, rsiMin, setRsiMin, adxMin, setAdxMin, universe, setUniverse } = settings
   const [allOnly, setAllOnly] = useSessionState('trend.allOnly', true)
-  const [sector, setSector] = useState('')
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState({ key: 'score', dir: 'desc' })
   const data = trend.data
@@ -81,9 +80,8 @@ export default function Trend({ trend, settings }) {
   const need = (use15 ? 7 : 0) + (use60 ? 7 : 0)
 
   const rows = useMemo(() => trendRows(data?.rows, { dir, tfs, rsiMin, adxMin }), [data, dir, tfs, rsiMin, adxMin])
-  const sectors = useMemo(() => [...new Set(rows.map(r => r.sector).filter(Boolean))].sort(), [rows])
   const q = search.trim().toUpperCase()
-  const base = rows.filter(r => (universe === 'all' || r.fo) && (!sector || r.sectors.includes(sector) || r.sector === sector)
+  const base = rows.filter(r => (universe === 'all' || r.fo)
     && (!q || r.symbol.includes(q) || (r.company || '').toUpperCase().includes(q)))
   const full = base.filter(r => r.score === need)
   const shown = sortRows(allOnly ? full : base, sort.key, sort.dir)
@@ -100,8 +98,6 @@ export default function Trend({ trend, settings }) {
         <select value={adxMin} onChange={e => setAdxMin(Number(e.target.value))}>
           {[20, 25, 30, 40].map(v => <option key={v} value={v}>{v}</option>)}</select></label>
       <Seg value={universe} onChange={setUniverse} options={[{ value: 'fo', label: 'F&O' }, { value: 'all', label: 'All' }]} />
-      <select className="sel" value={sector} onChange={e => setSector(e.target.value)}>
-        <option value="">All sectors</option>{sectors.map(s => <option key={s} value={s}>{s}</option>)}</select>
       <input className="search" placeholder="Search symbol" value={search} onChange={e => setSearch(e.target.value)} />
       <label className="check-label"><input type="checkbox" checked={allOnly} onChange={e => setAllOnly(e.target.checked)} />Only stocks meeting all {need} conditions</label>
     </div>

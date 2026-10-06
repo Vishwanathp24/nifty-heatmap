@@ -122,6 +122,8 @@ function FoMovers({ stocks, selected, labels, onOpen, openSym }) {
 export default function Heatmap({ live, selected, setSelected, toggle, goto }) {
   const [search, setSearch] = useState('')
   const [view, setView] = useSessionState('hm.view', 'all')
+  // Selection cleared elsewhere (ORB / Intraday Scanner "Clear"): show all sectors again.
+  useEffect(() => { if (!selected.length && view !== 'all') setView('all') }, [selected.length])
   const [sort, setSort] = useSessionState('hm.sort', 'desc')
   const [basis, setBasis] = useSessionState('hm.basis', 'open')
   const [detail, setDetail] = useState(null)
@@ -143,6 +145,10 @@ export default function Heatmap({ live, selected, setSelected, toggle, goto }) {
   if (!live) return <Empty>Loading sectors…</Empty>
   const pos = sectors.filter(s => pctOf(s, basis) > 0).map(s => s.symbol)
   const neg = sectors.filter(s => pctOf(s, basis) < 0).map(s => s.symbol)
+  // Same top-5 lists the Top Gainers / Top Losers views show
+  const ranked = sectors.filter(s => isNum(pctOf(s, basis))).sort((a, b) => pctOf(b, basis) - pctOf(a, basis))
+  const gainers = ranked.slice(0, 5).map(s => s.symbol), losers = ranked.slice(-5).reverse().map(s => s.symbol)
+  const pick = { all: [], pos, neg, gain: gainers, lose: losers }  // 'All' clears the selection
   const detailSector = detail && sectors.find(s => s.symbol === detail)
 
   return <>
@@ -150,7 +156,7 @@ export default function Heatmap({ live, selected, setSelected, toggle, goto }) {
       <span className="muted small">Click a card to see its stocks · ☐ selects it for the ORB Scanner · ↗ opens the TradingView chart</span></div>
     <div className="toolbar">
       <input className="search" placeholder="Search sector" value={search} onChange={e => setSearch(e.target.value)} />
-      <Seg value={view} onChange={setView} options={[{ value: 'all', label: 'All' }, { value: 'pos', label: 'Positive', tone: 'up' }, { value: 'neg', label: 'Negative', tone: 'down' }, { value: 'gain', label: 'Top Gainers', tone: 'up' }, { value: 'lose', label: 'Top Losers', tone: 'down' }]} />
+      <Seg value={view} onChange={v => { setView(v); if (pick[v]) setSelected(pick[v]) }} options={[{ value: 'all', label: 'All', title: 'Show all sectors and clear the selection' }, { value: 'pos', label: 'Positive', tone: 'up', title: 'Show and select all positive sectors' }, { value: 'neg', label: 'Negative', tone: 'down', title: 'Show and select all negative sectors' }, { value: 'gain', label: 'Top Gainers', tone: 'up', title: 'Show and select the 5 strongest sectors' }, { value: 'lose', label: 'Top Losers', tone: 'down', title: 'Show and select the 5 weakest sectors' }]} />
       <select value={sort} onChange={e => setSort(e.target.value)} aria-label="Sort sectors">
         <option value="desc">% Change High → Low</option><option value="asc">% Change Low → High</option><option value="alpha">Alphabetical</option>
       </select>
@@ -159,7 +165,7 @@ export default function Heatmap({ live, selected, setSelected, toggle, goto }) {
     <div className="toolbar sel-bar">
       <span className="strong">Selected Sectors: {selected.length}</span>
       <button className="btn sm" onClick={() => setSelected(sectors.map(s => s.symbol))}>Select All</button>
-      <button className="btn sm" onClick={() => setSelected([])}>Clear All</button>
+      <button className="btn sm" onClick={() => { setSelected([]); setView('all') }}>Clear All</button>
       <button className="btn sm" onClick={() => setSelected(pos)}>Select Positive Sectors ({pos.length})</button>
       <button className="btn sm" onClick={() => setSelected(neg)}>Select Negative Sectors ({neg.length})</button>
       <span className="grow" />

@@ -41,7 +41,7 @@ export function filterRows(rows, f, selected) {
   })
 }
 
-function SectorMulti({ sectors, selected, setSelected }) {
+export function SectorMulti({ sectors, selected, setSelected }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
   useEffect(() => {

@@ -78,7 +78,7 @@ function App() {
       {page !== 'trend' && page !== 'overview' && <BiasBanner bias={live.data?.bias} onPick={id => { setSessionValue('scans.tab', id); setPage('trend'); window.scrollTo({ top: 0 }) }} />}
       {page === 'overview' && <Overview live={live.data} ctx={ctx.data} />}
       {page === 'heatmap' && <Heatmap live={live.data} selected={selected} setSelected={setSelected} toggle={toggleSector} goto={setPage} />}
-      {page === 'trend' && <Scans trend={trend} live={live.data} />}
+      {page === 'trend' && <Scans trend={trend} live={live.data} selected={selected} setSelected={setSelected} />}
       {page === 'ipo' && <Ipo ipo={ipo} />}
       {page === 'learning' && <Learning />}
       {page === 'scanner' && <>

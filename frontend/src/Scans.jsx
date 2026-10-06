@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react'
 import { Empty, SortTh, StockLink } from './components.jsx'
-import { fmtNum, hhmmTo12, isNum, istTime, sortRows, useSessionState } from './lib.js'
+import { fmtNum, hhmmTo12, isNum, istTime, setSessionValue, sortRows, useSessionState } from './lib.js'
 import Trend, { trendNeed, trendRows, useTrendSettings } from './Trend.jsx'
+import { SectorMulti } from './Scanner.jsx'
 
 // Condition scans modelled on the Chartink screens the user follows. "Daily" = today's
 // candle (NSE official open/high/low/last/volume) on top of Yahoo daily history;
@@ -117,9 +118,20 @@ export function BiasBanner({ bias, onPick }) {
   </div>
 }
 
-export default function Scans({ trend, live }) {
+export default function Scans({ trend: trendRaw, live, selected, setSelected }) {
   const [tab, setTab] = useSessionState('scans.tab', 'trend')
   const settings = useTrendSettings()
+  const [resetKey, setResetKey] = useState(0)
+  // Clear filters: sectors, Trending settings, search, sort and the "all conditions only" boxes.
+  const clearAll = () => {
+    setSelected([])
+    settings.setDir('bull'); settings.setTfs('both'); settings.setRsiMin(60); settings.setAdxMin(25); settings.setUniverse('fo')
+    for (const k of ['trend.allOnly', 'scan.allOnly.bull', 'scan.allOnly.bear', 'scan.allOnly.btst']) setSessionValue(k, true)
+    setResetKey(k => k + 1)  // remount the tables so search / sort / checkboxes start fresh
+  }
+  // Sector selection is shared with the Sector Heatmap and the ORB Scanner.
+  const trend = useMemo(() => !trendRaw.data || !selected.length ? trendRaw
+    : { ...trendRaw, data: { ...trendRaw.data, rows: trendRaw.data.rows.filter(r => r.sectors.some(s => selected.includes(s))) } }, [trendRaw, selected])
   const data = trend.data
   const { dir, tfs, rsiMin, adxMin, universe } = settings
   const counts = useMemo(() => {
@@ -134,12 +146,15 @@ export default function Scans({ trend, live }) {
       <span className="muted small">Indicator and condition scans · candles from Yahoo Finance (15-min, 1-hour, daily), today’s daily candle from NSE
         {cyc?.finished ? ` · last full pass ${istTime(cyc.finished)}` : ''}{cyc?.state === 'running' ? ` · refreshing ${cyc.done}/${cyc.total}` : ''}</span></div>
     <BiasBanner bias={live?.bias} onPick={setTab} />
+    <div className="toolbar"><SectorMulti sectors={live?.sectors || []} selected={selected} setSelected={setSelected} />
+      {selected.length > 0 && <button className="btn sm clear-sectors" onClick={() => setSelected([])} title="Clear the sector filter (also clears the heatmap and ORB selection)">✕ Clear sectors ({selected.length})</button>}
+      <button className="btn sm" onClick={clearAll} title="Reset every Intraday Scanner filter to its default (Bullish · 15 Min + 1 Hour · RSI 60 · ADX 25 · F&O · all sectors)">Clear filters</button></div>
     <div className="orb-switch learn-cats scan-tabs" role="tablist" aria-label="Scan">
       {TABS.map(([v, label]) => <button key={v} role="tab" aria-selected={tab === v} className={tab === v ? 'on' : ''} onClick={() => setTab(v)}>
         {label}{counts[v] != null && <span className="count">{counts[v]}</span>}</button>)}
     </div>
     {!data ? <Empty>{trend.error || 'Loading scan data…'}</Empty>
       : !data.rows.length ? <Empty>Calculating for the first time — this takes about 2–3 minutes…</Empty>
-        : tab === 'trend' ? <Trend trend={trend} settings={settings} /> : <ConditionScan key={tab} id={tab} data={data} />}
+        : tab === 'trend' ? <Trend key={'t' + resetKey} trend={trend} settings={settings} /> : <ConditionScan key={tab + resetKey} id={tab} data={data} />}
   </div>
 }
