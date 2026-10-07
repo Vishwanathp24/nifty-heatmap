@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Empty, SortTh, StockLink } from './components.jsx'
 import { fmtNum, hhmmTo12, isNum, istTime, setSessionValue, sortRows, useSessionState } from './lib.js'
 import Trend, { trendNeed, trendRows, useTrendSettings } from './Trend.jsx'
@@ -120,12 +120,22 @@ export function BiasBanner({ bias, onPick }) {
 
 export default function Scans({ trend: trendRaw, live, selected, setSelected }) {
   const [tab, setTab] = useSessionState('scans.tab', 'trend')
-  const settings = useTrendSettings()
+  const base = useTrendSettings()
+  // Bullish/Bearish follows the Market Bias until the user picks one by hand
+  // (kept for the visit; "Clear filters" hands control back to the bias).
+  const [dirManual, setDirManual] = useSessionState('trend.dirManual', false)
+  const settings = useMemo(() => ({ ...base, setDir: v => { setDirManual(true); base.setDir(v) } }), [base])
+  const biasLabel = live?.bias?.label
+  useEffect(() => {
+    if (dirManual) return
+    if (biasLabel === 'BEARISH' && base.dir !== 'bear') base.setDir('bear')
+    if (biasLabel === 'BULLISH' && base.dir !== 'bull') base.setDir('bull')
+  }, [biasLabel, dirManual])
   const [resetKey, setResetKey] = useState(0)
   // Clear filters: sectors, Trending settings, search, sort and the "all conditions only" boxes.
   const clearAll = () => {
     setSelected([])
-    settings.setDir('bull'); settings.setTfs('both'); settings.setRsiMin(60); settings.setAdxMin(25); settings.setUniverse('fo')
+    setDirManual(false); base.setDir(biasLabel === 'BEARISH' ? 'bear' : 'bull'); settings.setTfs('both'); settings.setRsiMin(60); settings.setAdxMin(25); settings.setUniverse('fo')
     for (const k of ['trend.allOnly', 'scan.allOnly.bull', 'scan.allOnly.bear', 'scan.allOnly.btst']) setSessionValue(k, true)
     setResetKey(k => k + 1)  // remount the tables so search / sort / checkboxes start fresh
   }
