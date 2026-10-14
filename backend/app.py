@@ -215,6 +215,23 @@ def index_options(symbol: str = "NIFTY"):
         raise HTTPException(status_code=502, detail=f"NSE option chain unavailable ({exc}).")
 
 
+@app.get("/api/bse-probe")
+def bse_probe():
+    """TEMPORARY: can this server reach BSE's option-chain API? (Sensex options test)"""
+    import requests as _rq
+    h = {"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36",
+         "Referer": "https://www.bseindia.com/", "Origin": "https://www.bseindia.com", "Accept": "application/json, text/plain, */*"}
+    out = {}
+    for name, url in (("expiry", "https://api.bseindia.com/BseIndiaAPI/api/ddlExpiry_IV/w?ProductType=IO&scrip_cd=1"),
+                      ("chain", "https://api.bseindia.com/BseIndiaAPI/api/DerivOptionChain_IV/w?Expiry=&scrip_cd=1&strprice=0")):
+        try:
+            r = _rq.get(url, headers=h, timeout=20)
+            out[name] = {"status": r.status_code, "type": r.headers.get("content-type"), "body": r.text[:3000]}
+        except Exception as exc:
+            out[name] = {"error": f"{type(exc).__name__}: {exc}"[:300]}
+    return out
+
+
 _ipo = None
 
 
