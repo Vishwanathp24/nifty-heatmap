@@ -3,6 +3,7 @@ import { Empty, Seg } from './components.jsx'
 import { api, isNum, istTime, usePoll, useSessionState } from './lib.js'
 import OptionTools, { setMoney } from './OptionTools.jsx'
 import { PnlCalc, atmPremium } from './Chart.jsx'
+import { PcrGuide, pcrZone } from './Pcr.jsx'
 
 // Options board shared by Crypto -> Options (BTC / ETH / SOL / XRP on Deribit, $) and the Index Options
 // page (Nifty on NSE, Rs, lots). Market data to read the set-up, not a buy/sell recommendation.
@@ -28,8 +29,62 @@ const money = (v, d = 0) => isNum(v) ? M.cur + v.toLocaleString(M.locale, { maxi
 const big = v => !isNum(v) ? '—' : M.cur + (v >= 1e9 ? (v / 1e9).toFixed(2) + 'B' : (v / 1e6).toFixed(1) + 'M')
 const sgn = (v, d = 2, suf = '%') => isNum(v) ? (v > 0 ? '+' : '') + v.toFixed(d) + suf : '—'
 const amt = v => isNum(v) ? v.toLocaleString(M.locale, { maximumFractionDigits: v >= 100 ? 0 : 1 }) : '—'
-const pcrTone = v => !isNum(v) ? '' : v >= 1 ? 'down' : v <= 0.7 ? 'up' : ''
-const pcrLabel = v => !isNum(v) ? '' : v >= 1 ? 'more puts than calls' : v <= 0.7 ? 'call-heavy' : 'balanced'
+// Index options read PCR from the option sellers' side (zones in Pcr.jsx); crypto keeps the simple read.
+const pcrTone = v => !isNum(v) ? '' : M.key === 'iopt' ? ({ up: 'up', down: 'down', amber: 'amber' })[pcrZone(v).tone] : v >= 1 ? 'down' : v <= 0.7 ? 'up' : ''
+const pcrLabel = v => !isNum(v) ? '' : M.key === 'iopt' ? pcrZone(v).label : v >= 1 ? 'more puts than calls' : v <= 0.7 ? 'call-heavy' : 'balanced'
+
+// Option chain around ATM (± 10 strikes), laid out like a broker chain: calls on the left, strike
+// (with IV) in the middle, puts on the right; in-the-money side shaded, a line where spot sits,
+// OI bars scaled to the largest OI shown. OI is in units (contracts × lot size) for index options.
+function ChainTable({ exp, spot, lot }) {
+  const all = exp.chain || []
+  if (!all.length) return <section className="opt-sec chain-card"><h3>Option chain</h3><Empty>No option chain for this expiry.</Empty></section>
+  const atmI = all.reduce((b, r, i) => Math.abs(r.k - spot) < Math.abs(all[b].k - spot) ? i : b, 0)
+  const rows = all.slice(Math.max(0, atmI - 10), atmI + 11)
+  const m = lot || 1
+  const maxOi = Math.max(...rows.flatMap(r => [r.call?.oi || 0, r.put?.oi || 0])) || 1
+  const big = v => !isNum(v) ? '—' : Math.abs(v) >= 1e7 ? (v / 1e7).toFixed(2) + 'Cr' : Math.abs(v) >= 1e5 ? (v / 1e5).toFixed(2) + 'L' : Math.abs(v) >= 1e3 ? (v / 1e3).toFixed(2) + 'K' : Math.round(v).toString()
+  const px = v => isNum(v) ? v.toLocaleString(M.locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'
+  const pc = v => isNum(v) ? <span className={v > 0 ? 'up' : v < 0 ? 'down' : 'muted'}>{v > 0 ? '+' : ''}{v.toFixed(2)}%</span> : null
+  // Largest OI on each side boxed: highest call OI (often read as resistance), highest put OI (support).
+  const maxSide = side => Math.max(...rows.map(r => r[side]?.oi || 0))
+  const MX = { call: maxSide('call'), put: maxSide('put') }
+  const oiCell = (o, side) => {
+    const top = (o?.oi || 0) > 0 && o.oi === MX[side]
+    return <td className={'num ch-oi ' + side + (top ? ' ch-hl ' + (side === 'call' ? 'down' : 'up') : '')}
+      title={top ? (side === 'call' ? 'Highest call OI in view (often read as resistance)' : 'Highest put OI in view (often read as support)') : undefined}>
+      <span className="ch-bar" style={{ width: Math.round((o?.oi || 0) / maxOi * 100) + '%' }} />
+      <span className="ch-v">{big((o?.oi || 0) * m)}</span></td>
+  }
+  // Highlight the largest OI build-up (green) and unwinding (red) on each side among the strikes shown.
+  const ext = side => { const v = rows.map(r => r[side]?.oi_chg).filter(isNum); return { hi: Math.max(...v, 0), lo: Math.min(...v, 0) } }
+  const X = { call: ext('call'), put: ext('put') }
+  const oiChg = (o, side) => {
+    const v = o?.oi_chg, hl = !isNum(v) || v === 0 ? '' : v === X[side].hi ? ' ch-hl up' : v === X[side].lo ? ' ch-hl down' : ''
+    return <td className={'num' + hl} title={hl ? (v > 0 ? `Largest ${side} OI build-up in view` : `Largest ${side} OI unwinding in view`) : undefined}>
+      {isNum(v) ? <>{big(v * m)}<div className="ch-sub">{pc(o.oi_chg_pct)}</div></> : '—'}</td>
+  }
+  const ltp = o => <td className="num strong">{px(o?.mark)}<div className="ch-sub">{pc(o?.chg_pct)}</div></td>
+  const spotAt = rows.findIndex(r => r.k > spot)  // spot line goes above this row
+  return <section className="opt-sec chain-card">
+    <div className="opt-sec-h"><div><h3>Option chain</h3><div className="muted small">Expiry {exp.expiry_ist} · ATM ± 10 strikes · OI in {lot ? 'units (contracts × lot ' + lot + ')' : 'contracts'}</div></div></div>
+    <div className="tbl-wrap"><table className="tbl compact chain-tbl">
+      <thead><tr className="grp"><th colSpan={4} className="down">Calls</th><th /><th colSpan={4} className="up">Puts</th></tr>
+        <tr><th className="num">OI</th><th className="num">OI Chg</th><th className="num">Delta</th><th className="num">LTP</th>
+          <th className="ch-k">Strike <span className="muted">(IV)</span></th>
+          <th className="num">LTP</th><th className="num">Delta</th><th className="num">OI Chg</th><th className="num">OI</th></tr></thead>
+      <tbody>{rows.map((r, i) => <React.Fragment key={r.k}>
+        {i === spotAt && <tr className="ch-spot"><td colSpan={9}><span>{px(spot)}</span></td></tr>}
+        <tr className={(r.k === all[atmI].k ? 'ch-atm' : '')}>
+          {[oiCell(r.call, 'call'), oiChg(r.call, 'call'), <td key="d" className="num">{isNum(r.call?.delta) ? r.call.delta.toFixed(2) : '—'}</td>, ltp(r.call)].map((c, j) => React.cloneElement(c, { key: 'c' + j, className: c.props.className + (r.k < spot ? ' itm' : '') }))}
+          <td className="ch-k"><b>{r.k.toLocaleString(M.locale)}</b><div className="ch-sub muted">{isNum(r.call?.iv) || isNum(r.put?.iv) ? ((r.call?.iv || 0) && (r.put?.iv || 0) ? ((r.call.iv + r.put.iv) / 2).toFixed(1) : (r.call?.iv || r.put?.iv).toFixed(1)) : '—'}</div></td>
+          {[ltp(r.put), <td key="d" className="num">{isNum(r.put?.delta) ? r.put.delta.toFixed(2) : '—'}</td>, oiChg(r.put, 'put'), oiCell(r.put, 'put')].map((c, j) => React.cloneElement(c, { key: 'p' + j, className: c.props.className + (r.k > spot ? ' itm' : '') }))}
+        </tr></React.Fragment>)}
+        {spotAt === -1 && <tr className="ch-spot"><td colSpan={9}><span>{px(spot)}</span></td></tr>}</tbody>
+    </table></div>
+    <div className="muted small">Shaded = in the money. Bars = OI relative to the largest OI shown (red calls, green puts). Boxed OI = highest call OI (red, resistance) / put OI (green, support); boxed OI Chg = biggest build-up (green) / unwinding (red) on each side. OI is NSE's figure (after the close: the official end-of-day OI). LTP and OI change vs the previous close. Market data, not a signal.</div>
+  </section>
+}
 
 export function OptionsBoard({ market, bias }) {
   M = market; setMoney(market)  // formatters read the active market (one board renders at a time)
@@ -49,6 +104,15 @@ export function OptionsBoard({ market, bias }) {
   const sel = exps.find(e => e.code === code) || exps[0]
   const near = exps[0]
   const spotD = d.spot >= 10000 ? 0 : d.spot >= 10 ? 2 : 4
+  const notes = <div className="note-box small copt-notes">
+      <b>How to read this</b>
+      {market.key === 'iopt' ? <PcrGuide /> : <div>· <b>PCR</b> above 1 = more puts than calls (hedging or bearish bets); below 0.7 = call-heavy positioning. Extremes are often read as contrarian.</div>}
+      <div>· <b>Max pain</b> = expiry price where option buyers lose the most; price sometimes gravitates toward it into expiry, with no guarantee.</div>
+      <div>· <b>{market.vol} / ATM IV</b> = how expensive options are. High IV = bigger expected move and richer premiums; low IV = cheaper options.</div>
+      <div>· <b>Expected move</b> = ±1 standard deviation range (~68% of outcomes) priced in by options to that expiry.</div>
+      <div>· <b>25Δ skew</b> positive = puts dearer than calls (demand for downside protection); negative = upside calls in demand.</div>
+      <div className="muted">Market data to understand the set-up, not a buy/sell recommendation. {market.expiryNote}</div>
+    </div>
   return <div className="copt">
     <div className="toolbar">{switcher}
       <span className="muted small">{market.source} · updated {istTime(d.fetched_at)} IST{d.stale ? ' · showing last good data' : ''}</span>
@@ -94,17 +158,8 @@ export function OptionsBoard({ market, bias }) {
     {pnl && pnl(d)}
     </div>
 
-    <OptionTools key={sym} d={d} exp={sel} market={market} bias={bias} />
+    <OptionTools key={sym} d={d} exp={sel} market={market} bias={bias} side={<ChainTable exp={sel} spot={d.spot} lot={market.lot} />} chartNote={notes} />
 
-    <div className="note-box small copt-notes">
-      <b>How to read this</b>
-      <div>· <b>PCR</b> above 1 = more puts than calls (hedging or bearish bets); below 0.7 = call-heavy positioning. Extremes are often read as contrarian.</div>
-      <div>· <b>Max pain</b> = expiry price where option buyers lose the most; price sometimes gravitates toward it into expiry, with no guarantee.</div>
-      <div>· <b>{market.vol} / ATM IV</b> = how expensive options are. High IV = bigger expected move and richer premiums; low IV = cheaper options.</div>
-      <div>· <b>Expected move</b> = ±1 standard deviation range (~68% of outcomes) priced in by options to that expiry.</div>
-      <div>· <b>25Δ skew</b> positive = puts dearer than calls (demand for downside protection); negative = upside calls in demand.</div>
-      <div className="muted">Market data to understand the set-up, not a buy/sell recommendation. {market.expiryNote}</div>
-    </div>
   </div>
 }
 

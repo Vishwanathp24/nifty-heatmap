@@ -136,7 +136,11 @@ class IndexOptions:
                     if iv:
                         ivs.setdefault(k, []).append(float(iv))
                     q[(k, kind)] = {"bid": o.get("buyPrice1") or None, "ask": o.get("sellPrice1") or None,
-                                    "mark": o.get("lastPrice") or None, "iv": round(float(iv), 1) if iv else None, "oi": oi}
+                                    "mark": o.get("lastPrice") or None, "iv": round(float(iv), 1) if iv else None, "oi": oi,
+                                    # option-chain table: LTP change, OI change, volume
+                                    "chg": o.get("change"), "chg_pct": o.get("pChange") if o.get("pChange") is not None else o.get("PChange"),
+                                    "oi_chg": o.get("changeinOpenInterest"), "oi_chg_pct": o.get("pchangeinOpenInterest"),
+                                    "vol": o.get("totalTradedVolume")}
             coi, poi = sum(calls.values()), sum(puts.values())
             for key, v in (("coi", coi), ("poi", poi), ("cvol", cvol), ("pvol", pvol)):
                 tot[key] += v

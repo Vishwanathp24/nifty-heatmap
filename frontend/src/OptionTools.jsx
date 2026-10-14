@@ -75,7 +75,7 @@ function PayoffChart({ legs, exp, spot, sl }) {
     ro.observe(el)
     return () => ro.disconnect()
   }, [])
-  const H = 260, L = 70, R = 16, T = 14, B = 28
+  const H = 340, L = 70, R = 16, T = 14, B = 28
   const span = Math.max((exp.move || spot * 0.05) * 2.5, spot * 0.06)
   const lo = Math.max(0, spot - span), hi = spot + span
   const xs = Array.from({ length: 241 }, (_, i) => lo + (hi - lo) * i / 240)
@@ -274,7 +274,7 @@ const NONE = {
 
 // ---- main component -------------------------------------------------------------------------
 // only='calc' renders just the payoff calculator (Live Chart); loadReq = { spec, n } loads a structure into it.
-export default function OptionTools({ d, exp, market = {}, bias, only, loadReq }) {
+export default function OptionTools({ d, exp, market = {}, bias, only, loadReq, side, chartNote }) {
   const ccy = d.ccy
   const lot = market.lot || d.contract || 1  // fixed lot / contract size; quantity is then set in lots / contracts
   const lots = !!(market.lot || d.contract)
@@ -316,7 +316,7 @@ export default function OptionTools({ d, exp, market = {}, bias, only, loadReq }
   const tag = k => [k === ref.atm && 'ATM', k === exp.max_pain && 'max pain', k === ref.up && '+1σ', k === ref.dn && '−1σ'].filter(Boolean)
 
   return <div className="opt-tools">
-    {only !== 'calc' && <section className="opt-sec">
+    {only !== 'calc' && <div className={side ? 'expl-row' : ''}>{side}<section className="opt-sec">
       <div className="opt-sec-h">
         <div><h3>Strategy explainer</h3><div className="muted small">Expiry {exp.expiry_ist} · pick the view you have, see how each structure behaves with live prices</div></div>
         <div className="opt-view"><span className="muted small">My view</span>
@@ -358,10 +358,9 @@ export default function OptionTools({ d, exp, market = {}, bias, only, loadReq }
       })}</div>}
       </div>)}</div>
       <p className="muted small opt-foot">Buyer examples use the at-the-money and ±1 expected-move strikes; seller examples sell the 3rd out-of-the-money strike and hedge with a strike costing ~10% of the sold premium. {market.lot ? `1 lot (${lot} units)` : `1 ${ccy}`} per leg, buys at the ask and sells at the bid. Education about how each structure behaves, not a recommendation.</p>
-    </section>}
+    </section></div>}
 
-    {only === 'calc'
-      ? <div className="calc-split">  {/* Live Chart: calculator | payoff chart */}
+    <div className="calc-split">  {/* calculator (+ stop-loss on Index Options) | payoff chart */}
         <section className="opt-sec lc-card" id="payoff-calc">
       <div className="opt-sec-h"><div><h3>Payoff calculator</h3><div className="muted small">Expiry {exp.expiry_ist} · {legsManual ? 'your own legs' : <>starts with <b>{defName}</b> to match the {market.biasName || 'Market Bias'} — edit any leg or load an example above</>}</div></div>
         {legsManual && defSpec && <button className="btn sm" onClick={() => setLegsManual(false)} title="Go back to the structure that matches the Market Bias">Reset to bias</button>}</div>
@@ -381,37 +380,18 @@ export default function OptionTools({ d, exp, market = {}, bias, only, loadReq }
           {market.lot && <span className="muted small" title="NSE lot size for this index">Lot size {lot} units (fixed) · change Qty to trade more lots</span>}</div>
       </div>
       <Metrics a={a} legs={priced} />
+      {only !== 'calc' && <>
+      {a && <StopLoss key={legs.map(l => l.side + l.type + l.k).join() + exp.code} legs={priced} exp={exp} spot={d.spot} unit={market.lot ? 'Nifty' : (market.underlying || ccy)}
+        capital={priced.some(l => l.side === 'sell') ? (a.maxL === -Infinity ? null : Math.abs(a.maxL)) : priced.reduce((t, l) => t + l.prem * l.qty, 0)} onLevel={setSlLevel} />}
+      </>}
         </section>
         <section className="opt-sec lc-card calc-risk">
           <div className="opt-sec-h"><div><h3>Payoff chart</h3><div className="muted small">P&amp;L at expiry for the legs in the calculator</div></div></div>
       {a && <PayoffChart legs={priced} exp={exp} spot={d.spot} sl={slLevel} />}
       <div className="muted small opt-foot">P&amp;L at expiry ({exp.expiry_ist}). <span className="pf-key spot" /> spot · <span className="pf-key band" /> expected move ±{usd(exp.move)} · <span className="pf-key mp" /> max pain {usd(exp.max_pain)} · <span className="pf-key sl" /> stop-loss level. Fees and early exit are not included.</div>
+      {chartNote}  {/* "How to read this" fills the space under the payoff chart */}
         </section>
       </div>
-      : <section className="opt-sec" id="payoff-calc">
-      <div className="opt-sec-h"><div><h3>Payoff calculator</h3><div className="muted small">Expiry {exp.expiry_ist} · {legsManual ? 'your own legs' : <>starts with <b>{defName}</b> to match the {market.biasName || 'Market Bias'} — edit any leg or load an example above</>}</div></div>
-        {legsManual && defSpec && <button className="btn sm" onClick={() => setLegsManual(false)} title="Go back to the structure that matches the Market Bias">Reset to bias</button>}</div>
-      <div className="calc-legs">
-        {legs.map((l, i) => <div key={i} className="calc-leg">
-          <span className="leg-no">Leg {i + 1}</span>
-          <Seg value={l.side} onChange={v => setLeg(i, { side: v })} options={[{ value: 'buy', label: 'Buy', tone: 'up' }, { value: 'sell', label: 'Sell', tone: 'down' }]} />
-          <Seg value={l.type} onChange={v => setLeg(i, { type: v })} options={[{ value: 'C', label: 'Call' }, { value: 'P', label: 'Put' }]} />
-          <select value={l.k} onChange={e => setLeg(i, { k: Number(e.target.value) })} aria-label="Strike">
-            {strikes.map(k => <option key={k} value={k}>{usd(k)}{tag(k).length ? ' · ' + tag(k).join(', ') : ''}</option>)}</select>
-          <label className="field-inline">Qty <input type="number" min={qMin} step={qMin} value={l.qty} onChange={e => setLeg(i, { qty: Math.max(qMin, Number(e.target.value) || 1) })} className="qty" /> {lots ? <>{market.lot ? 'lot' : 'contract'}{l.qty === 1 ? '' : 's'} <span className="units">= {(l.qty * lot).toLocaleString(market.locale || 'en-IN')} {market.lot ? 'units' : ccy}</span></> : market.unit ? market.unit + (l.qty === 1 ? '' : 's') : ccy}</label>
-          <span className="muted small">premium {usd(priced[i].prem, market.lot ? 2 : 0)} / {unit}</span>
-          {isNum(priced[i].prem) && <span className={'leg-amt ' + l.side}>{l.side === 'buy' ? 'you pay' : 'you receive'} <b>{usd(priced[i].prem * priced[i].qty)}</b></span>}
-          {legs.length > 1 && <button className="btn sm leg-x" onClick={() => edit(ls => ls.filter((_, j) => j !== i))} aria-label="Remove leg">✕</button>}
-        </div>)}
-        <div className="calc-actions"><button className="btn sm" onClick={() => edit(ls => [...ls, { type: 'P', side: 'buy', k: ref.atm, qty: 1 }])} disabled={legs.length >= 4}>+ Add leg</button>
-          {market.lot && <span className="muted small" title="NSE lot size for this index">Lot size {lot} units (fixed) · change Qty to trade more lots</span>}</div>
-      </div>
-      <Metrics a={a} legs={priced} />
-      {a && <StopLoss key={legs.map(l => l.side + l.type + l.k).join() + exp.code} legs={priced} exp={exp} spot={d.spot} unit={market.lot ? 'Nifty' : (market.underlying || ccy)}
-        capital={priced.some(l => l.side === 'sell') ? (a.maxL === -Infinity ? null : Math.abs(a.maxL)) : priced.reduce((t, l) => t + l.prem * l.qty, 0)} onLevel={setSlLevel} />}
-      {a && <PayoffChart legs={priced} exp={exp} spot={d.spot} sl={slLevel} />}
-      <div className="muted small opt-foot">P&amp;L at expiry ({exp.expiry_ist}). <span className="pf-key spot" /> spot · <span className="pf-key band" /> expected move ±{usd(exp.move)} · <span className="pf-key mp" /> max pain {usd(exp.max_pain)} · <span className="pf-key sl" /> stop-loss level. Fees and early exit are not included.</div>
-      </section>}
   </div>
 }
 
