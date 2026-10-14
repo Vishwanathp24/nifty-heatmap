@@ -464,3 +464,8 @@ th .arrow { font-size: 9px; margin-left: 4px; opacity: .6 }
 .bias-comps { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-left: auto }
 
 .hdr-clock .hdr-date { font-weight: 500; color: #C9CFDA; margin-right: 2px }
+
+/* live viewer count: red dot + number */
+.hdr-viewers { display: inline-flex; align-items: center; gap: 5px; font-family: var(--mono); font-weight: 700; color: #fff; font-size: 12.5px }
+.hdr-viewers .live-dot { width: 8px; height: 8px; border-radius: 50%; background: #EF4444; box-shadow: 0 0 0 0 rgba(239, 68, 68, .6); animation: live-pulse 2s infinite }
+@keyframes live-pulse { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, .6) } 70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0) } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0) } }

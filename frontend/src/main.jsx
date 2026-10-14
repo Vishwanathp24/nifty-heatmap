@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import './styles.css'
 import { api, istDate, istTime, nseTs, setSessionValue, useClock, usePersistentState, useSessionState, usePoll } from './lib.js'
@@ -19,13 +19,34 @@ const PAGES = [
   { id: 'learning', label: 'Learning', key: '6' },
 ]
 
+// Viewer count (last 24 h): ping every 15 s with a random per-browser id (no personal data).
+function useViewers() {
+  const [n, setN] = useState(null)
+  useEffect(() => {
+    let id = null
+    try { id = localStorage.getItem('nseid:viewer') } catch { /* private mode */ }
+    if (!id) {
+      id = Math.random().toString(36).slice(2) + Date.now().toString(36)
+      try { localStorage.setItem('nseid:viewer', id) } catch { /* private mode */ }
+    }
+    let alive = true
+    const ping = () => api('/api/presence?id=' + encodeURIComponent(id)).then(d => alive && setN(d.online)).catch(() => {})
+    ping()
+    const t = setInterval(ping, 15000)
+    return () => { alive = false; clearInterval(t) }
+  }, [])
+  return n
+}
+
 function StatusBar({ live, auto, setAuto }) {
+  const viewers = useViewers()
   const now = useClock()
   const status = live.data?.market_status?.label
   const delayed = !!live.error && !!live.data
   const ok = !!live.data && !live.error && !live.data.poll_error
   return <div className="hdr-status">
     <span className={'mkt ' + (status === 'Market Open' ? 'open' : status === 'Pre-Open' ? 'pre' : 'closed')}>{status || '—'}</span>
+    {viewers != null && <span className="hdr-viewers" title={`${viewers} ${viewers === 1 ? 'person has' : 'people have'} used the dashboard in the last 24 hours`}><i className="live-dot" />{viewers}</span>}
     <span className="hdr-clock" title="Indian Standard Time"><span className="hdr-date">{istDate(now)}</span> {istTime(now)} <small>IST</small></span>
     {delayed || live.data?.poll_error
       ? <span className="hdr-delayed" title={live.error || live.data?.poll_error}><i className="dot amber" />Data delayed · Last successful update: {istTime(live.data?.as_of || live.lastOk)}</span>

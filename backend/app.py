@@ -159,6 +159,41 @@ def sector(symbol: str):
     return data
 
 
+# ---- viewer count: each open dashboard pings every 15 s with a random browser id; the
+# header shows how many different browsers were seen in the last 24 hours. Only the id
+# and a timestamp are kept (no personal data), saved next to the DB so restarts keep it.
+import json as _json
+
+from store import DB_PATH
+
+PRESENCE_WINDOW = 24 * 3600
+PRESENCE_FILE = DB_PATH.parent / "presence.json"
+_presence_lock = threading.Lock()
+try:
+    _presence = {k: float(v) for k, v in _json.loads(PRESENCE_FILE.read_text()).items()}
+except (OSError, ValueError, AttributeError):
+    _presence = {}
+_presence_saved = [0.0]
+
+
+@app.get("/api/presence")
+def presence(id: str = ""):
+    now = time.time()
+    with _presence_lock:
+        if 8 <= len(id) <= 64:
+            _presence[id] = now
+        for k in [k for k, t in _presence.items() if now - t > PRESENCE_WINDOW]:
+            del _presence[k]
+        if now - _presence_saved[0] > 60:  # persist at most once a minute
+            _presence_saved[0] = now
+            try:
+                PRESENCE_FILE.parent.mkdir(parents=True, exist_ok=True)
+                PRESENCE_FILE.write_text(_json.dumps(_presence))
+            except OSError:
+                pass
+        return {"online": len(_presence), "window_hours": 24}
+
+
 _ipo = None
 
 
