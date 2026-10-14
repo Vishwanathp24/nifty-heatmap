@@ -3,6 +3,7 @@ import { Empty, SortTh, StockLink } from './components.jsx'
 import { fmtNum, hhmmTo12, isNum, istTime, setSessionValue, sortRows, useSessionState } from './lib.js'
 import Trend, { trendNeed, trendRows, useTrendSettings } from './Trend.jsx'
 import { SectorMulti } from './Scanner.jsx'
+import { INDIA, OptionsBoard } from './CryptoOptions.jsx'
 
 // Condition scans modelled on the Chartink screens the user follows. "Daily" = today's
 // candle (NSE official open/high/low/last/volume) on top of Yahoo daily history;
@@ -93,7 +94,7 @@ function ConditionScan({ id, data }) {
           <td className={'num ' + (r.pct_prev > 0 ? 'up' : r.pct_prev < 0 ? 'down' : '')}>{isNum(r.pct_prev) ? (r.pct_prev > 0 ? '+' : '') + r.pct_prev.toFixed(2) + '%' : '—'}</td>
           <td className={'num strong ' + (r.met === N ? sc.tone : '')}>{r.met}/{N}</td>
           <td className="num">{r.met === N ? (r.since ? hhmmTo12(r.since) : 'just now') : '—'}</td>
-          {sc.conds.map((c, i) => <td key={c.k} className={'num ind ' + (r.res[i] ? 'pass' : 'fail')} title={c.title}>{(c.fmt || n2)(r['v_' + c.k])}</td>)}
+          {sc.conds.map((c, i) => <td key={c.k} className={'num ind ' + (r.res[i] ? 'pass' : 'fail')} title={c.title}>{(c.fmt || n2)(r['v_' + c.k], r)}</td>)}
         </tr>)}</tbody>
       </table>
       {!shown.length && <Empty>No stock meets every condition right now. Untick “Only stocks meeting all conditions” to see the closest ones (sorted by conditions met).</Empty>}
@@ -102,7 +103,7 @@ function ConditionScan({ id, data }) {
   </>
 }
 
-const TABS = [['trend', 'Trending Stocks'], ['bull', 'Bullish Intraday'], ['bear', 'Bearish Intraday'], ['btst', 'BTST Stocks']]
+const TABS = [['iopt', 'Index Options'], ['trend', 'Trending Stocks'], ['bull', 'Bullish Intraday'], ['bear', 'Bearish Intraday'], ['btst', 'BTST Stocks']]
 
 // Which scans suit the current market bias (same 5-vote bias as the ORB Scanner).
 export function BiasBanner({ bias, onPick }) {
@@ -119,7 +120,7 @@ export function BiasBanner({ bias, onPick }) {
 }
 
 export default function Scans({ trend: trendRaw, live, selected, setSelected }) {
-  const [tab, setTab] = useSessionState('scans.tab', 'trend')
+  const [tab, setTab] = useSessionState('scans.tab', 'iopt')  // Index Options is the first tab
   const base = useTrendSettings()
   // Bullish/Bearish follows the Market Bias until the user picks one by hand
   // (kept for the visit; "Clear filters" hands control back to the bias).
@@ -163,7 +164,8 @@ export default function Scans({ trend: trendRaw, live, selected, setSelected }) 
       {TABS.map(([v, label]) => <button key={v} role="tab" aria-selected={tab === v} className={tab === v ? 'on' : ''} onClick={() => setTab(v)}>
         {label}{counts[v] != null && <span className="count">{counts[v]}</span>}</button>)}
     </div>
-    {!data ? <Empty>{trend.error || 'Loading scan data…'}</Empty>
+    {tab === 'iopt' ? <OptionsBoard market={INDIA} bias={live?.bias} />
+      : !data ? <Empty>{trend.error || 'Loading scan data…'}</Empty>
       : !data.rows.length ? <Empty>Calculating for the first time — this takes about 2–3 minutes…</Empty>
         : tab === 'trend' ? <Trend key={'t' + resetKey} trend={trend} settings={settings} /> : <ConditionScan key={tab + resetKey} id={tab} data={data} />}
   </div>

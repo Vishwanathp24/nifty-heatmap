@@ -604,3 +604,30 @@ th .arrow { font-size: 9px; margin-left: 4px; opacity: .6 }
 .pf-metrics.prem > span { background: #F8FAFC; border: 1px solid var(--border) }
 .leg-amt { font-size: 12px; padding: 2px 8px; border-radius: 4px }
 .leg-amt.buy { background: var(--down-bg); color: var(--down) } .leg-amt.sell { background: var(--up-bg); color: var(--up) }
+
+/* Strategy explainer: sellers | buyers side by side */
+.strat-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start }
+.strat-group { background: var(--panel-2); border-radius: 8px; padding: 12px }
+.strat-group .strat-list { grid-template-columns: 1fr }
+/* wide screens: cards share the row, and a lone card stretches to fill it (no empty gap) */
+@media (min-width: 1500px) { .strat-group .strat-list { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)) } }
+@media (max-width: 1000px) { .strat-groups { grid-template-columns: 1fr } }
+/* Strategy cards: chips never cut off; they sit side by side whenever there is room */
+.strat > .pf-metrics > span { white-space: nowrap }
+
+/* Strategy cards fill spare width with more numbers */
+.strat { container-type: inline-size }
+.strat .pf-metrics .xtra { display: none }
+@container (min-width: 480px) { .strat .pf-metrics .xtra { display: inline-block } }
+
+/* Payoff calculator: all results on one line */
+.pf-line1 { gap: 5px; margin-bottom: 12px }
+.pf-line1 > span { white-space: nowrap; padding: 4px 8px; font-size: 12px }
+
+/* One side has no structure for this view: the other side takes the full width,
+   the empty side collapses to a one-line note below it. */
+.strat-groups.single { grid-template-columns: 1fr }
+.strat-groups.single .strat-group.empty { order: 2; flex-direction: row; flex-wrap: wrap; align-items: center; padding: 8px 12px; gap: 8px }
+.strat-groups.single .strat-group.empty .sg-none { padding: 0; border: 0 }
+.strat-groups.single .strat-group.empty .sg-h .muted { display: none }
+.strat-groups.single .strat-group:not(.empty) .strat-list { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)) }

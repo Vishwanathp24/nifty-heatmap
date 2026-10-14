@@ -94,27 +94,33 @@ function PayoffChart({ legs, exp, spot }) {
   </svg></div>
 }
 
-function Metrics({ a, legs = [] }) {
+function Metrics({ a, legs = [], compact = false }) {
   if (!a) return <span className="muted">—</span>
   // Premium in money terms for the whole quantity (legs carry qty in units).
   const paid = legs.filter(l => l.side === 'buy').reduce((t, l) => t + l.prem * l.qty, 0)
   const recd = legs.filter(l => l.side === 'sell').reduce((t, l) => t + l.prem * l.qty, 0)
   const sells = legs.some(l => l.side === 'sell')
   const capital = !sells ? paid : a.maxL === -Infinity ? null : Math.abs(a.maxL)
-  return <div className="pf-block">
-    <div className="pf-metrics prem">
-      <span>Premium paid <b className="down">{usd(paid)}</b></span>
-      <span>Premium received <b className="up">{usd(recd)}</b></span>
-      <span title={sells ? 'Approximate: for a hedged (defined-risk) position the margin is close to the maximum loss; your broker’s SPAN + exposure margin can differ.' : 'Buying options needs only the premium paid.'}>
-        {sells ? 'Margin needed ≈ ' : 'Capital needed '}<b>{capital == null ? 'High — unhedged short' : usd(capital)}</b></span>
-    </div>
-    <div className="pf-metrics">
-      <span>{a.net >= 0 ? 'Net credit' : 'Net cost'} <b>{usd(Math.abs(a.net))}</b></span>
-      <span>Max profit <b className="up">{a.maxP === Infinity ? 'Unlimited' : usd(a.maxP)}</b></span>
-      <span>Max loss <b className="down">{a.maxL === -Infinity ? 'Unlimited' : usd(a.maxL)}</b></span>
-      <span>Breakeven <b>{a.be.length ? a.be.map(v => usd(v)).join(' / ') : '—'}</b></span>
-      <span title="Probability the position ends in profit at expiry, from the at-the-money implied volatility (market-implied, not a forecast)">Chance of profit ≈ <b>{isNum(a.pop) ? a.pop + '%' : '—'}</b></span>
-    </div>
+  const marginTitle = sells ? 'Approximate: for a hedged (defined-risk) position the margin is close to the maximum loss; your broker’s SPAN + exposure margin can differ.' : 'Buying options needs only the premium paid.'
+  const marginChip = <span title={marginTitle}>{sells ? 'Margin needed ≈ ' : 'Capital needed '}<b>{capital == null ? 'High — unhedged short' : usd(capital)}</b></span>
+  const popChip = <span title="Probability the position ends in profit at expiry, from the at-the-money implied volatility (market-implied, not a forecast)">Chance of profit ≈ <b>{isNum(a.pop) ? a.pop + '%' : '—'}</b></span>
+  // Strategy-explainer cards show only these two; the calculator shows the full breakdown.
+  // Explainer cards: margin + chance of profit always; on wide cards (lots of room) also
+  // net credit/cost, max loss and breakeven, shown via a container query.
+  if (compact) return <div className="pf-metrics">{marginChip}{popChip}
+    <span className="xtra">{a.net >= 0 ? 'Net credit' : 'Net cost'} <b>{usd(Math.abs(a.net))}</b></span>
+    <span className="xtra">Max loss <b className="down">{a.maxL === -Infinity ? 'Unlimited' : usd(a.maxL)}</b></span>
+    <span className="xtra">Breakeven <b>{a.be.length ? a.be.map(v => usd(v)).join(' / ') : '—'}</b></span>
+  </div>
+  return <div className="pf-metrics pf-line1">
+    <span>Premium paid <b className="down">{usd(paid)}</b></span>
+    <span>Premium received <b className="up">{usd(recd)}</b></span>
+    {marginChip}
+    <span>{a.net >= 0 ? 'Net credit' : 'Net cost'} <b>{usd(Math.abs(a.net))}</b></span>
+    <span>Max profit <b className="up">{a.maxP === Infinity ? 'Unlimited' : usd(a.maxP)}</b></span>
+    <span>Max loss <b className="down">{a.maxL === -Infinity ? 'Unlimited' : usd(a.maxL)}</b></span>
+    <span>Breakeven <b>{a.be.length ? a.be.map(v => usd(v)).join(' / ') : '—'}</b></span>
+    {popChip}
   </div>
 }
 
@@ -214,15 +220,24 @@ export default function OptionTools({ d, exp, market = {}, bias }) {
   const iv = d.dvol
   const regime = !isNum(iv) ? 'normal' : iv < bands[0] ? 'low' : iv > bands[1] ? 'high' : 'normal'
   const fitB = FIT.buy[view]?.[regime], fitS = FIT.sell[view]?.[regime]
-  const groups = [['buy', 'For option buyers', 'debit — you pay the premium; risk limited to what you pay', fitB],
-                  ['sell', 'For option sellers', 'credit — you collect the premium; loss capped by the hedge leg', fitS]]
+  const groups = [['sell', 'For option sellers', 'credit — you collect the premium; loss capped by the hedge leg', fitS],
+                  ['buy', 'For option buyers', 'debit — you pay the premium; risk limited to what you pay', fitB]]
     .map(([k, title, sub, fit]) => [k, title, sub, fit, [...VIEWS[view].list].filter(x => (k === 'buy') === BUYER.has(x[0])).sort((x, y) => (y[0] === fit) - (x[0] === fit))])
   useEffect(() => { setLegs(ls => ls.map(l => ({ ...l, k: exp.chain.some(r => r.k === l.k) ? l.k : ref.atm }))) }, [exp.code])
   const priced = legs.map(l => ({ ...l, prem: legPrice(exp.chain, l), qty: l.qty * mult }))
   const a = analyse(priced, exp, d.spot)
   const strikes = exp.chain.map(r => r.k)
-  const setLeg = (i, patch) => setLegs(ls => ls.map((l, j) => j === i ? { ...l, ...patch } : l))
-  const load = spec => { setLegs(mkLegs(spec)); document.getElementById('payoff-calc')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
+  // Calculator starts with the structure that fits the Market Bias (buyer pick, or the seller
+  // pick when the view has no buyer structure) and follows it until the user edits a leg.
+  const [legsManual, setLegsManual] = useState(false)
+  // Default calculator trade: Long call when bullish, Long put when bearish (follows the bias-driven view);
+  // range-bound / big-move views start with their marked structure.
+  const defName = view === 'bull' ? 'Long call' : view === 'bear' ? 'Long put' : (fitS || fitB)
+  const defSpec = VIEWS[view].list.find(x => x[0] === defName)?.[2]
+  useEffect(() => { if (!legsManual && defSpec) setLegs(mkLegs(defSpec)) }, [defName, view, exp.code, legsManual])
+  const edit = fn => { setLegsManual(true); setLegs(fn) }
+  const setLeg = (i, patch) => edit(ls => ls.map((l, j) => j === i ? { ...l, ...patch } : l))
+  const load = spec => { edit(() => mkLegs(spec)); document.getElementById('payoff-calc')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
   const tag = k => [k === ref.atm && 'ATM', k === exp.max_pain && 'max pain', k === ref.up && '+1σ', k === ref.dn && '−1σ'].filter(Boolean)
 
   return <div className="opt-tools">
@@ -244,12 +259,12 @@ export default function OptionTools({ d, exp, market = {}, bias }) {
             : <>The Market Bias is <b>{bias.label}</b>, so <b>{VIEWS[view].label}</b> strategies are shown. </>}
         </div>
         <div className="bg-roles">
-          <div><span className="role-tag buy">Option buyer</span> {fitB ? <><b>{fitB}</b> — {reason(fitB, regime)}.</> : <span className="muted">{NONE.buy}</span>}</div>
           <div><span className="role-tag sell">Option seller</span> {fitS ? <><b>{fitS}</b> — {reason(fitS, regime)}.</> : <span className="muted">{NONE.sell}</span>}</div>
+          <div><span className="role-tag buy">Option buyer</span> {fitB ? <><b>{fitB}</b> — {reason(fitB, regime)}.</> : <span className="muted">{NONE.buy}</span>}</div>
         </div>
         <div className="muted small">Guidance on which structure matches the bias, volatility and your trading style — strikes, size, timing and risk are your decision. Not a buy/sell recommendation.</div>
       </div>
-      <div className="strat-groups">{groups.map(([k, title, sub, fit, list]) => <div key={k} className={'strat-group ' + k}>
+      <div className={'strat-groups' + (groups.some(g => !g[4].length) ? ' single' : '')}>{groups.map(([k, title, sub, fit, list]) => <div key={k} className={'strat-group ' + k + (list.length ? '' : ' empty')}>
         <div className="sg-h"><span className={'role-tag ' + k}>{title}</span><span className="muted small">{sub}</span></div>
         {!list.length ? <div className="muted small sg-none">{NONE[k]}</div> :
       <div className="strat-list">{list.map(([name, why, spec]) => {
@@ -263,7 +278,7 @@ export default function OptionTools({ d, exp, market = {}, bias }) {
             const tagTxt = l.at === 'c3' || l.at === 'p3' ? ' · 3rd OTM' : sold && sold.prem ? ` · ${Math.round(l.prem / sold.prem * 100)}% of sold` : ''
             return <span key={i} className={'leg ' + l.side}>{l.side === 'buy' ? 'Buy' : 'Sell'} {usd(l.k)} {l.type === 'C' ? 'call' : 'put'} @ {usd(l.prem, market.lot ? 2 : 0)}{tagTxt}</span>
           })}</div>
-          <Metrics a={analyse(ls, exp, d.spot)} legs={ls} />
+          <Metrics a={analyse(ls, exp, d.spot)} legs={ls} compact />
         </div>
       })}</div>}
       </div>)}</div>
@@ -271,7 +286,8 @@ export default function OptionTools({ d, exp, market = {}, bias }) {
     </section>
 
     <section className="opt-sec" id="payoff-calc">
-      <div className="opt-sec-h"><div><h3>Payoff calculator</h3><div className="muted small">Expiry {exp.expiry_ist} · build up to 4 legs or load an example above</div></div></div>
+      <div className="opt-sec-h"><div><h3>Payoff calculator</h3><div className="muted small">Expiry {exp.expiry_ist} · {legsManual ? 'your own legs' : <>starts with <b>{defName}</b> to match the {market.biasName || 'Market Bias'} — edit any leg or load an example above</>}</div></div>
+        {legsManual && defSpec && <button className="btn sm" onClick={() => setLegsManual(false)} title="Go back to the structure that matches the Market Bias">Reset to bias</button>}</div>
       <div className="calc-legs">
         {legs.map((l, i) => <div key={i} className="calc-leg">
           <span className="leg-no">Leg {i + 1}</span>
@@ -282,9 +298,9 @@ export default function OptionTools({ d, exp, market = {}, bias }) {
           <label className="field-inline">Qty <input type="number" min={market.lot ? 1 : 0.1} step={market.lot ? 1 : 0.1} value={l.qty} onChange={e => setLeg(i, { qty: Math.max(market.lot ? 1 : 0.1, Number(e.target.value) || 1) })} className="qty" /> {market.lot ? <>lot{l.qty === 1 ? '' : 's'} <span className="units">= {(l.qty * lot).toLocaleString('en-IN')} units</span></> : ccy}</label>
           <span className="muted small">premium {usd(priced[i].prem, market.lot ? 2 : 0)} / {unit}</span>
           {isNum(priced[i].prem) && <span className={'leg-amt ' + l.side}>{l.side === 'buy' ? 'you pay' : 'you receive'} <b>{usd(priced[i].prem * priced[i].qty)}</b></span>}
-          {legs.length > 1 && <button className="btn sm leg-x" onClick={() => setLegs(ls => ls.filter((_, j) => j !== i))} aria-label="Remove leg">✕</button>}
+          {legs.length > 1 && <button className="btn sm leg-x" onClick={() => edit(ls => ls.filter((_, j) => j !== i))} aria-label="Remove leg">✕</button>}
         </div>)}
-        <div className="calc-actions"><button className="btn sm" onClick={() => setLegs(ls => [...ls, { type: 'P', side: 'buy', k: ref.atm, qty: 1 }])} disabled={legs.length >= 4}>+ Add leg</button>
+        <div className="calc-actions"><button className="btn sm" onClick={() => edit(ls => [...ls, { type: 'P', side: 'buy', k: ref.atm, qty: 1 }])} disabled={legs.length >= 4}>+ Add leg</button>
           {market.lot && <span className="muted small" title="NSE lot size for this index">Lot size {lot} units (fixed) · change Qty to trade more lots</span>}</div>
       </div>
       <Metrics a={a} legs={priced} />

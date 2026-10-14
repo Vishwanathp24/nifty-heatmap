@@ -6,7 +6,6 @@ import Overview from './Overview.jsx'
 import Heatmap from './Heatmap.jsx'
 import Scanner, { DEFAULT_FILTERS, filterRows } from './Scanner.jsx'
 import Ipo from './Ipo.jsx'
-import { INDIA, OptionsBoard } from './CryptoOptions.jsx'
 import Learning from './Learning.jsx'
 import Scans, { BiasBanner } from './Scans.jsx'
 
@@ -16,9 +15,8 @@ const PAGES = [
   { id: 'heatmap', label: 'Sector Heatmap', key: '2' },
   { id: 'scanner', label: 'ORB Scanner', key: '3' },
   { id: 'trend', label: 'Intraday Scanner', key: '4' },
-  { id: 'iopt', label: 'Index Options', key: '5' },
-  { id: 'ipo', label: 'IPO', key: '6' },
-  { id: 'learning', label: 'Learning', key: '7' },
+  { id: 'ipo', label: 'IPO', key: '5' },
+  { id: 'learning', label: 'Learning', key: '6' },
 ]
 
 // Viewer count (last 24 h): ping every 15 s with a random per-browser id (no personal data).
@@ -102,9 +100,6 @@ function App() {
       {page === 'overview' && <Overview live={live.data} ctx={ctx.data} />}
       {page === 'heatmap' && <Heatmap live={live.data} selected={selected} setSelected={setSelected} toggle={toggleSector} goto={setPage} />}
       {page === 'trend' && <Scans trend={trend} live={live.data} selected={selected} setSelected={setSelected} />}
-      {page === 'iopt' && <div className="trend-page"><div className="page-title"><h1>Index Options</h1>
-        <span className="muted small">Nifty option chain from NSE: PCR, max pain, India VIX / IV, expected move, strategy explainer and payoff calculator</span></div>
-        <OptionsBoard market={INDIA} bias={live.data?.bias} /></div>}
       {page === 'ipo' && <Ipo ipo={ipo} />}
       {page === 'learning' && <Learning />}
       {page === 'scanner' && <>
