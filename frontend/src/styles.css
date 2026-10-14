@@ -650,3 +650,121 @@ th .arrow { font-size: 9px; margin-left: 4px; opacity: .6 }
 .qty.wide { width: 110px }
 .pf-sl { stroke: #DC2626; stroke-width: 1.5; stroke-dasharray: 6 4 } .pf-sl-t { fill: #DC2626; font-weight: 600 }
 .pf-key.sl { background: #DC2626 }
+
+/* Crypto -> live views (Live Chart, Exchanges, CoinGecko Trending, DEX Pools) */
+.coin-pick { font: inherit; font-size: 13px; padding: 4px 6px; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--panel); color: var(--ink); max-width: 260px }
+.lc-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 14px; margin: 4px 0 6px }
+.lc-px { font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums }
+.lc-wrap { width: 100%; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 6px 0 0; margin-bottom: 6px; overflow: hidden }
+.lc-ohlc { padding: 0 10px 4px; font-variant-numeric: tabular-nums; color: var(--ink-2) }
+.lc { display: block; cursor: crosshair }
+.lc-grid { stroke: var(--border); stroke-dasharray: 2 3 }
+.lc-ax { font-size: 10.5px; fill: var(--muted); font-variant-numeric: tabular-nums }
+.lc-up { stroke: var(--up); fill: var(--up) }
+.lc-dn { stroke: var(--down); fill: var(--down) }
+.lc-vol { opacity: .25; stroke: none }
+.lc-cross { stroke: var(--muted); stroke-dasharray: 3 3 }
+.lc-last { stroke-dasharray: 4 3; stroke-width: 1 }
+.lc-last.up { stroke: var(--up) } .lc-last.down { stroke: var(--down) }
+.lc-tag.up { fill: var(--up) } .lc-tag.down { fill: var(--down) }
+.lc-tag-t { font-size: 11px; fill: #fff; font-weight: 600; font-variant-numeric: tabular-nums }
+.coin-ico { width: 16px; height: 16px; border-radius: 50%; vertical-align: -3px; margin-right: 5px }
+.chip.up { color: var(--up); background: var(--up-bg); border-color: transparent }
+.chip.down { color: var(--down); background: var(--down-bg); border-color: transparent }
+.chip.warn { color: var(--amber); background: var(--amber-bg); border-color: transparent }
+.pool-flags { margin-top: 2px; max-width: 280px; white-space: normal; line-height: 1.3 }
+.chart-btn { border: 1px solid var(--border); background: var(--panel); color: var(--accent); border-radius: 3px; padding: 1px 3px; line-height: 0; cursor: pointer; vertical-align: -2px }
+.chart-btn:hover { background: var(--accent-bg); border-color: var(--accent) }
+.crypto-orb-row { display: block; margin-top: 2px }
+.section.crypto-movers { margin-top: 20px }
+.crypto-page .section.crypto-movers:first-child, .crypto-page .scan-tabs + .section.crypto-movers { margin-top: 6px }
+.planner { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 10px; margin: 0 0 8px; display: grid; gap: 6px }
+.planner-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px }
+.planner-out .chip { margin-left: 4px }
+.lc.picking { cursor: copy }
+.lc-lvl line { stroke-width: 1.2 }
+.lc-lvl.entry line { stroke: var(--accent) } .lc-lvl.entry .lc-lvl-t { fill: var(--accent) }
+.lc-lvl.sl line { stroke: var(--down); stroke-dasharray: 5 3 } .lc-lvl.sl .lc-lvl-t { fill: var(--down) }
+.lc-lvl.tgt line { stroke: var(--up); stroke-dasharray: 5 3 } .lc-lvl.tgt .lc-lvl-t { fill: var(--up) }
+.lc-lvl-t { font-size: 11px; font-weight: 600; paint-order: stroke; stroke: var(--panel); stroke-width: 3px }
+.ind-tbl table { background: var(--panel) }
+.planner .btn.on { background: var(--hdr); color: #fff; border-color: var(--hdr) }
+.planner .btn:disabled { opacity: .45; cursor: not-allowed }
+.ind-tbl { margin: 8px 0 4px }
+.ind-v { font-weight: 600; color: var(--ink) }
+.ind-v.up { color: var(--up) } .ind-v.down { color: var(--down) }
+.lc { touch-action: none; user-select: none; cursor: grab }
+.lc.dragging { cursor: grabbing }
+.lc-ohlc { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 24px }
+.lc-nav { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; padding-right: 8px }
+.lc-ax.lc-day { font-weight: 700; fill: var(--ink) }
+.lc-daysep { stroke: var(--border-strong); stroke-dasharray: 2 4 }
+.lc-cards { display: grid; grid-template-columns: minmax(560px, 2fr) minmax(0, 3fr); gap: 12px; align-items: stretch; margin-top: 10px }
+.lc-card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0 }
+.lc-card-h { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap }
+.lc-card-h h3 { margin: 0; font-size: 14px }
+.lc-card .ind-tbl { margin: 0; width: 100% }
+.lc-card .ind-tbl .tbl { width: 100%; font-size: 13px }
+.lc-card .ind-tbl > .muted { width: 0; min-width: 100%; margin-top: 6px }
+.lc-card .ind-tbl .tbl td, .lc-card .ind-tbl .tbl th { padding: 6px 8px; white-space: nowrap }
+.lc-card .toolbar { margin: 0 }
+.lc-strat-group { background: var(--panel-2); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 8px }
+.lc-strat-gh { line-height: 1.35 }
+.lc-strat { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; line-height: 1.4 }
+.lc-strat-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 8px }  /* boxes stretch to fill the row */
+.lc-strat-name { font-size: 14px }
+.fit-badge { align-self: flex-start; background: var(--up); color: #fff; font-size: 11.5px; font-weight: 600; border-radius: 999px; padding: 2px 10px }
+.lc-strat.fit { border: 2px solid var(--up) }
+@media (max-width: 1250px) { .lc-cards { grid-template-columns: 1fr } }
+.lc-session { stroke: var(--ink-2); stroke-width: 1; stroke-dasharray: 6 4; opacity: .55 }
+
+.stock-link { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap }
+.sym-pick { position: relative }
+.sym-pick .coin-pick { width: 280px; max-width: 70vw }
+.sym-list { position: absolute; z-index: 30; top: calc(100% + 2px); left: 0; width: 340px; max-width: 85vw; max-height: 320px; overflow: auto;
+  margin: 0; padding: 4px 0; list-style: none; background: var(--panel); border: 1px solid var(--border-strong); border-radius: var(--radius); box-shadow: 0 6px 18px rgba(0,0,0,.12) }
+.sym-list li { padding: 5px 10px; cursor: pointer; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.sym-list li.hi { background: var(--accent-bg) }
+.sym-list li.cur b { color: var(--accent) }
+/* Live Chart: row 1 Indicators | Strategy explainer (sellers | buyers); row 2 Payoff calculator | Stop-loss + chart */
+.lc-strat-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; align-items: start }
+.lc-strat-groups .lc-strat-list { grid-template-columns: 1fr }
+.lc-calc { margin-top: 12px; min-width: 0 }
+.lc-calc .opt-tools { display: block }
+.calc-split { display: grid; grid-template-columns: minmax(560px, 2fr) minmax(0, 3fr); gap: 12px; align-items: stretch }  /* calculator card as tall as the payoff chart */  /* same split as Indicators | Strategy */
+.lc-top { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 12px; align-items: start }
+.lc-top .lc-wrap { min-width: 0; margin-bottom: 0 }
+.lc-top .pnl-calc { padding: 10px 12px }
+.pnl-calc .pnl-tbl { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums }
+.pnl-tbl th, .pnl-tbl td { padding: 4px 6px; border-bottom: 1px solid var(--border); text-align: right; white-space: nowrap }
+.pnl-tbl th:first-child, .pnl-tbl td:first-child { text-align: left; color: var(--ink-2) }
+.pnl-tbl input { width: 92px; text-align: right; font: inherit; padding: 3px 6px; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--panel); color: var(--ink) }
+.pnl-tbl input.pct-in { width: 46px; margin: 0 3px }
+.pnl-tbl select { font: inherit; font-weight: 600; padding: 3px 4px; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--panel); color: var(--ink) }
+.pnl-tbl .calc-row td { font-weight: 600; background: var(--panel-2) }
+.pnl-tbl .calc-row.big td { font-size: 14.5px }
+@media (max-width: 1100px) { .lc-top { grid-template-columns: 1fr } }
+.calc-split > .opt-sec { margin: 0; min-width: 0; padding: 12px 14px }
+.calc-split .opt-sec-h h3 { font-size: 14px }
+@media (max-width: 1250px) { .calc-split { grid-template-columns: 1fr } }
+@media (max-width: 800px) { .lc-strat-groups { grid-template-columns: 1fr } }
+.lc-strat .strat-h { display: flex; justify-content: space-between; align-items: center; gap: 8px }
+.lc-chain-stats { display: flex; flex-wrap: wrap; gap: 6px 18px; padding: 8px 10px; background: var(--panel-2); border-radius: 8px; font-size: 12.5px }
+.lc-chain-stats b { font-weight: 600 }
+.strat-card { justify-content: flex-start }
+
+.pnl-calc .pnl-tbl td:last-child { width: 1%; }
+.pnl-calc .pnl-tbl input { width: 110px }
+.iopt-pnl-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 12px; align-items: start }
+.iopt-pnl-wrap > .opt-sec, .iopt-pnl-wrap > .empty { margin: 0; min-width: 0 }
+@media (max-width: 1100px) { .iopt-pnl-wrap { grid-template-columns: 1fr } }
+.pnl-tbl .pct-wrap { display: inline-flex; align-items: center; gap: 3px }
+.pnl-tbl .pct-wrap input.pct-in { width: 70px; margin: 0 }
+.rr-seg { align-self: flex-start; flex-wrap: wrap }
+.rr-seg button { padding: 4px 10px; font-size: 12.5px }
+
+.lc-top-side { min-width: 0 }
+.lc-top-side .pnl-calc { margin: 0 }
+.iopt-pnl-wrap { align-items: stretch }
+.iopt-pnl-wrap > .opt-sec { display: flex; flex-direction: column }
+.iopt-pnl-wrap > .opt-sec > .tbl-wrap { flex: 1 1 auto }

@@ -4,6 +4,7 @@ import { fmtNum, hhmmTo12, isNum, istTime, setSessionValue, sortRows, useSession
 import Trend, { trendNeed, trendRows, useTrendSettings } from './Trend.jsx'
 import { SectorMulti } from './Scanner.jsx'
 import { INDIA, OptionsBoard } from './CryptoOptions.jsx'
+import { ChartView } from './Chart.jsx'
 
 // Condition scans modelled on the Chartink screens the user follows. "Daily" = today's
 // candle (NSE official open/high/low/last/volume) on top of Yahoo daily history;
@@ -103,7 +104,34 @@ function ConditionScan({ id, data }) {
   </>
 }
 
-const TABS = [['iopt', 'Index Options'], ['trend', 'Trending Stocks'], ['bull', 'Bullish Intraday'], ['bear', 'Bearish Intraday'], ['btst', 'BTST Stocks']]
+const TABS = [['iopt', 'Index Options'], ['trend', 'Trending Stocks'], ['bull', 'Bullish Intraday'], ['bear', 'Bearish Intraday'], ['btst', 'BTST Stocks'], ['chart', 'Live Chart']]
+
+// Live Chart: NSE stock candles (Yahoo) on 1m ... 1M with the indicator table; the stock list
+// follows the sector filter.
+// Prices without the ₹ sign (cleaner).
+const inr = v => !isNum(v) ? '—' : v.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const inrShort = v => !isNum(v) ? '—' : v >= 1000 ? Math.round(v).toLocaleString('en-IN') : inr(v)
+function StockLive({ stocks, selected, bias }) {
+  const [sym, setSym] = useSessionState('slive.sym', 'RELIANCE')
+  const opts = useMemo(() => {
+    const list = stocks.filter(r => !selected.length || r.sectors.some(x => selected.includes(x)))
+      .map(r => ({ symbol: r.symbol, name: r.company })).sort((a, b) => a.symbol.localeCompare(b.symbol))
+    if (!list.some(c => c.symbol === sym)) { const r = stocks.find(r => r.symbol === sym); list.unshift({ symbol: sym, name: r?.company || '' }) }
+    return list
+  }, [stocks, selected, sym])
+  const st = stocks.find(r => r.symbol === sym)
+  const chg = st && st.prev_close ? (st.ltp - st.prev_close) / st.prev_close * 100 : null
+  return <ChartView prefix="slive" label="Stock" opts={opts} sym={sym} onPick={setSym}
+    candlesUrl={(s, tf, before) => `/api/chart/candles?symbol=${encodeURIComponent(s)}&tf=${tf}` + (before ? `&before=${before}` : '')}
+    indUrl={s => '/api/chart/indicators?symbol=' + encodeURIComponent(s)}
+    fmt={inr} fmtShort={inrShort} pollMs={15000} indSource="Yahoo Finance candles; 3m built from 1m, 2h / 3h / 4h from 1h inside each session"
+    sourceLine={() => `Yahoo Finance ${sym}.NS · refreshes every 15 sec`}
+    head={st && <span className="muted small">{st.sector} · LTP {inr(st.ltp)} <span className={chg > 0 ? 'up' : chg < 0 ? 'down' : ''}>{isNum(chg) ? (chg > 0 ? '+' : '') + chg.toFixed(2) + '%' : ''}</span> vs prev close</span>}
+    bias={bias} biasName="Market Bias" chainUrl={st?.fo ? s => '/api/index-options?symbol=' + encodeURIComponent(s) : null}
+    optMarket={{ key: 'slopt', cur: '', locale: 'en-IN', biasName: 'Market Bias', vol: 'ATM IV', unit: 'share', underlying: sym, ivBands: {} }}
+    optNote={st?.fo ? `${sym} is in the F&O segment, so its NSE option chain is used for the strikes below (lot sizes differ per stock).` : `${sym} is not in the F&O segment, so it has no listed options.`}
+    note="The stock list follows the sector filter. Yahoo keeps 1-min candles for about 30 days and 5 – 60-min candles for 60 days, so dragging back stops there on those timeframes." />
+}
 
 // Which scans suit the current market bias (same 5-vote bias as the ORB Scanner).
 export function BiasBanner({ bias, onPick }) {
@@ -119,8 +147,9 @@ export function BiasBanner({ bias, onPick }) {
   </div>
 }
 
-export default function Scans({ trend: trendRaw, live, selected, setSelected }) {
+export default function Scans({ trend: trendRaw, live, selected, setSelected, chartReq = 0 }) {
   const [tab, setTab] = useSessionState('scans.tab', 'iopt')  // Index Options is the first tab
+  useEffect(() => { if (chartReq) setTab('chart') }, [chartReq])  // chart icon clicked on a stock
   const base = useTrendSettings()
   // Bullish/Bearish follows the Market Bias until the user picks one by hand
   // (kept for the visit; "Clear filters" hands control back to the bias).
@@ -165,6 +194,7 @@ export default function Scans({ trend: trendRaw, live, selected, setSelected }) 
         {label}{counts[v] != null && <span className="count">{counts[v]}</span>}</button>)}
     </div>
     {tab === 'iopt' ? <OptionsBoard market={INDIA} bias={live?.bias} />
+      : tab === 'chart' ? <StockLive key={'sl' + chartReq} stocks={live?.stocks || []} selected={selected} bias={live?.bias?.label} />
       : !data ? <Empty>{trend.error || 'Loading scan data…'}</Empty>
       : !data.rows.length ? <Empty>Calculating for the first time — this takes about 2–3 minutes…</Empty>
         : tab === 'trend' ? <Trend key={'t' + resetKey} trend={trend} settings={settings} /> : <ConditionScan key={tab + resetKey} id={tab} data={data} />}

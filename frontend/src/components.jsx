@@ -1,13 +1,24 @@
-import React, { useEffect } from 'react'
+import React, { createContext, useContext, useEffect } from 'react'
 import { fmtPct, tone, tvIndex, tvStock } from './lib.js'
 
 // Every chart link opens a new tab and stops propagation, so clicking it never
 // selects a card, opens a drawer or touches any dashboard state.
 const stop = e => e.stopPropagation()
 
+// Opens a stock in Intraday Scanner -> Live Chart (provided by the app shell).
+export const StockChartCtx = createContext(null)
+
+export const CandleIcon = () => <svg viewBox="0 0 14 14" width="13" height="13" aria-hidden="true">
+  <path d="M3 2v10M7 4v8M11 1v9" stroke="currentColor" strokeWidth="1" /><rect x="1.8" y="5" width="2.4" height="4" fill="currentColor" />
+  <rect x="5.8" y="6" width="2.4" height="3.5" fill="currentColor" /><rect x="9.8" y="3" width="2.4" height="4" fill="currentColor" /></svg>
+
 export function StockLink({ symbol, company, children, className = '' }) {
-  return <a className={'tv-link ' + className} href={tvStock(symbol)} target="_blank" rel="noopener noreferrer"
+  const openChart = useContext(StockChartCtx)
+  const link = <a className={'tv-link ' + className} href={tvStock(symbol)} target="_blank" rel="noopener noreferrer"
     onClick={stop} title={(company ? company + ' · ' : '') + `Open NSE:${symbol} on TradingView`}>{children ?? symbol}<span className="ext">↗</span></a>
+  if (!openChart) return link
+  return <span className="stock-link">{link}<button className="chart-btn" title={`Open ${symbol} in the Live Chart`} aria-label={`Live chart ${symbol}`}
+    onClick={e => { e.preventDefault(); e.stopPropagation(); openChart(symbol) }}><CandleIcon /></button></span>
 }
 
 export function IndexLink({ name, label, className = '' }) {

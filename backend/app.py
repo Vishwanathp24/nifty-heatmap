@@ -194,6 +194,115 @@ def presence(id: str = ""):
         return {"online": len(_presence), "window_hours": 24}
 
 
+_crypto = None
+
+
+@app.get("/api/crypto")
+def crypto():
+    """Crypto tab: top coins (OKX USDT + CoinDCX INR), categories, bias, trending, ORB."""
+    global _crypto
+    from crypto import CryptoData
+
+    if _crypto is None:
+        _crypto = CryptoData()
+    return _crypto.snapshot()
+
+
+_crypto_opt = None
+
+
+@app.get("/api/crypto/options")
+def crypto_options(ccy: str = "BTC"):
+    """Crypto -> Options: BTC / ETH put/call ratio, max pain, DVOL / IV, expected move, skew, OI by strike."""
+    global _crypto_opt
+    from crypto_options import CryptoOptions
+
+    if _crypto_opt is None:
+        _crypto_opt = CryptoOptions()
+    try:
+        return _crypto_opt.get(ccy)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Options data unavailable ({type(exc).__name__}).")
+
+
+_crypto_live = None
+
+
+def _live():
+    global _crypto_live
+    from crypto_live import CryptoLive
+
+    if _crypto_live is None:
+        _crypto_live = CryptoLive()
+    return _crypto_live
+
+
+def _live_call(fn, *args):
+    try:
+        return fn(*args)
+    except (ValueError, LookupError) as exc:
+        raise HTTPException(status_code=404 if isinstance(exc, LookupError) else 400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Live data unavailable ({type(exc).__name__}).")
+
+
+@app.get("/api/crypto/symbols")
+def crypto_symbols():
+    """Crypto -> Live Chart search: every coin with an OKX USDT market."""
+    return _live_call(_live().symbols)
+
+
+@app.get("/api/crypto/trending")
+def crypto_trending():
+    """Crypto -> CoinGecko Trending: most-searched coins in the last 24h."""
+    return _live_call(_live().trending)
+
+
+@app.get("/api/crypto/pools")
+def crypto_pools():
+    """Crypto -> DEX Pools: trending on-chain pools with a basic safety screen (GeckoTerminal)."""
+    return _live_call(_live().pools)
+
+
+@app.get("/api/crypto/indicators")
+def crypto_indicators(symbol: str = "BTC"):
+    """Crypto -> Live Chart: indicator table on 1m ... 1M timeframes for one coin (OKX candles)."""
+    from crypto_live import indicator_table
+    return _live_call(indicator_table, _live(), symbol)
+
+
+@app.get("/api/crypto/candles")
+def crypto_candles(symbol: str = "BTC", tf: str = "1m", id: str = "", before: str = ""):
+    """Crypto -> Live Chart: OKX candles for one coin."""
+    return _live_call(_live().candles, symbol, tf, id or None, before or None)
+
+
+_stock_chart = None
+
+
+def _schart():
+    global _stock_chart
+    from stock_chart import StockChart
+
+    if _stock_chart is None:
+        _stock_chart = StockChart()
+    return _stock_chart
+
+
+@app.get("/api/chart/candles")
+def stock_candles(symbol: str, tf: str = "5m", before: str = ""):
+    """Intraday Scanner -> Live Chart: NSE stock candles (Yahoo) on 1m ... 1M; before = older history."""
+    return _live_call(_schart().candles, symbol, tf, before or None)
+
+
+@app.get("/api/chart/indicators")
+def stock_indicators(symbol: str):
+    """Intraday Scanner -> Live Chart: indicator table on 1m ... 1M for one NSE stock."""
+    return _live_call(_schart().indicators, symbol)
+
+
 _index_opt = None
 
 
@@ -245,8 +354,16 @@ def trend():
 
 DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 if DIST.exists():
-    app.mount("/assets", StaticFiles(directory=DIST / "assets"), name="assets")
+    class _CachedStatic(StaticFiles):
+        """Hashed build files never change under the same name: let browsers keep them a year."""
+        async def get_response(self, path, scope):
+            resp = await super().get_response(path, scope)
+            if resp.status_code == 200:
+                resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+            return resp
+
+    app.mount("/assets", _CachedStatic(directory=DIST / "assets"), name="assets")
 
     @app.get("/")
     def index():
-        return FileResponse(DIST / "index.html")
+        return FileResponse(DIST / "index.html", headers={"Cache-Control": "no-cache"})  # always pick up a new deploy

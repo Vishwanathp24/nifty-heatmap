@@ -2,27 +2,29 @@ import React, { useEffect, useState } from 'react'
 import { Empty, Seg } from './components.jsx'
 import { api, isNum, istTime, usePoll, useSessionState } from './lib.js'
 import OptionTools, { setMoney } from './OptionTools.jsx'
+import { PnlCalc, atmPremium } from './Chart.jsx'
 
-// Options board shared by Crypto -> Options (BTC / ETH on Deribit, $) and the Index Options
+// Options board shared by Crypto -> Options (BTC / ETH / SOL / XRP on Deribit, $) and the Index Options
 // page (Nifty on NSE, Rs, lots). Market data to read the set-up, not a buy/sell recommendation.
 
 export const CRYPTO = {
-  key: 'copt', symbols: [['BTC', 'BTC'], ['ETH', 'ETH']], endpoint: '/api/crypto/options?ccy=', cur: '$', locale: 'en-US',
+  key: 'copt', symbols: [['BTC', 'BTC'], ['ETH', 'ETH'], ['SOL', 'SOL'], ['XRP', 'XRP']], endpoint: '/api/crypto/options?ccy=', cur: '$', locale: 'en-US',
   vol: 'DVOL (implied vol)', volTitle: 'Deribit Volatility Index: 30-day implied volatility (like India VIX). Higher = options are more expensive / a bigger move is priced in.',
-  spotNote: 'Deribit index', source: 'Deribit options (largest crypto options exchange) · 25Δ skew from OKX', oiUnit: d => d.ccy,
-  biasName: 'Crypto Bias', ivBands: { BTC: [40, 65], ETH: [55, 85] },
-  oiNote: 'Open interest in coins (1 contract = 1 coin) for strikes within ±30% of spot.', expiryNote: 'Deribit options expire at 1:30 PM IST.', lot: null,
+  spotNote: 'Deribit index', source: 'Deribit options (largest crypto options exchange; SOL / XRP are USDC-settled) · 25Δ skew from OKX / Deribit', oiUnit: d => d.ccy,
+  biasName: 'Crypto Bias', ivBands: { BTC: [40, 65], ETH: [55, 85], SOL: [55, 90], XRP: [55, 90] },
+  oiNote: 'Open interest in coins for strikes within ±30% of spot.', expiryNote: 'Deribit options expire at 1:30 PM IST.', lot: null,
 }
 export const INDIA = {
-  key: 'iopt', symbols: [['NIFTY', 'Nifty 50'], ['SENSEX', 'Sensex']], endpoint: '/api/index-options?symbol=', cur: '₹', locale: 'en-IN',
+  key: 'iopt', symbols: [['NIFTY', 'Nifty 50'], ['SENSEX', 'Sensex']], endpoint: '/api/index-options?symbol=', cur: '', locale: 'en-IN',  // no ₹ sign (cleaner numbers)
   vol: 'India VIX', volTitle: 'India VIX: 30-day expected volatility of Nifty from option prices. Higher = options are more expensive / a bigger move is priced in.',
   spotNote: 'NSE index', source: 'NSE option chain (bid / ask / IV / OI)', oiUnit: () => 'contracts',
   biasName: 'Market Bias', ivBands: { NIFTY: [13, 20], SENSEX: [13, 20] },
   oiNote: 'Open interest in contracts for strikes within ±8% of spot.', expiryNote: 'NSE index options expire at 3:30 PM IST.', lot: 65,
+  pnl: { NIFTY: 65, SENSEX: 20 },  // trade P&L calculator lot sizes
 }
 
 let M = CRYPTO
-const money = (v, d = 0) => isNum(v) ? M.cur + v.toLocaleString(M.locale, { maximumFractionDigits: d }) : '—'
+const money = (v, d = 0) => isNum(v) ? M.cur + v.toLocaleString(M.locale, { maximumFractionDigits: Math.abs(v) >= 100 || !v ? d : Math.max(d, Math.abs(v) >= 10 ? 2 : 4) }) : '—'
 const big = v => !isNum(v) ? '—' : M.cur + (v >= 1e9 ? (v / 1e9).toFixed(2) + 'B' : (v / 1e6).toFixed(1) + 'M')
 const sgn = (v, d = 2, suf = '%') => isNum(v) ? (v > 0 ? '+' : '') + v.toFixed(d) + suf : '—'
 const amt = v => isNum(v) ? v.toLocaleString(M.locale, { maximumFractionDigits: v >= 100 ? 0 : 1 }) : '—'
@@ -37,12 +39,16 @@ export function OptionsBoard({ market, bias }) {
   const d = res.data && res.data.ccy === sym ? res.data : null
   useEffect(() => { setCode(null) }, [sym])
   const switcher = <Seg value={sym} onChange={setSym} options={market.symbols.map(([v, l]) => ({ value: v, label: l }))} />
-  if (!d) return <><div className="toolbar">{switcher}</div><Empty>{res.error || `Loading ${sym} options data…`}</Empty></>
+  // Index Options only: trade P&L calculator for the selected index (Nifty 50 lot 65, Sensex lot 20).
+  const pnl = market.pnl && (dd => { const ap = atmPremium(dd?.expiries?.[0], bias?.label)
+    return <PnlCalc id={'iopt:' + sym} name={market.symbols.find(s => s[0] === sym)[1]} lot={dd?.lot || market.pnl[sym]} buy={ap?.price ?? ''} buyLabel={ap?.label} /> })
+  if (!d) return <><div className="toolbar">{switcher}</div>
+    {pnl ? <div className="iopt-pnl-wrap"><Empty>{res.error || `Loading ${sym} options data…`}</Empty>{pnl(null)}</div> : <Empty>{res.error || `Loading ${sym} options data…`}</Empty>}</>
   const exps = d.expiries.slice(0, 12)
   if (!exps.length) return <><div className="toolbar">{switcher}</div><Empty>No option expiries available right now.</Empty></>
   const sel = exps.find(e => e.code === code) || exps[0]
   const near = exps[0]
-  const spotD = d.spot >= 10000 ? 0 : 2
+  const spotD = d.spot >= 10000 ? 0 : d.spot >= 10 ? 2 : 4
   return <div className="copt">
     <div className="toolbar">{switcher}
       <span className="muted small">{market.source} · updated {istTime(d.fetched_at)} IST{d.stale ? ' · showing last good data' : ''}</span>
@@ -50,7 +56,7 @@ export function OptionsBoard({ market, bias }) {
     <div className="crypto-market">
       <div className="cm-card"><div className="cm-k">{market.symbols.find(s => s[0] === sym)[1]} Spot</div><div className="cm-v">{money(d.spot, spotD)}</div><div className="cm-n muted">{market.spotNote}</div></div>
       <div className="cm-card" title={market.volTitle}>
-        <div className="cm-k">{market.vol}</div><div className="cm-v">{isNum(d.dvol) ? d.dvol.toFixed(1) : '—'}</div>
+        <div className="cm-k">{d.vol_label || market.vol}</div><div className="cm-v">{isNum(d.dvol) ? d.dvol.toFixed(1) : '—'}</div>
         <div className="cm-n"><span className={d.dvol_change_24h > 0 ? 'down' : d.dvol_change_24h < 0 ? 'up' : ''}>{sgn(d.dvol_change_24h, 2, '')}</span> <span className="muted">{market.lot ? 'vs prev close' : '24h'} · ≈{isNum(d.dvol) ? (d.dvol / Math.sqrt(market.lot ? 252 : 365)).toFixed(2) : '—'}% daily move</span></div></div>
       <div className="cm-card" title="Put/Call ratio of open interest. Above 1 = more puts (hedging / bearish bets); below 0.7 = call-heavy positioning.">
         <div className="cm-k">Put/Call Ratio (OI)</div><div className={'cm-v ' + pcrTone(d.pcr_oi)}>{d.pcr_oi ?? '—'}</div>
@@ -63,6 +69,7 @@ export function OptionsBoard({ market, bias }) {
         <div className="cm-n muted">±{near.move_pct}% · {money(d.spot - (near.move || 0))} – {money(d.spot + (near.move || 0))}</div></div>
     </div>
 
+    <div className={pnl ? 'iopt-pnl-wrap' : ''}>
     <section className="opt-sec">
     <div className="opt-sec-h"><div><h3>Expiries</h3><div className="muted small">Click a row to use that expiry in the tools below · total open interest {amt(d.total_oi)} {market.oiUnit(d)}{isNum(d.total_oi_usd) ? ` (${big(d.total_oi_usd)})` : ''}</div></div></div>
     <div className="tbl-wrap trend-wrap"><table className="tbl copt-tbl">
@@ -84,6 +91,8 @@ export function OptionsBoard({ market, bias }) {
       </tr>)}</tbody>
     </table></div>
     </section>
+    {pnl && pnl(d)}
+    </div>
 
     <OptionTools key={sym} d={d} exp={sel} market={market} bias={bias} />
 

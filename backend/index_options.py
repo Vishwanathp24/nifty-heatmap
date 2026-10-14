@@ -1,4 +1,5 @@
-"""Index Options page: Nifty (NSE) / Sensex (BSE) option chains in the same shape as the
+"""Index Options page (Nifty, NSE) and the Live Chart strategy card (F&O stocks, NSE Equity chain):
+option chains in the same shape as the
 crypto options payload, so the page can reuse the expiries table, OI chart, strike
 table, strategy explainer and payoff calculator.
 
@@ -8,6 +9,7 @@ Sensex options trade only on BSE, whose API refuses this network (Access Denied)
 endpoint reports that instead of guessing. NSE options expire at 3:30 PM IST.
 """
 import math
+import re
 import threading
 import time
 from datetime import datetime, timedelta, timezone
@@ -18,7 +20,31 @@ import sources
 IST = timezone(timedelta(hours=5, minutes=30))
 TTL = 60
 N_EXPIRIES = 6
-BAND = 0.08  # strikes within +-8% of spot
+BAND = 0.08  # strikes within +-8% of spot (indices)
+BAND_STOCK = 0.20  # stock strikes are wider apart relative to price
+INDICES = ("NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY")
+
+
+_LOTS = {"at": 0, "map": {}}
+
+
+def lot_size(symbol):
+    """F&O lot size for the current month from NSE's fo_mktlots.csv (cached 6 hours)."""
+    if time.time() - _LOTS["at"] > 6 * 3600 or not _LOTS["map"]:
+        try:
+            import requests
+            r = requests.get("https://nsearchives.nseindia.com/content/fo/fo_mktlots.csv", headers={"User-Agent": "Mozilla/5.0"}, timeout=20)
+            r.raise_for_status()
+            m = {}
+            for line in r.text.splitlines()[1:]:
+                parts = [x.strip() for x in line.split(",")]
+                if len(parts) > 2 and parts[2].isdigit():
+                    m[parts[1].upper()] = int(parts[2])
+            if m:
+                _LOTS.update(at=time.time(), map=m)
+        except Exception:
+            _LOTS["at"] = time.time() - 6 * 3600 + 300  # retry in 5 min
+    return _LOTS["map"].get(symbol.upper())
 
 
 def _ncdf(x):
@@ -52,8 +78,8 @@ class IndexOptions:
         if symbol == "SENSEX":
             raise LookupError("Sensex options trade only on BSE, and BSE's data API refuses requests from this "
                               "network (Access Denied), so a Sensex option chain isn't available.")
-        if symbol not in ("NIFTY", "BANKNIFTY", "FINNIFTY"):
-            raise ValueError("symbol must be NIFTY, BANKNIFTY, FINNIFTY or SENSEX")
+        if not re.fullmatch(r"[A-Z0-9&-]{1,20}", symbol):
+            raise ValueError("invalid symbol")
         with self.lock:
             hit = self.cache.get(symbol)
             if hit and time.time() - hit[0] < TTL:
@@ -76,7 +102,7 @@ class IndexOptions:
 
     def _build(self, symbol):
         now = datetime.now(IST)
-        info = sources.nse.get(sources.NSE_API + "option-chain-contract-info?symbol=" + symbol, timeout=25)
+        info = sources.nse.get(sources.NSE_API + "option-chain-contract-info?symbol=" + quote(symbol), timeout=25)
         dates = info.get("expiryDates") or []
         spot, expiries = None, []
         tot = {"coi": 0.0, "poi": 0.0, "cvol": 0.0, "pvol": 0.0}
@@ -85,7 +111,8 @@ class IndexOptions:
             days = (exp - now).total_seconds() / 86400
             if days <= 0:
                 continue
-            d = sources.nse.get(sources.NSE_API + f"option-chain-v3?type=Indices&symbol={symbol}&expiry={quote(ds)}", timeout=25)
+            kind = "Indices" if symbol in INDICES else "Equity"  # F&O stocks use the Equity chain
+            d = sources.nse.get(sources.NSE_API + f"option-chain-v3?type={kind}&symbol={quote(symbol)}&expiry={quote(ds)}", timeout=25)
             rec = d.get("records") or {}
             spot = rec.get("underlyingValue") or spot
             rows = [r for r in rec.get("data") or [] if r.get("CE") or r.get("PE")]
@@ -117,7 +144,8 @@ class IndexOptions:
             atm_iv = round(sum(ivs[atm]) / len(ivs[atm]), 2) if atm else None
             move = spot * atm_iv / 100 * math.sqrt(days / 365) if atm_iv else None
             mp = _max_pain(calls, puts)
-            strikes = sorted(k for k in set(calls) | set(puts) if abs(k / spot - 1) <= BAND)
+            band = BAND if symbol in INDICES else BAND_STOCK
+            strikes = sorted(k for k in set(calls) | set(puts) if abs(k / spot - 1) <= band)
             t = days / 365
             chain = [{"k": k,
                       "call": {**(q.get((k, "C")) or {}), "delta": _delta("C", spot, k, (q.get((k, "C")) or {}).get("iv"), t)},
@@ -142,7 +170,7 @@ class IndexOptions:
             })
             time.sleep(0.3)
         vix, vix_chg = self._vix()
-        return {"ccy": symbol, "spot": spot, "fetched_at": datetime.now(timezone.utc).isoformat(),
+        return {"ccy": symbol, "spot": spot, "fetched_at": datetime.now(timezone.utc).isoformat(), "lot": lot_size(symbol),
                 "dvol": vix, "dvol_change_24h": vix_chg, "vol_label": "India VIX",
                 "pcr_oi": round(tot["poi"] / tot["coi"], 2) if tot["coi"] else None,
                 "pcr_vol": round(tot["pvol"] / tot["cvol"], 2) if tot["cvol"] else None,

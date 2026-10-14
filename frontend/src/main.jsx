@@ -1,13 +1,16 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { Suspense, lazy, useCallback, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import './styles.css'
 import { api, istDate, istTime, nseTs, setSessionValue, useClock, usePersistentState, useSessionState, usePoll } from './lib.js'
+import { StockChartCtx } from './components.jsx'
 import Overview from './Overview.jsx'
 import Heatmap from './Heatmap.jsx'
 import Scanner, { DEFAULT_FILTERS, filterRows } from './Scanner.jsx'
-import Ipo from './Ipo.jsx'
-import Learning from './Learning.jsx'
 import Scans, { BiasBanner } from './Scans.jsx'
+// Pages loaded only when opened (smaller first download)
+const Crypto = lazy(() => import('./Crypto.jsx'))
+const Ipo = lazy(() => import('./Ipo.jsx'))
+const Learning = lazy(() => import('./Learning.jsx'))
 
 const REFRESH_MS = 10000
 const PAGES = [
@@ -15,8 +18,9 @@ const PAGES = [
   { id: 'heatmap', label: 'Sector Heatmap', key: '2' },
   { id: 'scanner', label: 'ORB Scanner', key: '3' },
   { id: 'trend', label: 'Intraday Scanner', key: '4' },
-  { id: 'ipo', label: 'IPO', key: '5' },
-  { id: 'learning', label: 'Learning', key: '6' },
+  { id: 'crypto', label: 'Crypto', key: '6' },
+  { id: 'ipo', label: 'IPO', key: '7' },
+  { id: 'learning', label: 'Learning', key: '8' },
 ]
 
 // Viewer count (last 24 h): ping every 15 s with a random per-browser id (no personal data).
@@ -40,14 +44,16 @@ function useViewers() {
 
 const hhmm = d => d ? istTime(d).slice(0, 5) : '…'  // HH:MM for the compact header
 
-function StatusBar({ live, auto, setAuto }) {
+function StatusBar({ live, auto, setAuto, crypto = false }) {
   const viewers = useViewers()
   const now = useClock()
   const status = live.data?.market_status?.label
   const delayed = !!live.error && !!live.data
   const ok = !!live.data && !live.error && !live.data.poll_error
   return <div className="hdr-status">
-    <span className={'mkt ' + (status === 'Market Open' ? 'open' : status === 'Pre-Open' ? 'pre' : 'closed')}>{status || '—'}</span>
+    {crypto  // crypto trades 24x7: on the Crypto page the pill shows that market, not NSE's
+      ? <span className="mkt open" title="Crypto markets trade 24 hours a day, 7 days a week">Crypto · Open 24×7</span>
+      : <span className={'mkt ' + (status === 'Market Open' ? 'open' : status === 'Pre-Open' ? 'pre' : 'closed')}>{status || '—'}</span>}
     {viewers != null && <span className="hdr-viewers" title={`${viewers} ${viewers === 1 ? 'person has' : 'people have'} used the dashboard in the last 24 hours`}><i className="live-dot" />{viewers}</span>}
     <span className="hdr-clock" title={`${istDate(now)} · Indian Standard Time`}><span className="hdr-date">{istDate(now)}</span> {istTime(now)} <small>IST</small></span>
     {delayed || live.data?.poll_error
@@ -76,13 +82,21 @@ function App() {
   const orb15 = usePoll(() => api(`/api/orb?tf=${tf15}&confirm=${Number(confirm15)}&orm=15`), auto ? REFRESH_MS : 3.6e6, [auto, tf15, confirm15])
   const ctx = usePoll(() => api('/api/context'), 60000, [])
   const trend = usePoll(() => api('/api/trend'), page === 'trend' ? 30000 : 3.6e6, [page === 'trend'])
+  const crypto = usePoll(() => api('/api/crypto'), page === 'crypto' ? 10000 : 3.6e6, [page === 'crypto'])
   const ipo = usePoll(() => api('/api/ipo'), page === 'ipo' ? 30000 : 300000, [page === 'ipo'])
 
   const toggleSector = useCallback(sym => setSelected(s => s.includes(sym) ? s.filter(x => x !== sym) : [...s, sym]), [setSelected])
   const orbCount = orb.data?.rows ? filterRows(orb.data.rows, orbFilters, selected, orb.data).length : null
   const orb15Count = orb15.data?.rows ? filterRows(orb15.data.rows, orbFilters15, selected, orb15.data).length : null
 
-  return <div className="app">
+  // Chart icon next to any stock symbol -> Intraday Scanner, Live Chart tab, that stock.
+  const [chartReq, setChartReq] = useState(0)
+  const openStockChart = useCallback(sym => {
+    setSessionValue('slive.sym', sym); setSessionValue('scans.tab', 'chart')
+    setChartReq(n => n + 1); setPage('trend'); window.scrollTo({ top: 0 })
+  }, [])
+
+  return <StockChartCtx.Provider value={openStockChart}><div className="app">
     <header className="hdr">
       <button className="hdr-brand" onClick={() => { setPage('overview'); window.scrollTo({ top: 0 }) }} title="Go to homepage (Market Overview)">
         <span>NSE Sector Heatmap</span></button>
@@ -93,16 +107,19 @@ function App() {
           {p.id === 'scanner' && (orbView === 15 ? orb15Count : orbCount) != null ? <span className="badge" title={`Signals passing the current ${orbView === 15 ? '15 Min' : '1 Hour'} ORB filters`}>{orbView === 15 ? orb15Count : orbCount}</span> : null}
         </button>)}
       </nav>
-      <StatusBar live={live} auto={auto} setAuto={setAuto} />
+      <StatusBar live={live} auto={auto} setAuto={setAuto} crypto={page === 'crypto'} />
     </header>
     <main className="page">
       {live.error && !live.data && <div className="alert">{live.error}</div>}
-      {page !== 'trend' && page !== 'overview' && <BiasBanner bias={live.data?.bias} onPick={id => { setSessionValue('scans.tab', id); setPage('trend'); window.scrollTo({ top: 0 }) }} />}
+      {page !== 'trend' && page !== 'overview' && page !== 'crypto' && <BiasBanner bias={live.data?.bias} onPick={id => { setSessionValue('scans.tab', id); setPage('trend'); window.scrollTo({ top: 0 }) }} />}
       {page === 'overview' && <Overview live={live.data} ctx={ctx.data} />}
       {page === 'heatmap' && <Heatmap live={live.data} selected={selected} setSelected={setSelected} toggle={toggleSector} goto={setPage} />}
-      {page === 'trend' && <Scans trend={trend} live={live.data} selected={selected} setSelected={setSelected} />}
-      {page === 'ipo' && <Ipo ipo={ipo} />}
-      {page === 'learning' && <Learning />}
+      {page === 'trend' && <Scans trend={trend} live={live.data} selected={selected} setSelected={setSelected} chartReq={chartReq} />}
+      <Suspense fallback={<div className="empty">Loading…</div>}>
+        {page === 'crypto' && <Crypto crypto={crypto} />}
+        {page === 'ipo' && <Ipo ipo={ipo} />}
+        {page === 'learning' && <Learning />}
+      </Suspense>
       {page === 'scanner' && <>
         <div className="orb-switch" role="tablist" aria-label="Opening range">
           {[[15, '15 Min ORB', '09:15–09:30', orb15Count], [60, '1 Hour ORB', '09:15–10:15', orbCount]].map(([v, label, range, n]) =>
@@ -118,7 +135,7 @@ function App() {
       Decision-support scanner — no buy/sell, target or stop-loss recommendations. Data: NSE (indices, quotes, per-minute prices, bhavcopy volumes, FII/DII, GIFT Nifty, market status), BSE (Sensex), Yahoo Finance (overseas indices, Scanner candles, opening-range fallback).
       {live.data?.source_ts && <> Latest NSE quote: {istDate(nseTs(live.data.source_ts))} {istTime(nseTs(live.data.source_ts))} IST.</>}
     </footer>
-  </div>
+  </div></StockChartCtx.Provider>
 }
 
 createRoot(document.getElementById('root')).render(<App />)
