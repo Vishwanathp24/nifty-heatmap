@@ -60,18 +60,19 @@ export function trendRows(rows, { dir, tfs, rsiMin, adxMin }) {
 }
 export const trendNeed = tfs => (tfs !== '60' ? 7 : 0) + (tfs !== '15' ? 7 : 0)
 
-export function useTrendSettings() {
-  const [dir, setDir] = useSessionState('trend.dir', 'bull')
-  const [tfs, setTfs] = useSessionState('trend.tfs', 'both')
-  const [rsiMin, setRsiMin] = useSessionState('trend.rsi', 60)
-  const [adxMin, setAdxMin] = useSessionState('trend.adx', 25)
-  const [universe, setUniverse] = useSessionState('trend.universe', 'fo')
+export function useTrendSettings(prefix = 'trend') {
+  const [dir, setDir] = useSessionState(prefix + '.dir', 'bull')
+  const [tfs, setTfs] = useSessionState(prefix + '.tfs', 'both')
+  const [rsiMin, setRsiMin] = useSessionState(prefix + '.rsi', 60)
+  const [adxMin, setAdxMin] = useSessionState(prefix + '.adx', 25)
+  const [universe, setUniverse] = useSessionState(prefix + '.universe', 'fo')
   return { dir, setDir, tfs, setTfs, rsiMin, setRsiMin, adxMin, setAdxMin, universe, setUniverse }
 }
 
-export default function Trend({ trend, settings }) {
+// crypto: link(row) renders the symbol link and hides the F&O / All switch
+export default function Trend({ trend, settings, link, prefix = 'trend', fmtLtp = fmtNum, noun = 'stock' }) {
   const { dir, setDir, tfs, setTfs, rsiMin, setRsiMin, adxMin, setAdxMin, universe, setUniverse } = settings
-  const [allOnly, setAllOnly] = useSessionState('trend.allOnly', true)
+  const [allOnly, setAllOnly] = useSessionState(prefix + '.allOnly', true)
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState({ key: 'score', dir: 'desc' })
   const data = trend.data
@@ -97,7 +98,7 @@ export default function Trend({ trend, settings }) {
       <label className="field-inline">ADX &gt;
         <select value={adxMin} onChange={e => setAdxMin(Number(e.target.value))}>
           {[20, 25, 30, 40].map(v => <option key={v} value={v}>{v}</option>)}</select></label>
-      <Seg value={universe} onChange={setUniverse} options={[{ value: 'fo', label: 'F&O' }, { value: 'all', label: 'All' }]} />
+      {!link && <Seg value={universe} onChange={setUniverse} options={[{ value: 'fo', label: 'F&O' }, { value: 'all', label: 'All' }]} />}
       <input className="search" placeholder="Search symbol" value={search} onChange={e => setSearch(e.target.value)} />
       <label className="check-label"><input type="checkbox" checked={allOnly} onChange={e => setAllOnly(e.target.checked)} />Only stocks meeting all {need} conditions</label>
     </div>
@@ -122,9 +123,9 @@ export default function Trend({ trend, settings }) {
             </tr>
           </thead>
           <tbody>{shown.map(r => <tr key={r.symbol}>
-            <td><StockLink symbol={r.symbol} company={r.company} className="strong" /></td>
+            <td>{link ? link(r) : <StockLink symbol={r.symbol} company={r.company} className="strong" />}</td>
             <td className="muted">{r.sector}</td>
-            <td className="num">{fmtNum(r.ltp)}</td>
+            <td className="num">{fmtLtp(r.ltp)}</td>
             <td className={'num ' + (r.pct_prev > 0 ? 'up' : r.pct_prev < 0 ? 'down' : '')}>{isNum(r.pct_prev) ? (r.pct_prev > 0 ? '+' : '') + r.pct_prev.toFixed(2) + '%' : '—'}</td>
             <td className={'num strong ' + (r.score === need ? (bull ? 'up' : 'down') : '')}>{r.score}/{need}</td>
             <td className="num">{r.score !== need ? '—' : r.since ? hhmmTo12(r.since) : 'just now'}</td>
@@ -132,7 +133,7 @@ export default function Trend({ trend, settings }) {
             {use60 && <Cells t={r.tf60} c={r.c60} bull={bull} />}
           </tr>)}</tbody>
         </table>
-        {!shown.length && <Empty>No stock meets every condition right now. Untick “Only stocks meeting all conditions” to see the closest ones (sort by Score).</Empty>}
+        {!shown.length && <Empty>No {noun} meets every condition right now. Untick “Only stocks meeting all conditions” to see the closest ones (sort by Score).</Empty>}
       </div>}
     <p className="muted small">Green = condition met, red = not met, grey = the opposing DI line. Values use the latest candle, which is still forming during market hours, so they change through the day (Yahoo data can lag NSE by a minute or two). An indicator screen, not a buy/sell recommendation.</p>
   </>

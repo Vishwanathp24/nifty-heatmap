@@ -22,6 +22,14 @@ const legPrice = (chain, l) => {
   const q = chain.find(r => r.k === l.k)?.[l.type === 'C' ? 'call' : 'put'] || {}
   return l.side === 'buy' ? (q.ask || q.mark) : (q.bid || q.mark)  // buys fill at the ask, sells at the bid
 }
+// Position value *now* at underlying price s (Black-Scholes, r = 0, each leg's own IV).
+const bsPrice = (type, s, k, iv, t) => {
+  if (!(iv > 0) || t <= 0) return Math.max(0, type === 'C' ? s - k : k - s)
+  const sig = iv / 100, sq = sig * Math.sqrt(t), d1 = (Math.log(s / k) + sq * sq / 2) / sq, d2 = d1 - sq
+  return type === 'C' ? s * ncdf(d1) - k * ncdf(d2) : k * ncdf(-d2) - s * ncdf(-d1)
+}
+const valueNow = (legs, s, t) => legs.reduce((a, l) => a + (l.side === 'buy' ? 1 : -1) * l.qty * bsPrice(l.type, s, l.k, l.iv, t), 0)
+
 const pnlAt = (legs, s) => legs.reduce((a, l) => {
   const intr = l.type === 'C' ? Math.max(0, s - l.k) : Math.max(0, l.k - s)
   return a + l.qty * (l.side === 'buy' ? intr - l.prem : l.prem - intr)
@@ -56,7 +64,7 @@ function analyse(legs, exp, spot) {
   return { net, maxP, maxL, be, pop }
 }
 
-function PayoffChart({ legs, exp, spot }) {
+function PayoffChart({ legs, exp, spot, sl }) {
   const ref = React.useRef(null)
   const [W, setW] = useState(760)
   useEffect(() => {
@@ -89,6 +97,7 @@ function PayoffChart({ legs, exp, spot }) {
     <path d={path} className="pf-line" />
     <line x1={x(spot)} x2={x(spot)} y1={T} y2={H - B} className="pf-spot" />
     {isNum(exp.max_pain) && exp.max_pain > lo && exp.max_pain < hi && <line x1={x(exp.max_pain)} x2={x(exp.max_pain)} y1={T} y2={H - B} className="pf-mp" />}
+    {isNum(sl) && sl > lo && sl < hi && <><line x1={x(sl)} x2={x(sl)} y1={T} y2={H - B} className="pf-sl" /><text x={x(sl) + 4} y={T + 12} className="pf-ax pf-sl-t">SL {usd(sl)}</text></>}
     {[yMax, 0, yMin].map((v, i) => <text key={i} x={L - 6} y={y(v) + 4} className="pf-ax" textAnchor="end">{usd(v)}</text>)}
     {[lo, spot, hi].map((s, i) => <text key={i} x={x(s)} y={H - 8} className="pf-ax" textAnchor={i === 0 ? 'start' : i === 2 ? 'end' : 'middle'}>{usd(s)}</text>)}
   </svg></div>
@@ -121,6 +130,55 @@ function Metrics({ a, legs = [], compact = false }) {
     <span>Max loss <b className="down">{a.maxL === -Infinity ? 'Unlimited' : usd(a.maxL)}</b></span>
     <span>Breakeven <b>{a.be.length ? a.be.map(v => usd(v)).join(' / ') : '—'}</b></span>
     {popChip}
+  </div>
+}
+
+// ---- stop-loss calculator -------------------------------------------------------------------
+// The user picks the rule; this shows where it sits and what it costs (estimate, not advice).
+function StopLoss({ legs, exp, spot, capital, onLevel, unit }) {
+  const credit = legs.reduce((t, l) => t + (l.side === 'sell' ? 1 : -1) * l.prem * l.qty, 0)  // + credit / − debit
+  const [rule, setRule] = useState(credit > 0 ? 'mult' : 'pct')
+  const [pct, setPct] = useState(40)
+  const [mult, setMult] = useState(2)
+  const t = Math.max(exp.days, 0.01) / 365
+  const v0 = valueNow(legs, spot, t)
+  const pnl = s => valueNow(legs, s, t) - v0  // change from now if the underlying moves to s
+  // direction that hurts the position: compare a small move each way
+  const step = Math.max(spot * 0.0005, 1)
+  const adverseUp = pnl(spot + step * 20) < pnl(spot - step * 20)
+  const [level, setLevel] = useState(() => Math.round(adverseUp ? spot + (exp.move || spot * 0.01) : spot - (exp.move || spot * 0.01)))
+  let loss = null, slLevel = null, note = ''
+  if (rule === 'level') {
+    slLevel = level; loss = Math.max(0, -pnl(level))
+  } else {
+    loss = rule === 'pct' ? Math.abs(credit) * pct / 100 : credit > 0 ? credit * (mult - 1) : null
+    if (rule === 'mult' && credit <= 0) note = 'The × premium rule is for credit (selling) trades — use % of premium for this position.'
+    if (loss != null) {  // walk the underlying in the adverse direction until the loss is reached
+      for (let i = 1; i <= 4000; i++) {
+        const s2 = adverseUp ? spot + step * i : spot - step * i
+        if (-pnl(s2) >= loss) { slLevel = s2; break }
+      }
+      if (slLevel == null) note = 'This loss is not reached within a large move right now (loss capped by the hedge before that point).'
+    }
+  }
+  useEffect(() => { onLevel(slLevel) }, [slLevel])
+  const pctCap = isNum(loss) && capital ? loss / capital * 100 : null
+  return <div className="sl-box">
+    <div className="sl-h"><b>Stop-loss calculator</b><span className="muted small">choose your rule — the numbers below follow it</span></div>
+    <div className="sl-row">
+      <Seg value={rule} onChange={setRule} options={[{ value: 'pct', label: '% of premium' }, { value: 'mult', label: '× premium collected' }, { value: 'level', label: 'Underlying level' }]} />
+      {rule === 'pct' && <label className="field-inline">Exit at <input type="number" min="5" max="100" step="5" value={pct} onChange={e => setPct(Math.min(100, Math.max(1, Number(e.target.value) || 1)))} className="qty" /> % loss of premium</label>}
+      {rule === 'mult' && <label className="field-inline">Exit when it costs <input type="number" min="1.1" max="5" step="0.1" value={mult} onChange={e => setMult(Math.max(1.1, Number(e.target.value) || 2))} className="qty" /> × the credit to close</label>}
+      {rule === 'level' && <label className="field-inline">Exit if {unit} reaches <input type="number" step="1" value={level} onChange={e => setLevel(Number(e.target.value) || level)} className="qty wide" /></label>}
+    </div>
+    <div className="pf-metrics pf-line1">
+      <span>Stop-loss level ≈ <b className="down">{isNum(slLevel) ? usd(slLevel) : '—'}</b>{isNum(slLevel) && <span className="muted"> ({((slLevel / spot - 1) * 100).toFixed(2)}% from spot)</span>}</span>
+      <span>Loss if hit ≈ <b className="down">{isNum(loss) ? usd(-loss) : '—'}</b></span>
+      <span>Of capital / margin <b>{isNum(pctCap) ? pctCap.toFixed(1) + '%' : '—'}</b></span>
+      <span>Position value at exit ≈ <b>{isNum(loss) ? usd(Math.abs(credit < 0 ? -credit - loss : credit + loss)) : '—'}</b></span>
+    </div>
+    {note && <div className="muted small">{note}</div>}
+    <div className="muted small">Estimate if the move happens now (option prices from each leg’s implied volatility); closer to expiry, the same move costs a buyer more and a seller less. Gaps, slippage and fees are not included. Your rule, not a recommendation.</div>
   </div>
 }
 
@@ -224,7 +282,8 @@ export default function OptionTools({ d, exp, market = {}, bias }) {
                   ['buy', 'For option buyers', 'debit — you pay the premium; risk limited to what you pay', fitB]]
     .map(([k, title, sub, fit]) => [k, title, sub, fit, [...VIEWS[view].list].filter(x => (k === 'buy') === BUYER.has(x[0])).sort((x, y) => (y[0] === fit) - (x[0] === fit))])
   useEffect(() => { setLegs(ls => ls.map(l => ({ ...l, k: exp.chain.some(r => r.k === l.k) ? l.k : ref.atm }))) }, [exp.code])
-  const priced = legs.map(l => ({ ...l, prem: legPrice(exp.chain, l), qty: l.qty * mult }))
+  const priced = legs.map(l => ({ ...l, prem: legPrice(exp.chain, l), qty: l.qty * mult, iv: exp.chain.find(r => r.k === l.k)?.[l.type === 'C' ? 'call' : 'put']?.iv }))
+  const [slLevel, setSlLevel] = useState(null)
   const a = analyse(priced, exp, d.spot)
   const strikes = exp.chain.map(r => r.k)
   // Calculator starts with the structure that fits the Market Bias (buyer pick, or the seller
@@ -304,8 +363,10 @@ export default function OptionTools({ d, exp, market = {}, bias }) {
           {market.lot && <span className="muted small" title="NSE lot size for this index">Lot size {lot} units (fixed) · change Qty to trade more lots</span>}</div>
       </div>
       <Metrics a={a} legs={priced} />
-      {a && <PayoffChart legs={priced} exp={exp} spot={d.spot} />}
-      <div className="muted small opt-foot">P&amp;L at expiry ({exp.expiry_ist}). <span className="pf-key spot" /> spot · <span className="pf-key band" /> expected move ±{usd(exp.move)} · <span className="pf-key mp" /> max pain {usd(exp.max_pain)}. Fees and early exit are not included.</div>
+      {a && <StopLoss key={legs.map(l => l.side + l.type + l.k).join() + exp.code} legs={priced} exp={exp} spot={d.spot} unit={ccy === 'BTC' || ccy === 'ETH' ? ccy : 'Nifty'}
+        capital={priced.some(l => l.side === 'sell') ? (a.maxL === -Infinity ? null : Math.abs(a.maxL)) : priced.reduce((t, l) => t + l.prem * l.qty, 0)} onLevel={setSlLevel} />}
+      {a && <PayoffChart legs={priced} exp={exp} spot={d.spot} sl={slLevel} />}
+      <div className="muted small opt-foot">P&amp;L at expiry ({exp.expiry_ist}). <span className="pf-key spot" /> spot · <span className="pf-key band" /> expected move ±{usd(exp.move)} · <span className="pf-key mp" /> max pain {usd(exp.max_pain)} · <span className="pf-key sl" /> stop-loss level. Fees and early exit are not included.</div>
     </section>
   </div>
 }

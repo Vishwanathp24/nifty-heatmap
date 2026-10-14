@@ -147,6 +147,8 @@ def yahoo_daily(symbol):
         if None in (o, h, l, c):
             continue
         d = (datetime.fromtimestamp(t, timezone.utc) + timedelta(hours=5, minutes=30)).date().isoformat()
+        if not v and o == h == l == c:
+            continue  # market holiday: Yahoo adds a flat, zero-volume row (e.g. 2 Oct)
         out.append({"d": d, "o": o, "h": h, "l": l, "c": c, "v": v or 0})
     return out
 
@@ -390,8 +392,8 @@ class TrendScan:
                     row = {"15": indicators(c15), "60": indicators(h1), "daily": daily_metrics(d1),
                            "hourly": hourly_metrics(to_hourly_clock(c15)), "at": time.time()}
                     now = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
-                    row["since"] = radar_times(c15, self.daily[s][1], now.hour * 60 + now.minute
-                                               if now.date().isoformat() == (c15[-1]["d"] if c15 else "") else CLOSE)
+                    now_min = now.hour * 60 + now.minute if now.date().isoformat() == (c15[-1]["d"] if c15 else "") else CLOSE
+                    row["since"] = radar_times(c15, self.daily[s][1], now_min)
                     with self.lock:
                         self.rows[s] = row
                 except Exception:

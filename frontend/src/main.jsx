@@ -38,6 +38,8 @@ function useViewers() {
   return n
 }
 
+const hhmm = d => d ? istTime(d).slice(0, 5) : '…'  // HH:MM for the compact header
+
 function StatusBar({ live, auto, setAuto }) {
   const viewers = useViewers()
   const now = useClock()
@@ -47,13 +49,12 @@ function StatusBar({ live, auto, setAuto }) {
   return <div className="hdr-status">
     <span className={'mkt ' + (status === 'Market Open' ? 'open' : status === 'Pre-Open' ? 'pre' : 'closed')}>{status || '—'}</span>
     {viewers != null && <span className="hdr-viewers" title={`${viewers} ${viewers === 1 ? 'person has' : 'people have'} used the dashboard in the last 24 hours`}><i className="live-dot" />{viewers}</span>}
-    <span className="hdr-clock" title="Indian Standard Time"><span className="hdr-date">{istDate(now)}</span> {istTime(now)} <small>IST</small></span>
+    <span className="hdr-clock" title={`${istDate(now)} · Indian Standard Time`}><span className="hdr-date">{istDate(now)}</span> {istTime(now)} <small>IST</small></span>
     {delayed || live.data?.poll_error
-      ? <span className="hdr-delayed" title={live.error || live.data?.poll_error}><i className="dot amber" />Data delayed · Last successful update: {istTime(live.data?.as_of || live.lastOk)}</span>
-      : <span className="hdr-upd"><i className={'dot ' + (ok && auto ? 'green' : 'grey')} />Last updated: {live.data?.as_of ? istTime(live.data.as_of) : '…'}</span>}
-    <button className={'hdr-auto' + (auto ? ' on' : '')} onClick={() => setAuto(a => !a)} title="Toggle auto refresh">
-      Auto Refresh: {auto ? 'ON' : 'OFF'}</button>
-    <span className="hdr-muted">Refresh interval: 10 sec</span>
+      ? <span className="hdr-delayed" title={`Data delayed — last successful update ${istTime(live.data?.as_of || live.lastOk)} IST · ${live.error || live.data?.poll_error}`}><i className="dot amber" />Delayed · {hhmm(live.data?.as_of || live.lastOk)}</span>
+      : <span className="hdr-upd" title={`Last updated ${live.data?.as_of ? istTime(live.data.as_of) : '…'} IST`}><i className={'dot ' + (ok && auto ? 'green' : 'grey')} />Updated {live.data?.as_of ? hhmm(live.data.as_of) : '…'}</span>}
+    <button className={'hdr-auto' + (auto ? ' on' : '')} onClick={() => setAuto(a => !a)} title={auto ? 'Auto refresh is ON (every 10 seconds) — click to pause' : 'Auto refresh is OFF — click to resume'}>
+      {auto ? 'Auto ✓ 10s' : 'Auto off'}</button>
   </div>
 }
 

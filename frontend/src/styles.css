@@ -605,6 +605,16 @@ th .arrow { font-size: 9px; margin-left: 4px; opacity: .6 }
 .leg-amt { font-size: 12px; padding: 2px 8px; border-radius: 4px }
 .leg-amt.buy { background: var(--down-bg); color: var(--down) } .leg-amt.sell { background: var(--up-bg); color: var(--up) }
 
+/* Compact header: brand + menu + status on one line on laptop screens */
+.hdr { gap: 14px; padding: 0 14px }
+.hdr-nav { gap: 0 }
+.hdr-nav button { padding: 0 11px; font-size: 13px }
+.hdr-status { gap: 10px; font-size: 12px }
+.hdr-status .mkt { font-size: 10.5px; padding: 2px 7px }
+.hdr-clock { font-size: 12.5px }
+.hdr-auto { padding: 2px 8px; font-size: 11.5px }
+@media (min-width: 1101px) and (max-width: 1400px) { .hdr-clock .hdr-date { display: none } }
+
 /* Strategy explainer: sellers | buyers side by side */
 .strat-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start }
 .strat-group { background: var(--panel-2); border-radius: 8px; padding: 12px }
@@ -631,3 +641,12 @@ th .arrow { font-size: 9px; margin-left: 4px; opacity: .6 }
 .strat-groups.single .strat-group.empty .sg-none { padding: 0; border: 0 }
 .strat-groups.single .strat-group.empty .sg-h .muted { display: none }
 .strat-groups.single .strat-group:not(.empty) .strat-list { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)) }
+
+/* Stop-loss calculator */
+.sl-box { border: 1px solid #FECACA; background: #FFF7F7; border-radius: 6px; padding: 12px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 10px }
+.sl-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px }
+.sl-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px }
+.sl-box .pf-line1 { margin-bottom: 0 } .sl-box .pf-line1 > span { background: #fff; border: 1px solid #FEE2E2 }
+.qty.wide { width: 110px }
+.pf-sl { stroke: #DC2626; stroke-width: 1.5; stroke-dasharray: 6 4 } .pf-sl-t { fill: #DC2626; font-weight: 600 }
+.pf-key.sl { background: #DC2626 }

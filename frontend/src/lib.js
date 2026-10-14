@@ -64,6 +64,7 @@ export const TV_INDEX = {
 
 const tvUrl = sym => 'https://www.tradingview.com/chart/?symbol=' + encodeURIComponent(sym)
 export const tvStock = symbol => tvUrl('NSE:' + symbol)
+export const tvCrypto = coin => tvUrl('OKX:' + coin + 'USDT')
 export const tvIndex = name => TV_INDEX[name] ? tvUrl(TV_INDEX[name]) : null
 
 // ---- formatting ---------------------------------------------------------------------
