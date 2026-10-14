@@ -194,6 +194,27 @@ def presence(id: str = ""):
         return {"online": len(_presence), "window_hours": 24}
 
 
+_index_opt = None
+
+
+@app.get("/api/index-options")
+def index_options(symbol: str = "NIFTY"):
+    """Index Options page: Nifty option chain (NSE) -> PCR, max pain, IV, expected move, skew, chain."""
+    global _index_opt
+    from index_options import IndexOptions
+
+    if _index_opt is None:
+        _index_opt = IndexOptions(engine)
+    try:
+        return _index_opt.get(symbol)
+    except LookupError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except sources.SourceError as exc:
+        raise HTTPException(status_code=502, detail=f"NSE option chain unavailable ({exc}).")
+
+
 _ipo = None
 
 

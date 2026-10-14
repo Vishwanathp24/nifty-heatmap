@@ -469,3 +469,138 @@ th .arrow { font-size: 9px; margin-left: 4px; opacity: .6 }
 .hdr-viewers { display: inline-flex; align-items: center; gap: 5px; font-family: var(--mono); font-weight: 700; color: #fff; font-size: 12.5px }
 .hdr-viewers .live-dot { width: 8px; height: 8px; border-radius: 50%; background: #EF4444; box-shadow: 0 0 0 0 rgba(239, 68, 68, .6); animation: live-pulse 2s infinite }
 @keyframes live-pulse { 0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, .6) } 70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0) } 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0) } }
+
+/* Crypto tab */
+.crypto-page .tile { text-align: left; font: inherit; color: inherit; text-decoration: none }
+.crypto-page .tile-pct { font-size: 17px; font-weight: 700; margin-top: 4px }
+.crypto-page .tile-sub { font-size: 11.5px; opacity: .8; margin-top: auto }
+.crypto-page .heatmap.coins { grid-template-columns: repeat(10, minmax(0, 1fr)) }
+@media (max-width: 1100px) { .crypto-page .heatmap.coins { grid-template-columns: repeat(5, minmax(0, 1fr)) } }
+@media (max-width: 600px) { .crypto-page .heatmap.coins { grid-template-columns: repeat(3, minmax(0, 1fr)) } }
+.crypto-page .heatmap.coins .tile { min-height: 64px }
+.crypto-page .sub-h { display: flex; align-items: center; gap: 10px; font-size: 14px; margin: 14px 0 8px }
+
+.crypto-market { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px }
+.cm-card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; min-width: 0 }
+.cm-k { font-size: 11.5px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .3px }
+.cm-v { font-family: var(--mono); font-size: 20px; font-weight: 700; margin-top: 4px; white-space: nowrap }
+.cm-lab { font-family: inherit; font-size: 12.5px; font-weight: 600 }
+.cm-n { font-size: 12px; margin-top: 4px }
+.meter { position: relative; height: 6px; border-radius: 3px; margin-top: 7px }
+.meter.fg { background: linear-gradient(90deg, #DC2626, #F59E0B 45%, #A3A3A3 50%, #84CC16 55%, #16A34A) }
+.meter.alt { background: linear-gradient(90deg, #F59E0B 0 25%, #D4D4D8 25% 75%, #3B82F6 75%) }
+.meter span { position: absolute; top: -4px; width: 4px; height: 14px; margin-left: -2px; background: var(--ink); border-radius: 2px }
+.crypto-top { gap: 8px }
+@media (max-width: 900px) { .crypto-market { grid-template-columns: repeat(2, minmax(0, 1fr)) } .crypto-market .cm-card:last-child { grid-column: 1 / -1 } }
+
+/* Crypto options */
+.copt .crypto-market { margin-top: 4px }
+.copt-tbl tr.clickable { cursor: pointer } .copt-tbl tr.row-sel td { background: var(--panel-2) }
+.oi-chart { padding: 10px 12px; max-height: 620px; overflow-y: auto }
+.oi-head { display: grid; grid-template-columns: 1fr 120px 1fr; font-size: 12px; font-weight: 600; margin-bottom: 6px; text-align: center }
+.up-c { color: #B91C1C }
+.oi-row { display: grid; grid-template-columns: 1fr 120px 1fr; align-items: center; gap: 6px; padding: 2px 0; font-size: 12px }
+.oi-row.spot { background: #FFF7D6 } .oi-row.mp .oi-k { font-weight: 700 }
+.oi-side { display: flex; align-items: center; gap: 6px; height: 14px }
+.oi-side.put { justify-content: flex-end } .oi-side i { display: block; height: 10px; border-radius: 2px; min-width: 1px }
+.oi-side.put i { background: #86EFAC } .oi-side.call i { background: #FCA5A5 }
+.oi-side.put i.top { background: #16A34A } .oi-side.call i.top { background: #DC2626 }
+.oi-val { font-family: var(--mono); color: var(--muted); font-size: 11px; min-width: 38px }
+.oi-side.put .oi-val { text-align: right }
+.oi-k { text-align: center; font-family: var(--mono); white-space: nowrap }
+.tag-spot, .tag-mp { font-family: inherit; font-size: 9.5px; margin-left: 4px; padding: 0 4px; border-radius: 3px; color: #fff }
+.tag-spot { background: #CA8A04 } .tag-mp { background: #7C3AED }
+.oi-foot { margin-top: 8px }
+.copt-notes { margin-top: 12px; line-height: 1.6 }
+@media (max-width: 600px) { .oi-head, .oi-row { grid-template-columns: 1fr 92px 1fr } }
+
+/* Option decision tools */
+.strike-tbl-wrap { max-height: 520px; overflow-y: auto }
+.strike-tbl td, .strike-tbl th { white-space: nowrap; padding: 4px 8px }
+.strike-tbl .grp-h { text-align: center }
+.strike-tbl tr.itm-c td:nth-child(-n+5) { background: #F1F7FF }
+.strike-tbl tr.itm-p td:nth-child(n+7) { background: #F1F7FF }
+.strike-tbl tr.atm td { border-top: 2px solid #CA8A04; border-bottom: 2px solid #CA8A04 }
+.strike-k { background: var(--panel-2) }
+.k-tag { font-size: 9.5px; margin-left: 4px; padding: 0 4px; border-radius: 3px; background: #EDE9FE; color: #5B21B6; font-weight: 600 }
+.strat-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 8px }
+.strat { padding: 10px 12px; display: flex; flex-direction: column; gap: 6px }
+.strat-h { display: flex; justify-content: space-between; align-items: center; gap: 8px }
+.strat-legs { display: flex; flex-wrap: wrap; gap: 4px }
+.leg { font-size: 11.5px; padding: 1px 6px; border-radius: 3px; font-family: var(--mono) }
+.leg.buy { background: var(--up-bg); color: var(--up) } .leg.sell { background: var(--down-bg); color: var(--down) }
+.pf-metrics { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px }
+.pf-metrics b { font-family: var(--mono) }
+.calc { padding: 12px; display: flex; flex-direction: column; gap: 10px }
+.calc-leg { display: flex; flex-wrap: wrap; align-items: center; gap: 8px }
+.calc .qty { width: 70px }
+.payoff-svg { width: 100%; height: auto; display: block }
+.pf-line { fill: none; stroke: var(--ink); stroke-width: 2 }
+.pf-area.up { fill: rgba(22, 163, 74, .18) } .pf-area.down { fill: rgba(220, 38, 38, .15) }
+.pf-zero { stroke: #94A3B8; stroke-width: 1 }
+.pf-spot { stroke: #CA8A04; stroke-width: 1.5 } .pf-mp { stroke: #7C3AED; stroke-dasharray: 4 3 }
+.pf-band { fill: rgba(59, 130, 246, .08) }
+.pf-ax { font-size: 10.5px; fill: var(--muted); font-family: var(--mono) }
+.pf-key { display: inline-block; width: 12px; height: 8px; vertical-align: middle; margin: 0 2px 0 6px }
+.pf-key.spot { background: #CA8A04 } .pf-key.band { background: rgba(59, 130, 246, .3) } .pf-key.mp { background: #7C3AED }
+
+/* Header: when the menu + status don't fit on one line, the status block wraps to a
+   second line (right-aligned) instead of running off the page. */
+.hdr { flex-wrap: wrap; height: auto; min-height: 46px; row-gap: 0 }
+.hdr-nav { min-height: 46px }
+.hdr-status { min-height: 40px; margin-left: auto; flex-wrap: wrap; row-gap: 4px }
+
+/* Options pages: spaced, carded sections */
+.copt { display: flex; flex-direction: column; gap: 18px }
+.copt > .toolbar { margin-bottom: 0 }
+.copt .crypto-market { margin: 0 }
+.opt-tools { display: flex; flex-direction: column; gap: 18px }
+.opt-sec { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 16px 18px; box-shadow: 0 1px 2px rgba(15, 23, 42, .04) }
+.opt-sec-h { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 10px 20px; margin-bottom: 14px }
+.opt-sec-h h3 { margin: 0 0 3px; font-size: 16px }
+.opt-view { display: flex; align-items: center; gap: 8px }
+.opt-foot { margin: 12px 0 0 }
+.opt-sec .tbl-wrap { border: 1px solid var(--border); border-radius: 6px }
+.strat-list { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px }
+.strat { border: 1px solid var(--border); border-radius: 8px; padding: 14px; gap: 10px; background: var(--panel) }
+.strat-h b { font-size: 14px }
+.strat-why { line-height: 1.5; min-height: 36px }
+.pf-metrics { gap: 6px }
+.pf-metrics > span { background: var(--panel-2); border-radius: 5px; padding: 4px 9px; font-size: 12px; white-space: nowrap }
+.calc-legs { display: flex; flex-direction: column; gap: 10px; padding: 12px; background: var(--panel-2); border-radius: 6px; margin-bottom: 14px }
+.calc-leg { gap: 10px }
+.leg-no { font-size: 11.5px; font-weight: 700; color: var(--muted); min-width: 40px }
+.leg-x { margin-left: auto }
+.calc-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding-top: 4px }
+.opt-sec > .pf-metrics { margin-bottom: 12px }
+.payoff-wrap { width: 100%; overflow: hidden }
+.payoff-svg { width: auto; max-width: 100% }
+.pf-ax { font-size: 11px }
+.copt-notes { margin-top: 0 }
+
+/* Strategy explainer: bias-driven guidance */
+.bias-guide { border: 1px solid var(--border); border-left: 4px solid var(--amber); border-radius: 6px; padding: 12px 14px; margin-bottom: 14px; display: flex; flex-direction: column; gap: 8px; background: var(--panel) }
+.bias-guide.bull { border-left-color: var(--up) } .bias-guide.bear { border-left-color: var(--down) }
+.bg-line { display: flex; flex-wrap: wrap; gap: 8px; align-items: center }
+.bg-text { font-size: 13px; line-height: 1.55 }
+.iv-pill { font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--panel-2) }
+.iv-pill.low { color: #1D4ED8; border-color: #BFDBFE; background: #EFF6FF } .iv-pill.high { color: #B45309; border-color: #FDE68A; background: #FFFBEB }
+.strat { position: relative }
+.strat.fit { border: 2px solid var(--up); box-shadow: 0 0 0 3px rgba(22, 163, 74, .08) }
+.fit-tag { align-self: flex-start; font-size: 11px; font-weight: 700; color: #fff; background: var(--up); padding: 2px 8px; border-radius: 10px }
+
+/* Strategy explainer: buyer vs seller groups */
+.bg-roles { display: flex; flex-direction: column; gap: 6px; font-size: 13px; line-height: 1.5 }
+.role-tag { display: inline-block; font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 10px; margin-right: 6px; white-space: nowrap }
+.role-tag.buy { background: #DBEAFE; color: #1E40AF } .role-tag.sell { background: #FCE7F3; color: #9D174D }
+.strat-groups { display: flex; flex-direction: column; gap: 16px }
+.strat-group { display: flex; flex-direction: column; gap: 10px }
+.sg-h { display: flex; flex-wrap: wrap; align-items: center; gap: 8px }
+.sg-none { padding: 12px; border: 1px dashed var(--border); border-radius: 8px }
+
+.calc-leg .units { font-weight: 600; color: var(--ink-2); background: var(--panel); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; margin-left: 2px }
+
+.pf-block { display: flex; flex-direction: column; gap: 6px }
+.pf-metrics.prem > span { background: #F8FAFC; border: 1px solid var(--border) }
+.leg-amt { font-size: 12px; padding: 2px 8px; border-radius: 4px }
+.leg-amt.buy { background: var(--down-bg); color: var(--down) } .leg-amt.sell { background: var(--up-bg); color: var(--up) }
