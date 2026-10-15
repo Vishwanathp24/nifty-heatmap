@@ -74,15 +74,21 @@ function ChainTable({ exp, spot, lot, extra }) {
   const cChg = sum(cRows, 'call', 'oi_chg') * m, pChg = sum(pRows, 'put', 'oi_chg') * m
   const putsBigger = pOi > cOi, ratio = cOi && pOi ? (putsBigger ? pOi / cOi : cOi / pOi) : null
   const kOf = r => r.k.toLocaleString(M.locale)
+  const share = v => (v / (cOi + pOi) * 100).toFixed(1) + '%'  // side's share of near-the-money OI
+  const chgPct = (oi, chg) => oi - chg > 0 ? (chg > 0 ? '+' : '') + (chg / (oi - chg) * 100).toFixed(1) + '%' : '—'  // vs OI before today's change
   return <section className="opt-sec chain-card">
     <div className="opt-sec-h"><div><h3>Option chain</h3><div className="muted small">Expiry {exp.expiry_ist} · ATM ± 10 strikes · OI in {lot ? 'units (contracts × lot ' + lot + ')' : 'contracts'}</div></div></div>
     {extra}
     {cOi > 0 && pOi > 0 && <div className="near-oi">
       <div className="near-oi-row">
-        <div className="near-oi-box down"><span>Call OI · ATM → +5 strikes</span><b>{big(cOi)}</b>
-          <small>{kOf(cRows[0])} – {kOf(cRows[cRows.length - 1])} · OI chg {cChg > 0 ? '+' : ''}{big(cChg)}</small></div>
-        <div className="near-oi-box up"><span>Put OI · ATM → −5 strikes</span><b>{big(pOi)}</b>
-          <small>{kOf(pRows[pRows.length - 1])} – {kOf(pRows[0])} · OI chg {pChg > 0 ? '+' : ''}{big(pChg)}</small></div>
+        <div className="near-oi-box down"><span>Call OI · ATM → +5 strikes</span><b>{big(cOi)} <em>{share(cOi)}</em></b>
+          <small>{kOf(cRows[0])} – {kOf(cRows[cRows.length - 1])} · OI chg {cChg > 0 ? '+' : ''}{big(cChg)} <span className={cChg > 0 ? 'up' : cChg < 0 ? 'down' : ''}>({chgPct(cOi, cChg)})</span></small></div>
+        <div className="near-oi-box up"><span>Put OI · ATM → −5 strikes</span><b>{big(pOi)} <em>{share(pOi)}</em></b>
+          <small>{kOf(pRows[pRows.length - 1])} – {kOf(pRows[0])} · OI chg {pChg > 0 ? '+' : ''}{big(pChg)} <span className={pChg > 0 ? 'up' : pChg < 0 ? 'down' : ''}>({chgPct(pOi, pChg)})</span></small></div>
+        <div className={'near-oi-box diff ' + (putsBigger ? 'up' : 'down')}><span>Put vs Call · near the money</span>
+          <b>{putsBigger ? 'Put' : 'Call'} +{big(Math.abs(pOi - cOi))} <em>{(Math.abs(pOi - cOi) / Math.min(pOi, cOi) * 100).toFixed(1)}% more</em></b>
+          <div className="near-oi-split" title={`Call ${share(cOi)} · Put ${share(pOi)}`}><i className="c" style={{ width: share(cOi) }} /><i className="p" style={{ width: share(pOi) }} /></div>
+          <small>Call {share(cOi)} · Put {share(pOi)} · PCR {(pOi / cOi).toFixed(2)}</small></div>
       </div>
       <div className={'near-oi-verdict ' + (putsBigger ? 'up' : 'down')}>
         {putsBigger ? 'Put OI is greater' : 'Call OI is greater'} — {ratio.toFixed(2)}× near the money (put / call = {(pOi / cOi).toFixed(2)}).{' '}

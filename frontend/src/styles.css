@@ -943,7 +943,7 @@ th .arrow { font-size: 9px; margin-left: 4px; opacity: .6 }
 .mini-strip .bias-pill.neutral, .mini-strip .pcr-mini.amber { border-left-color: var(--amber) }
 /* Option chain: near-the-money OI (ATM ± 5) comparison */
 .near-oi { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px }
-.near-oi-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px }
+.near-oi-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px }
 .near-oi-box { border: 1px solid var(--border); border-left: 4px solid; border-radius: 6px; padding: 7px 10px; display: flex; flex-direction: column; gap: 1px; background: var(--panel) }
 .near-oi-box.down { border-left-color: var(--down) } .near-oi-box.up { border-left-color: var(--up) }
 .near-oi-box span { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .3px }
@@ -1162,3 +1162,8 @@ details.copt-notes[open] > summary { margin-bottom: 6px }
 .jr-tbl .jr-pick { width: 28px; text-align: center } .jr-tbl .jr-pick input { cursor: pointer }
 .jr-del-sel { color: #fff; background: var(--down); border-color: var(--down) }
 .btn.jr-del-sel:hover, .btn.jr-del-sel:focus-visible { color: #fff; background: #a52f2f; border-color: #a52f2f }
+.near-oi-box b em { font-style: normal; font-size: 12px; font-weight: 600; color: var(--ink-2); margin-left: 4px }
+.near-oi-box.diff { border-left-width: 4px }
+.near-oi-split { display: flex; height: 6px; border-radius: 3px; overflow: hidden; margin: 3px 0 2px; background: var(--border) }
+.near-oi-split .c { background: var(--down) } .near-oi-split .p { background: var(--up) }
+@media (max-width: 700px) { .near-oi-row { grid-template-columns: 1fr 1fr } .near-oi-box.diff { grid-column: 1 / -1 } }
