@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect } from 'react'
-import { fmtPct, tone, tvIndex, tvStock } from './lib.js'
+import { fmtPct, tone, tvIndex, tvStock, tvSymbol } from './lib.js'
 
 // Every chart link opens a new tab and stops propagation, so clicking it never
 // selects a card, opens a drawer or touches any dashboard state.
@@ -15,7 +15,7 @@ export const CandleIcon = () => <svg viewBox="0 0 14 14" width="13" height="13" 
 export function StockLink({ symbol, company, children, className = '' }) {
   const openChart = useContext(StockChartCtx)
   const link = <a className={'tv-link ' + className} href={tvStock(symbol)} target="_blank" rel="noopener noreferrer"
-    onClick={stop} title={(company ? company + ' · ' : '') + `Open NSE:${symbol} on TradingView`}>{children ?? symbol}<span className="ext">↗</span></a>
+    onClick={stop} title={(company ? company + ' · ' : '') + `Open ${tvSymbol(symbol)} on TradingView`}>{children ?? symbol}<span className="ext">↗</span></a>
   if (!openChart) return link
   return <span className="stock-link">{link}<button className="chart-btn" title={`Open ${symbol} in the Live Chart`} aria-label={`Live chart ${symbol}`}
     onClick={e => { e.preventDefault(); e.stopPropagation(); openChart(symbol) }}><CandleIcon /></button></span>

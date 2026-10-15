@@ -30,6 +30,64 @@ export function PcrGuide() {
   </div>
 }
 
+// Nifty PCR for the nearest expiry (shared by the meter and the Sector Heatmap card).
+export function usePcr() {
+  const res = usePoll(() => api('/api/index-options?symbol=NIFTY'), 60000, [])
+  const d = res.data, e = d?.expiries?.[0], v = e?.pcr_oi
+  return d && isNum(v) ? { v, zone: pcrZone(v), expiry: e.expiry_ist.split(',')[0], all: d.pcr_oi, at: d.fetched_at, ...levels(d, e) } : null
+}
+
+// Support / resistance from the option chain: strike with the highest put OI (support) and call OI
+// (resistance) for the nearest expiry.
+function levels(d, e) {
+  const st = (e?.strikes || []).filter(r => r.c || r.p)
+  if (!st.length) return { spot: d?.spot }
+  const sup = st.reduce((a, r) => r.p > a.p ? r : a), res = st.reduce((a, r) => r.c > a.c ? r : a)
+  return { spot: d.spot, support: sup.k, resistance: res.k }
+}
+
+// "Common interpretation" table and the decision check: PCR alone is never a buy / sell trigger.
+const PCR_TABLE = [
+  ['Below 0.7', 'Call OI dominates', 'Potentially bearish'],
+  ['0.7 – 1.0', 'Relatively balanced to bearish', 'Wait for price confirmation'],
+  ['1.0 – 1.3', 'Relatively balanced to bullish', 'Check trend and OI changes'],
+  ['Above 1.3', 'High put-to-call OI ratio', 'Check for extremes and reversals'],
+]
+const rowOf = v => v < 0.7 ? 0 : v < 1.0 ? 1 : v <= 1.3 ? 2 : 3
+const fmtK = v => isNum(v) ? v.toLocaleString('en-IN') : '—'
+
+export function pcrCheck(p) {
+  if (!p) return null
+  const { v, spot, support, resistance } = p
+  const reading = v > 1.3 ? `${v.toFixed(2)} is a high reading — heavy put positioning (often support), but an extreme can also mean crowded positioning. Treat it as a reason for caution, not an automatic sell signal.`
+    : v < 0.7 ? `${v.toFixed(2)} is a low reading — call OI dominates; wait for price to confirm before acting on it.`
+    : v < 1.0 ? `${v.toFixed(2)} is balanced to bearish — wait for price confirmation.`
+    : `${v.toFixed(2)} is balanced to bullish — check the trend and OI changes.`
+  let state = 'wait', status = 'Wait — price is between support and resistance; no confirmation either way.'
+  if (isNum(spot) && isNum(resistance) && spot > resistance) { state = 'ce'; status = `Bullish breakout condition met — Nifty ${fmtK(Math.round(spot))} is above the ${fmtK(resistance)} resistance (highest call OI). The CE side applies only while it sustains above it.` }
+  else if (isNum(spot) && isNum(support) && spot < support) { state = 'pe'; status = `Support broken — Nifty ${fmtK(Math.round(spot))} is below the ${fmtK(support)} support (highest put OI). The PE side applies only while it sustains below it.` }
+  return { reading, state, status, row: rowOf(v) }
+}
+
+export function PcrDecision({ p }) {
+  const c = pcrCheck(p)
+  if (!c) return null
+  return <div className="pcr-dec">
+    <b>PCR decision guide</b>
+    <table className="tbl compact pcr-dec-tbl"><thead><tr><th>PCR (OI)</th><th>Common interpretation</th><th>Response</th></tr></thead>
+      <tbody>{PCR_TABLE.map((r, i) => <tr key={r[0]} className={i === c.row ? 'on' : ''}><td className="strong">{r[0]}</td><td>{r[1]}</td><td>{r[2]}</td></tr>)}</tbody></table>
+    <div><b>Now:</b> {c.reading}</div>
+    <div className="pcr-dec-levels">Support (highest put OI) <b className="up">{fmtK(p.support)}</b> · Spot <b>{fmtK(isNum(p.spot) ? Math.round(p.spot) : null)}</b> · Resistance (highest call OI) <b className="down">{fmtK(p.resistance)}</b> · expiry {p.expiry}</div>
+    <div className={'pcr-dec-status ' + c.state}>{c.status}</div>
+    <ul className="pcr-dec-rules">
+      <li><b>CE side</b> — only if Nifty's price action confirms a bullish reversal or breakout (sustains above resistance).</li>
+      <li><b>PE side</b> — only if Nifty breaks support and sustains below it.</li>
+      <li><b>Wait</b> — if price is moving sideways or PCR conflicts with price action.</li>
+    </ul>
+    <div className="muted small">Ranges are rough guides, not fixed rules — PCR levels vary by expiry, market conditions and data provider. Never trade on PCR alone: confirm option-chain changes, support / resistance and price action. Not a buy/sell recommendation.</div>
+  </div>
+}
+
 // Meter shown on every page except Crypto: Nifty PCR for the nearest expiry, zone bar and meaning.
 export function PcrMeter() {
   const res = usePoll(() => api('/api/index-options?symbol=NIFTY'), 60000, [])
@@ -52,6 +110,20 @@ export function PcrMeter() {
       <span className="muted small">Expiry {e.expiry_ist.split(',')[0]} · all expiries {d.pcr_oi ?? '—'} · {istTime(d.fetched_at)} IST</span>
       <button className="btn sm" onClick={() => setOpen(o => !o)}>{open ? 'Hide' : 'What is PCR?'}</button>
     </div>
-    {open && <PcrGuide />}
+    {open && <><PcrGuide /><PcrDecision p={{ v, ...levels(d, e), expiry: e.expiry_ist.split(',')[0] }} /></>}
   </div>
+}
+
+// Nifty PCR card (Sector Heatmap top row, Market Overview beside India VIX).
+export function PcrCard() {
+  const pcr = usePcr()
+  return <>
+    <div className={'card hm-card ' + (pcr?.zone.tone || '')}>
+      <div className="card-k">Nifty PCR (OI)</div>
+      <div className="card-v">{pcr ? pcr.v.toFixed(2) : '—'} {pcr && <span className={'pcr-pill ' + pcr.zone.tone}>{pcr.zone.label}</span>}</div>
+      <div className="card-n">{pcr ? <>{pcr.zone.text} <span className="muted">Expiry {pcr.expiry} · all expiries {pcr.all ?? '—'}</span></> : 'Loading…'}</div>
+      {pcr && (() => { const c = pcrCheck(pcr); return <div className={'pcr-dec-status small ' + c.state} title="Support = highest put OI strike, resistance = highest call OI strike (nearest expiry)">
+        {c.state === 'wait' ? `Wait — inside ${pcr.support?.toLocaleString('en-IN')} support / ${pcr.resistance?.toLocaleString('en-IN')} resistance` : c.state === 'ce' ? `Above ${pcr.resistance?.toLocaleString('en-IN')} resistance — CE side only if it sustains` : `Below ${pcr.support?.toLocaleString('en-IN')} support — PE side only if it sustains`}</div> })()}
+    </div>
+  </>
 }

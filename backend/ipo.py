@@ -207,3 +207,128 @@ class IpoData:
             priced = sum(1 for r in recent if r["ltp"] is not None)
         return {"upcoming": upcoming, "recent": recent, "recent_days": RECENT_DAYS,
                 "prices_loaded": priced, "fetched_at": datetime.now(IST).isoformat()}
+
+
+# ---- IPO detail (Upcoming IPOs -> click a company) -----------------------------------------
+# From NSE's ipo-detail feed: issue facts, live subscription by category and document links,
+# plus a fact-based checklist (👍 / 👎 per factor). No overall invest / don't-invest verdict.
+import re
+
+_DETAIL = {}
+_DETAIL_LOCK = threading.Lock()
+DETAIL_TTL = 120
+
+
+def _clean(v):
+    v = re.sub(r"<[^>]+>", " ", str(v or "")).strip().strip('"').strip()
+    return re.sub(r"\s+", " ", v)
+
+
+def _shares(text, label):
+    m = re.search(label + r"[^0-9]{0,40}([\d,]{4,})\s*Equity Shares", text, re.I)
+    return int(m.group(1).replace(",", "")) if m else 0
+
+
+def _part(text, kind, price):
+    """Value in ₹ crore of the fresh-issue or offer-for-sale part (given as ₹ amount or a share count)."""
+    other = "offer for sale" if kind == "fresh issue" else "fresh issue"
+    m = re.search(kind + r"(.*?)(?:" + other + r"|\(|$)", text, re.I)
+    if not m:
+        return None
+    seg = m.group(1)
+    amt = re.search(r"Rs\.?\s*([\d,]+(?:\.\d+)?)\s*(million|crore|cr|lakh)", seg, re.I)
+    if amt:
+        v = float(amt.group(1).replace(",", ""))
+        return round(v / 10 if amt.group(2).lower() == "million" else v / 100 if amt.group(2).lower() == "lakh" else v, 1)
+    sh = re.search(r"([\d,]{4,})\s*Equity Shares", seg, re.I)
+    if sh and price:
+        return round(int(sh.group(1).replace(",", "")) * price / 1e7, 1)
+    return 0.0 if seg is not None else None
+
+
+def _check(key, label, verdict, detail):
+    return {"key": key, "label": label, "verdict": verdict, "detail": detail}
+
+
+def ipo_detail(symbol, series="EQ"):
+    symbol, series = symbol.upper().strip(), (series or "EQ").upper().strip()
+    if not re.fullmatch(r"[A-Z0-9&-]{1,20}", symbol) or not re.fullmatch(r"[A-Z]{1,5}", series):
+        raise ValueError("invalid symbol / series")
+    key = symbol + ":" + series
+    with _DETAIL_LOCK:
+        hit = _DETAIL.get(key)
+    if hit and time.time() - hit[0] < DETAIL_TTL:
+        return hit[1]
+    d = sources.nse.get(sources.NSE_API + f"ipo-detail?symbol={symbol}&series={series}", timeout=25)
+    info = {(x.get("title") or "").strip(): _clean(x.get("value")) for x in (d.get("issueInfo") or {}).get("dataList", []) if x.get("title")}
+    raw = {(x.get("title") or "").strip(): str(x.get("value") or "") for x in (d.get("issueInfo") or {}).get("dataList", []) if x.get("title")}
+    link = lambda t: (re.search(r"https?://\S+?\.(?:zip|pdf)", raw.get(t, "")) or [None])[0]
+
+    # subscription by category (latest "times subscribed")
+    subs, total = {}, None
+    names = {"1": "qib", "2": "nii", "2.1": "bnii", "2.2": "snii", "3": "rii", "4": "emp"}
+    for r in (d.get("activeCat") or {}).get("dataList", []):
+        sr, cat = str(r.get("srNo") or ""), (r.get("category") or "")
+        x = _num(r.get("noOfTotalMeant"))
+        if sr in names and x is not None:
+            subs[names[sr]] = {"label": cat, "times": round(x, 2), "offered": _num(r.get("noOfShareOffered")), "bid": _num(r.get("noOfSharesBid"))}
+        if cat.strip().lower() == "total":
+            total = round(x, 2) if x is not None else None
+
+    size_text = info.get("Issue Size", "")
+    pr = [float(x.replace(",", "")) for x in re.findall(r"([\d,]+(?:\.\d+)?)", info.get("Price Range", ""))][:2]
+    lo, hi = (pr + pr)[:2] if pr else (None, None)
+    fresh = _part(size_text, "fresh issue", hi) or 0   # ₹ crore
+    ofs = _part(size_text, "offer for sale", hi) or 0
+    lot = (re.search(r"(\d+)\s*Equity Shares", info.get("Bid Lot", "")) or [None, None])[1]
+    lot = int(lot) if lot else None
+    size_cr = round(fresh + ofs, 1) if fresh or ofs else None
+    sme = series in ("SM", "ST") or "SME" in series
+
+    checks = []
+    q = (subs.get("qib") or {}).get("times")
+    if q is None:
+        checks.append(_check("qib", "Institutional (QIB) demand", "neutral", "No QIB bids yet — usually most QIB bidding comes on the last day."))
+    elif q >= 10:
+        checks.append(_check("qib", "Institutional (QIB) demand", "up", f"QIBs bid {q}× their quota — strong demand from institutions."))
+    elif q >= 1:
+        checks.append(_check("qib", "Institutional (QIB) demand", "neutral", f"QIBs bid {q}× their quota — covered, not heavy (watch the last day)."))
+    else:
+        checks.append(_check("qib", "Institutional (QIB) demand", "down", f"QIBs bid only {q}× their quota — institutions not fully in yet."))
+    if total is not None:
+        checks.append(_check("total", "Overall subscription", "up" if total >= 5 else "down" if total < 1 else "neutral",
+                             f"Total {total}× — " + ("strong overall demand." if total >= 5 else "not yet fully subscribed." if total < 1 else "fully subscribed, moderate demand.")))
+    rii = (subs.get("rii") or {}).get("times")
+    if rii is not None and rii >= 10:
+        checks.append(_check("rii", "Retail allotment chance", "neutral", f"Retail {rii}× oversubscribed — allotment is by lottery, so the chance of getting shares is low."))
+    if fresh and not ofs:
+        checks.append(_check("structure", "Issue structure", "up", "100% fresh issue — all money raised goes to the company."))
+    elif ofs and not fresh:
+        checks.append(_check("structure", "Issue structure", "down", "100% offer for sale — existing shareholders are selling; the company gets no new money."))
+    elif fresh and ofs:
+        f = round(fresh / (fresh + ofs) * 100)
+        checks.append(_check("structure", "Issue structure", "up" if f >= 50 else "neutral", f"{f}% fresh issue, {100 - f}% offer for sale (existing holders selling)."))
+    if size_cr is not None:
+        checks.append(_check("size", "Issue size / liquidity", "up" if size_cr >= 500 else "down" if size_cr < 100 else "neutral",
+                             f"≈ ₹{size_cr:,.0f} Cr at the upper band — " + ("large issue, usually good trading liquidity after listing." if size_cr >= 500 else "small issue, thinner trading after listing." if size_cr < 100 else "mid-sized issue.")))
+    if sme:
+        checks.append(_check("sme", "Board", "down", "SME platform — higher risk, bigger lot sizes and lower liquidity than the main board."))
+    else:
+        checks.append(_check("board", "Board", "up", "Main board listing (NSE / BSE)."))
+    if link("Anchor Allocation Report") or "anchor" in size_text.lower():
+        checks.append(_check("anchor", "Anchor investors", "up", "Anchor investors took a portion before the issue opened (see the anchor allocation report)."))
+
+    out = {
+        "symbol": symbol, "series": series, "company": next((k for k in info if k and not info[k] and k not in ("Symbol",)), None) or d.get("companyName"),
+        "period": info.get("Issue Period"), "price_range": info.get("Price Range"), "price_lo": lo, "price_hi": hi,
+        "face_value": info.get("Face Value"), "lot": lot, "min_investment": round(lot * hi) if lot and hi else None,
+        "issue_type": info.get("Issue Type"), "issue_size_text": size_text, "fresh_cr": fresh or None, "ofs_cr": ofs or None,
+        "size_cr": size_cr, "employee_discount": info.get("Discount"), "lead_managers": info.get("Book Running Lead Managers"),
+        "registrar": info.get("Name of the Registrar"), "upi_cutoff": (info.get("Cut-off time for UPI Mandate Confirmation") or "")[:60],
+        "links": {"rhp": link("Red Herring Prospectus"), "ratios": link("Ratios / Basis of Issue Price"), "anchor": link("Anchor Allocation Report")},
+        "subscription": subs, "total_times": total, "checks": checks, "sme": sme,
+        "fetched_at": datetime.now(IST).isoformat(),
+    }
+    with _DETAIL_LOCK:
+        _DETAIL[key] = (time.time(), out)
+    return out

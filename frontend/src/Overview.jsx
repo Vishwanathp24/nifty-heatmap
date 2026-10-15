@@ -1,6 +1,7 @@
+import { PcrCard } from './Pcr.jsx'
 import React, { useMemo, useState } from 'react'
 import { BreadthBar, Empty, IndexLink, Pct, Section, StockLink } from './components.jsx'
-import { fmtCr, fmtNum, fmtPct, fmtRatio, fmtSigned, fmtVol, istDate, istTime, isNum, nseTs, tone, useClock } from './lib.js'
+import { fmtCr, fmtNum, fmtPct, fmtRatio, fmtSigned, fmtVol, istDate, istTime, isNum, nseTs, tone, tvStock, tvSymbol, useClock } from './lib.js'
 
 const biasClass = l => l === 'BULLISH' ? 'bull' : l === 'BEARISH' ? 'bear' : 'neutral'
 
@@ -42,15 +43,16 @@ function IndexCard({ name, label, q, vix }) {
 
 function SummaryCards({ live }) {
   const { indices } = live
-  return <div className="cards four">
+  return <div className="cards five">
     <IndexCard name="INDIA VIX" label="India VIX" q={indices.indiavix} vix />
+    <PcrCard />
     <IndexCard name="NIFTY 50" label="NIFTY 50" q={indices.nifty50} />
     <IndexCard name="NIFTY BANK" label="NIFTY BANK" q={indices.niftybank} />
     <IndexCard name="SENSEX" label="SENSEX" q={indices.sensex} />
   </div>
 }
 
-function BreadthPanel({ title, subtitle, b, alt, rows, showTotal }) {
+export function BreadthPanel({ title, subtitle, b, alt, rows, showTotal }) {
   const [open, setOpen] = useState(false)
   const pctUp = b.total ? Math.round(b.up / b.total * 100) : 0
   const pctDn = b.total ? Math.round(b.down / b.total * 100) : 0
@@ -68,8 +70,8 @@ function BreadthPanel({ title, subtitle, b, alt, rows, showTotal }) {
     <div className="bbar-legend"><span className="up">{pctUp}% Advancing</span><span className="down">{pctDn}% Declining</span></div>
     {alt && <div className="muted small">vs today's open: {alt.up} up / {alt.down} down / {alt.unchanged} unchanged</div>}
     {open && <div className="chip-grid">{sorted.map(s => <a key={s.symbol} className={'chip ' + tone(s.pct_prev)}
-      href={'https://www.tradingview.com/chart/?symbol=' + encodeURIComponent('NSE:' + s.symbol)} target="_blank" rel="noopener noreferrer"
-      title={`${s.company} · ${fmtPct(s.pct_prev)} vs prev close · open NSE:${s.symbol} on TradingView`}>
+      href={tvStock(s.symbol)} target="_blank" rel="noopener noreferrer"
+      title={`${s.company} · ${fmtPct(s.pct_prev)} vs prev close · open ${tvSymbol(s.symbol)} on TradingView`}>
       {s.symbol}<b>{fmtPct(s.pct_prev)}</b></a>)}</div>}
   </Section>
 }

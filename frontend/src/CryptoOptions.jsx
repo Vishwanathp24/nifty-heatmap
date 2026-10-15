@@ -3,7 +3,7 @@ import { Empty, Seg } from './components.jsx'
 import { api, isNum, istTime, usePoll, useSessionState } from './lib.js'
 import OptionTools, { setMoney } from './OptionTools.jsx'
 import { PnlCalc, atmPremium } from './Chart.jsx'
-import { PcrGuide, pcrZone } from './Pcr.jsx'
+import { PcrDecision, PcrGuide, pcrZone } from './Pcr.jsx'
 
 // Options board shared by Crypto -> Options (BTC / ETH / SOL / XRP on Deribit, $) and the Index Options
 // page (Nifty on NSE, Rs, lots). Market data to read the set-up, not a buy/sell recommendation.
@@ -106,7 +106,7 @@ export function OptionsBoard({ market, bias }) {
   const spotD = d.spot >= 10000 ? 0 : d.spot >= 10 ? 2 : 4
   const notes = <div className="note-box small copt-notes">
       <b>How to read this</b>
-      {market.key === 'iopt' ? <PcrGuide /> : <div>· <b>PCR</b> above 1 = more puts than calls (hedging or bearish bets); below 0.7 = call-heavy positioning. Extremes are often read as contrarian.</div>}
+      {market.key === 'iopt' ? <><PcrGuide />{sym === 'NIFTY' && near?.strikes?.length && <PcrDecision p={(() => { const st = near.strikes.filter(r => r.c || r.p); return { v: near.pcr_oi, spot: d.spot, expiry: near.expiry_ist.split(',')[0], support: st.reduce((a, r) => r.p > a.p ? r : a).k, resistance: st.reduce((a, r) => r.c > a.c ? r : a).k } })()} />}</> : <div>· <b>PCR</b> above 1 = more puts than calls (hedging or bearish bets); below 0.7 = call-heavy positioning. Extremes are often read as contrarian.</div>}
       <div>· <b>Max pain</b> = expiry price where option buyers lose the most; price sometimes gravitates toward it into expiry, with no guarantee.</div>
       <div>· <b>{market.vol} / ATM IV</b> = how expensive options are. High IV = bigger expected move and richer premiums; low IV = cheaper options.</div>
       <div>· <b>Expected move</b> = ±1 standard deviation range (~68% of outcomes) priced in by options to that expiry.</div>

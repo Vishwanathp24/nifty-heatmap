@@ -63,7 +63,9 @@ export const TV_INDEX = {
 }
 
 const tvUrl = sym => 'https://www.tradingview.com/chart/?symbol=' + encodeURIComponent(sym)
-export const tvStock = symbol => tvUrl('NSE:' + symbol)
+// TradingView writes NSE symbols with '_' for '-' and '&' (BAJAJ-AUTO -> NSE:BAJAJ_AUTO, M&M -> NSE:M_M).
+export const tvSymbol = symbol => 'NSE:' + String(symbol).replace(/[-&]/g, '_')
+export const tvStock = symbol => tvUrl(tvSymbol(symbol))
 export const tvCrypto = coin => tvUrl('OKX:' + coin + 'USDT')
 export const tvIndex = name => TV_INDEX[name] ? tvUrl(TV_INDEX[name]) : null
 

@@ -327,6 +327,13 @@ def index_options(symbol: str = "NIFTY"):
 _ipo = None
 
 
+@app.get("/api/ipo/detail")
+def ipo_detail_route(symbol: str, series: str = "EQ"):
+    """IPO tab -> click a company: issue facts, live subscription by category, checklist."""
+    from ipo import ipo_detail
+    return _live_call(ipo_detail, symbol, series)
+
+
 @app.get("/api/ipo")
 def ipo():
     """Upcoming / open IPOs and recent listings (NSE mainboard + NSE SME)."""

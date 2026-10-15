@@ -112,8 +112,8 @@ function App() {
     </header>
     <main className="page">
       {live.error && !live.data && <div className="alert">{live.error}</div>}
-      {page !== 'crypto' && <PcrMeter />}  {/* Nifty PCR mood meter on every page except Crypto */}
-      {page !== 'trend' && page !== 'overview' && page !== 'crypto' && <BiasBanner bias={live.data?.bias} onPick={id => { setSessionValue('scans.tab', id); setPage('trend'); window.scrollTo({ top: 0 }) }} />}
+      {page !== 'crypto' && page !== 'heatmap' && <PcrMeter />}  {/* Nifty PCR mood meter on every page except Crypto */}
+      {page !== 'trend' && page !== 'overview' && page !== 'crypto' && page !== 'heatmap' && <BiasBanner bias={live.data?.bias} onPick={id => { setSessionValue('scans.tab', id); setPage('trend'); window.scrollTo({ top: 0 }) }} />}
       {page === 'overview' && <Overview live={live.data} ctx={ctx.data} />}
       {page === 'heatmap' && <Heatmap live={live.data} selected={selected} setSelected={setSelected} toggle={toggleSector} goto={setPage} />}
       {page === 'trend' && <Scans trend={trend} live={live.data} selected={selected} setSelected={setSelected} chartReq={chartReq} />}

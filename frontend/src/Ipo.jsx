@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react'
-import { Empty, Seg, SortTh, StockLink } from './components.jsx'
-import { fmtNum, fmtVol, isNum, istTime, sortRows, useSessionState } from './lib.js'
+import { Drawer, Empty, Seg, SortTh, StockLink } from './components.jsx'
+import { api, fmtNum, fmtVol, isNum, istTime, sortRows, usePoll, useSessionState } from './lib.js'
 
 // GMP is unofficial (no exchange publishes it), so link out instead of showing a number.
 // Per-IPO web search: works for every issue, mainboard and SME.
@@ -16,8 +16,127 @@ const d = (iso, withYear) => {
   return `${day} ${MON[Number(m) - 1]}` + (withYear ? ` ${y}` : '')
 }
 
+// Click a company -> detail drawer: issue facts, live subscription by investor category, a
+// fact-based checklist (👍 / 👎 per factor) and what to verify in the prospectus. No overall verdict.
+const CAT_LABEL = { qib: 'QIB (institutions)', nii: 'NII (HNIs) — total', bnii: 'NII above ₹10 L', snii: 'NII ₹2–10 L', rii: 'Retail (RII)', emp: 'Employees' }
+const ICON = { up: '👍', down: '👎', neutral: '➖' }
+const cr = v => isNum(v) ? '₹' + v.toLocaleString('en-IN', { maximumFractionDigits: 0 }) + ' Cr' : '—'
+
+function IpoDetail({ row, onClose }) {
+  const series = row.board === 'NSE SME' ? 'SME' : 'EQ'
+  const res = usePoll(() => api(`/api/ipo/detail?symbol=${encodeURIComponent(row.symbol)}&series=${series}`), 120000, [row.symbol])
+  const d = res.data && res.data.symbol === row.symbol ? res.data : null
+  const ups = d ? d.checks.filter(c => c.verdict === 'up').length : 0, downs = d ? d.checks.filter(c => c.verdict === 'down').length : 0
+  return <Drawer open onClose={onClose} wide title={row.company}>
+    {!d ? <Empty>{res.error || 'Loading issue details from NSE…'}</Empty> : <div className="ipo-detail">
+      {(() => { const rt = ipoRating(d, row); return <div className={'ipo-rate-banner ' + rt.key}>
+        <b>{RATING_ICON[rt.key]} {rt.label}</b> <span>{rt.ups} 👍 · {rt.downs} 👎 — {rt.why}</span>
+        <div className="small muted">Based only on exchange data (demand, issue structure, size, board, anchors) — not on valuation or financials, and not a buy / sell verdict.</div></div> })()}
+      <div className="ipo-facts">
+        <div><span>Symbol</span><b>{d.symbol}</b></div>
+        <div><span>Board</span><b>{row.board}</b></div>
+        <div><span>Issue period</span><b>{d.period || '—'}</b></div>
+        <div><span>Price band</span><b>{d.price_lo && d.price_hi ? `₹${d.price_lo} – ₹${d.price_hi}` : d.price_range || '—'}</b></div>
+        <div><span>Lot size</span><b>{d.lot ? d.lot + ' shares' : '—'}</b></div>
+        <div><span>Min. investment</span><b>{isNum(d.min_investment) ? '₹' + d.min_investment.toLocaleString('en-IN') : '—'}</b></div>
+        <div><span>Issue size</span><b>{cr(d.size_cr)}</b></div>
+        <div><span>Fresh issue</span><b>{cr(d.fresh_cr)}</b></div>
+        <div><span>Offer for sale</span><b>{cr(d.ofs_cr)}</b></div>
+        <div><span>Face value</span><b>{d.face_value || '—'}</b></div>
+        {d.employee_discount && <div><span>Employee discount</span><b>{d.employee_discount}</b></div>}
+        <div className="wide"><span>Lead managers</span><b>{d.lead_managers || '—'}</b></div>
+        <div className="wide"><span>Registrar (allotment status)</span><b>{d.registrar || '—'}</b></div>
+      </div>
+
+      <h4>Subscription so far {isNum(d.total_times) && <span className="ipo-total">{d.total_times}× overall</span>}</h4>
+      <table className="tbl compact"><thead><tr><th>Category</th><th className="num">Shares offered</th><th className="num">Shares bid</th><th className="num">Times</th></tr></thead>
+        <tbody>{Object.entries(d.subscription).map(([k, x]) => <tr key={k}><td>{CAT_LABEL[k] || x.label}</td><td className="num">{fmtVol(x.offered)}</td><td className="num">{fmtVol(x.bid)}</td>
+          <td className={'num strong ' + (x.times >= 1 ? 'up' : 'down')}>{x.times}×</td></tr>)}</tbody></table>
+
+      <h4>Checklist <span className="muted small">{ups} 👍 · {downs} 👎 — factors IPO investors commonly look at</span></h4>
+      <div className="ipo-checks">{d.checks.map(c => <div key={c.key} className={'ipo-check ' + c.verdict}>
+        <span className="ipo-ico">{ICON[c.verdict]}</span><div><b>{c.label}</b><div className="small">{c.detail}</div></div></div>)}</div>
+
+      <h4>Check in the prospectus before applying</h4>
+      <ul className="ipo-todo">
+        <li><b>Business & objects of the issue</b> — what the company does and what the fresh money will be used for (debt repayment vs growth).</li>
+        <li><b>Financials (3 years)</b> — revenue and profit trend, margins, debt-to-equity, cash flow from operations.</li>
+        <li><b>Valuation</b> — P/E or EV/EBITDA at the upper band vs listed peers (the “Basis for Issue Price” section).</li>
+        <li><b>Promoter holding after the issue</b> and who is selling in the offer for sale.</li>
+        <li><b>Risk factors & litigation</b> — client concentration, pending cases, regulatory risk.</li>
+        <li><b>Grey market premium (GMP)</b> is unofficial and can change fast — not a reliable guide.</li>
+      </ul>
+      <div className="ipo-links">
+        {d.links.rhp && <a className="btn sm" href={d.links.rhp} target="_blank" rel="noopener noreferrer">Red Herring Prospectus ↗</a>}
+        {d.links.ratios && <a className="btn sm" href={d.links.ratios} target="_blank" rel="noopener noreferrer">Basis of issue price / ratios ↗</a>}
+        {d.links.anchor && <a className="btn sm" href={d.links.anchor} target="_blank" rel="noopener noreferrer">Anchor allocation ↗</a>}
+        <a className="btn sm" href={gmpUrl(row.company)} target="_blank" rel="noopener noreferrer">GMP search ↗</a>
+      </div>
+      <div className="ipo-more">
+        <b>Want to read more?</b>
+        <div className="ipo-more-links">
+          <a href={`https://www.nseindia.com/market-data/issue-information?symbol=${encodeURIComponent(d.symbol)}&series=${encodeURIComponent(series)}&type=Active`} target="_blank" rel="noopener noreferrer">📄 Full issue details on NSE ↗</a>
+          {d.links.rhp && <a href={d.links.rhp} target="_blank" rel="noopener noreferrer">📘 Read the prospectus (RHP) — business, financials, risks ↗</a>}
+          <a href={'https://www.google.com/search?q=' + encodeURIComponent(`${row.company.replace(/ Limited$/i, '')} IPO review`)} target="_blank" rel="noopener noreferrer">🔎 IPO reviews & analysis ↗</a>
+          <a href={'https://news.google.com/search?q=' + encodeURIComponent(`${row.company.replace(/ Limited$/i, '')} IPO`)} target="_blank" rel="noopener noreferrer">📰 Latest news about this IPO ↗</a>
+          <a href={'https://www.google.com/search?q=' + encodeURIComponent(`${row.company.replace(/ Limited$/i, '')} company business financials`)} target="_blank" rel="noopener noreferrer">🏢 About the company ↗</a>
+        </div>
+      </div>
+      <div className="muted small">Data: NSE IPO feed · updated {istTime(d.fetched_at)} IST. The checklist rates individual factors from exchange data; it is not an overall recommendation — read the prospectus and decide for yourself. Not investment advice.</div>
+    </div>}
+  </Drawer>
+}
+
+// Traffic-light rating of how an IPO scores on the checklist (exchange data only — not a buy / sell
+// verdict; valuation and financials are in the prospectus). Demand flags (QIB / overall
+// subscription) count only from the last bidding day, since most QIB bids arrive then.
+export function ipoRating(d, row) {
+  if (!d) return null
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
+  const lastDay = !row?.close || row.close <= today
+  const demand = new Set(['qib', 'total'])
+  const ups = d.checks.filter(c => c.verdict === 'up'), downs = d.checks.filter(c => c.verdict === 'down')
+  const hard = downs.filter(c => lastDay || !demand.has(c.key))  // demand flags wait for the last day
+  if (!lastDay && downs.some(c => demand.has(c.key)) && hard.length <= 1)
+    return { key: 'early', label: 'Early — demand still building', ups: ups.length, downs: downs.length, why: 'Bidding is still open; QIB money usually comes on the last day. Re-check on the closing day.' }
+  if (hard.length >= 3 || (lastDay && (d.subscription?.qib?.times ?? 1) < 1 && (d.total_times ?? 1) < 1))
+    return { key: 'weak', label: 'Weak on checklist', ups: ups.length, downs: downs.length, why: 'Several checks failed (' + hard.map(c => c.label).join(', ') + ').' }
+  if (ups.length >= 4 && hard.length <= 1 && d.checks.find(c => c.key === 'qib')?.verdict !== 'down')
+    return { key: 'strong', label: 'Strong on checklist', ups: ups.length, downs: downs.length, why: 'Most checks pass' + (hard.length ? ' (one flag: ' + hard[0].label + ')' : '') + '.' }
+  return { key: 'mixed', label: 'Mixed', ups: ups.length, downs: downs.length, why: 'Some checks pass, some flag caution — read the details.' }
+}
+const RATING_ICON = { strong: '🟢', mixed: '🟡', weak: '🔴', early: '🔵' }
+
+
+const d_ = d  // date formatter (inside IpoRow `d` is the detail data)
+
+// One IPO row: rating dot before the name; the name opens the details panel (rating, checklist, subscription).
+function IpoRow({ r, onDetails }) {
+  const series = r.board === 'NSE SME' ? 'SME' : 'EQ'
+  const res = usePoll(() => api(`/api/ipo/detail?symbol=${encodeURIComponent(r.symbol)}&series=${series}`), 300000, [r.symbol])
+  const d = res.data && res.data.symbol === r.symbol ? res.data : null
+  const rt = ipoRating(d, r)
+  return <>
+    <tr className={'ipo-row' + (rt ? ' rate-' + rt.key : '')}>
+      <td><div className="ipo-name">
+        <span className={'ipo-dot ' + (rt?.key || 'loading')} title={rt ? `${rt.label} — ${rt.why}` : 'Loading checklist…'} />
+        <div><button className="link-btn strong" onClick={onDetails} title="Open company / issue details, subscription and checklist">{r.company}</button>
+          <div className="muted small">{r.symbol}</div></div></div></td>
+      <td className="muted">{r.board}</td>
+      <td><span className={'ipo-status ' + (r.status === 'Open' ? 'open' : 'soon')}>{r.status}</span></td>
+      <td>{d_(r.open)} – {d_(r.close)}</td>
+      <td className="num">{r.price_band || 'N/A'}</td>
+      <td className="num">{d?.lot ? fmtNum(d.lot, 0) : r.lot_size ? fmtNum(r.lot_size, 0) : 'N/A'}</td>
+      <td className="num">{fmtVol(r.issue_shares)}</td>
+      <td className="num strong">{isNum(d?.total_times) ? d.total_times.toFixed(2) + 'x' : isNum(r.subscription) ? r.subscription.toFixed(2) + 'x' : '—'}</td>
+      <td><a className="tv-link" href={gmpUrl(r.company)} target="_blank" rel="noopener noreferrer" title={`Search “${r.company} IPO GMP today” — GMP is unofficial`}>GMP<span className="ext">↗</span></a></td>
+    </tr>
+  </>
+}
+
 function Upcoming({ rows, board }) {
   const [sort, setSort] = useState({ key: 'open', dir: 'asc' })
+  const [open, setOpen] = useState(null)       // detail drawer
   const shown = sortRows(rows.filter(r => board === 'all' || (board === 'sme') === (r.board === 'NSE SME')), sort.key, sort.dir)
   const sp = { sort, setSort }
   return <div className="tbl-wrap panel">
@@ -33,19 +152,10 @@ function Upcoming({ rows, board }) {
         <SortTh label="Subscription" k="subscription" {...sp} num title="Times subscribed so far (NSE, all categories)" />
         <th title="Grey market premium is unofficial and unregulated; opens a web search for this IPO's GMP in a new tab">GMP</th>
       </tr></thead>
-      <tbody>{shown.map(r => <tr key={r.symbol}>
-        <td><div className="strong">{r.company}</div><div className="muted small">{r.symbol}</div></td>
-        <td className="muted">{r.board}</td>
-        <td><span className={'ipo-status ' + (r.status === 'Open' ? 'open' : 'soon')}>{r.status}</span></td>
-        <td>{d(r.open)} – {d(r.close)}</td>
-        <td className="num">{r.price_band || 'N/A'}</td>
-        <td className="num">{r.lot_size ? fmtNum(r.lot_size, 0) : 'N/A'}</td>
-        <td className="num">{fmtVol(r.issue_shares)}</td>
-        <td className="num strong">{isNum(r.subscription) ? r.subscription.toFixed(2) + 'x' : '—'}</td>
-        <td><a className="tv-link" href={gmpUrl(r.company)} target="_blank" rel="noopener noreferrer" title={`Search “${r.company} IPO GMP today” — GMP is unofficial`}>GMP<span className="ext">↗</span></a></td>
-      </tr>)}</tbody>
+      <tbody>{shown.map(r => <IpoRow key={r.symbol} r={r} onDetails={() => setOpen(r)} />)}</tbody>
     </table>
     {!shown.length && <Empty>No upcoming or open IPOs on NSE{board !== 'all' ? ' for this board' : ''}.</Empty>}
+    {open && <IpoDetail row={open} onClose={() => setOpen(null)} />}
   </div>
 }
 
@@ -114,6 +224,6 @@ export default function Ipo({ ipo }) {
     </div>
     {!data ? <Empty>{ipo.error || 'Loading IPO data from NSE…'}</Empty>
       : view === 'upcoming' ? <Upcoming rows={data.upcoming} board={board} /> : <Recent rows={data.recent} board={board} below={below} search={search} />}
-    <p className="muted small">BSE-only SME issues are not included (NSE data only). Subscription is NSE's live “times subscribed” across all categories. Listing price = opening price on the listing day (NSE bhavcopy). GMP links open a web search for “[company] IPO GMP today” (GMP is unofficial; no exchange publishes it). % vs Issue Price uses NSE's official close after market hours and the live price during the session. Not investment advice.</p>
+    <p className="muted small">BSE-only SME issues are not included (NSE data only). Subscription is NSE's live “times subscribed” across all categories. Listing price = opening price on the listing day (NSE bhavcopy). GMP links open a web search for “[company] IPO GMP today” (GMP is unofficial; no exchange publishes it). % vs Issue Price uses NSE's official close after market hours and the live price during the session. The checklist rates individual factors from NSE data — it is not a buy / sell verdict. Not investment advice.</p>
   </div>
 }

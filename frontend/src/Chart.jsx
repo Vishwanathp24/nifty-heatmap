@@ -335,7 +335,7 @@ export function PnlCalc({ id, name, lot, buy, buyLabel }) {
   const sell = b * (1 + tg / 100), slPx = b * (1 - sl / 100)
   const totBuy = b * units, totSell = sell * units, pnl = totSell - totBuy, slLoss = (slPx - b) * units
   const inp = (k, step = 'any') => <input type="number" step={step} value={c[k]} onChange={e => set({ [k]: num(e.target.value) })} />
-  const pctIn = k => <span className="pct-wrap"><input type="number" step="0.5" min="0" className="pct-in" value={c[k]} onChange={e => set({ [k]: num(e.target.value) })} />%</span>
+  const pctIn = k => <input type="number" step="0.5" min="0" value={c[k]} onChange={e => set({ [k]: num(e.target.value) })} />  // same box size as the other inputs
   return <section className="lc-card pnl-calc">
     <div className="lc-card-h"><h3>Trade P&amp;L · {name}</h3>
       {c.edited && <button className="btn sm" onClick={() => setC(fresh())}>Reset</button>}</div>
@@ -348,10 +348,10 @@ export function PnlCalc({ id, name, lot, buy, buyLabel }) {
       <tr><td>Quantity <span className="muted">(lot size{lot ? ' ' + lot : ''})</span></td><td>{inp('qty', 1)}</td></tr>
       <tr><td>Lots</td><td>{inp('lots', 1)}</td></tr>
       <tr className="calc-row"><td>Total buy</td><td>{n2(totBuy)}</td></tr>
-      <tr><td>Stop-loss</td><td>{pctIn('sl')}</td></tr>
+      <tr><td>Stop-loss <span className="muted">(%)</span></td><td>{pctIn('sl')}</td></tr>
       <tr><td>SL price</td><td><input type="number" step="any" value={+slPx.toFixed(2)} onChange={e => b && set({ sl: +((1 - (Number(e.target.value) || 0) / b) * 100).toFixed(2) })} /></td></tr>
       <tr className="calc-row"><td>Loss at SL</td><td className={slLoss < 0 ? 'down' : ''}>{n2(slLoss)}</td></tr>
-      <tr><td>Target profit</td><td>{pctIn('tgt')}</td></tr>
+      <tr><td>Target profit <span className="muted">(%)</span></td><td>{pctIn('tgt')}</td></tr>
       <tr><td>Sell price</td><td><input type="number" step="any" value={+sell.toFixed(2)} onChange={e => b && set({ tgt: +(((Number(e.target.value) || 0) / b - 1) * 100).toFixed(2) })} /></td></tr>
       <tr className="calc-row"><td>Total sell</td><td>{n2(totSell)}</td></tr>
       <tr className="calc-row big"><td>P&amp;L at target</td><td className={pnl > 0 ? 'up' : pnl < 0 ? 'down' : ''}>{pnl > 0 ? '+' : ''}{n2(pnl)}</td></tr>
