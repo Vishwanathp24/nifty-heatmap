@@ -389,8 +389,8 @@ function TradeForm({ form, setForm, onSave, onAddAll, onCancel, live }) {
     if (('k' in patch || 't' in patch) && exp && !d?.synthetic) n.entry = premOf(exp, n.k, n.t)  // new strike -> its live premium
     return n
   }) })
-  const addLeg = () => set({ auto: false, strategy: 'Custom', legs: [...form.legs, { a: form.role === 'buyer' ? 'B' : 'S', t: 'CE', k: exp?.atm_strike ?? strikes[Math.floor(strikes.length / 2)] ?? '', entry: '', exit: '' }] })
-  const delLeg = i => set({ auto: false, strategy: form.legs.length > 1 ? 'Custom' : form.strategy, legs: form.legs.filter((_, j) => j !== i) })
+  const addLeg = () => set({ auto: false, legs: [...form.legs, { a: form.role === 'buyer' ? 'B' : 'S', t: 'CE', k: exp?.atm_strike ?? strikes[Math.floor(strikes.length / 2)] ?? '', entry: '', exit: '' }] })
+  const delLeg = i => set({ auto: false, legs: form.legs.filter((_, j) => j !== i) })
 
   const c = calc(form)
   const single = form.legs.length === 1
@@ -437,8 +437,8 @@ function TradeForm({ form, setForm, onSave, onAddAll, onCancel, live }) {
           <button type="button" key={v} className={(form.view === v ? 'on ' + (VIEWS[v].tone || '') : '')} onClick={() => setView(v)} title={v === biasView ? 'Matches the current Market Bias' : ''}>
             {l}{v === biasView && <span className="jr-dot" aria-label="matches Market Bias"> ●</span>}</button>)}</div></label>
       <label className="full"><span>Strategy</span>
-        <div className="jr-strats">{[...list.map(s => s[0]), 'Custom'].map(n =>
-          <button type="button" key={n} className={'jr-chip' + (form.strategy === n ? ' on' : '')} onClick={() => n === 'Custom' ? set({ strategy: 'Custom', auto: false }) : pick({ strategy: n })}>{n}</button>)}</div>
+        <div className="jr-strats">{list.map(s => s[0]).map(n =>
+          <button type="button" key={n} className={'jr-chip' + (form.strategy === n ? ' on' : '')} onClick={() => pick({ strategy: n })}>{n}</button>)}</div>
         {spec && <span className="jr-desc">{spec[1]}</span>}</label>
     </div>
 
