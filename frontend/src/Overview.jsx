@@ -50,13 +50,13 @@ function SummaryCards({ live }) {
   </div>
 }
 
-export function BreadthPanel({ title, subtitle, b, alt, rows, showTotal }) {
+export function BreadthPanel({ title, subtitle, b, alt, rows, showTotal, noStocks = false }) {
   const [open, setOpen] = useState(false)
   const pctUp = b.total ? Math.round(b.up / b.total * 100) : 0
   const pctDn = b.total ? Math.round(b.down / b.total * 100) : 0
   const sorted = useMemo(() => [...rows].sort((a, c) => (c.pct_prev ?? -1e9) - (a.pct_prev ?? -1e9)), [rows])
   return <Section title={title} subtitle={subtitle} className="half"
-    right={<button className="btn ghost sm" onClick={() => setOpen(o => !o)}>{open ? 'Hide stocks' : 'Show stocks'}</button>}>
+    right={!noStocks && <button className="btn ghost sm" onClick={() => setOpen(o => !o)}>{open ? 'Hide stocks' : 'Show stocks'}</button>}>
     <div className="breadth-stats">
       <div><div className="k">Advancing</div><div className="big up">{b.up}</div></div>
       <div><div className="k">Declining</div><div className="big down">{b.down}</div></div>

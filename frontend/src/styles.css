@@ -909,3 +909,36 @@ th .arrow { font-size: 9px; margin-left: 4px; opacity: .6 }
 @media (max-width: 1100px) { .ipo-expand-in .ipo-checks { grid-template-columns: repeat(2, minmax(0, 1fr)) } }
 @media (max-width: 700px) { .ipo-expand-in .ipo-checks { grid-template-columns: 1fr } }
 .ipo-caret { border: 1px solid var(--border); background: var(--panel); color: var(--ink-2); border-radius: 4px; padding: 0 6px; margin-left: 6px; cursor: pointer; font-size: 11px; line-height: 18px } .ipo-caret:hover { background: var(--accent-bg); color: var(--accent) }
+/* PCR decision table: wrap text so it never widens the page on phones */
+.pcr-dec-tbl { width: 100%; max-width: 620px; table-layout: fixed }
+.pcr-dec-tbl th, .pcr-dec-tbl td { white-space: normal; word-break: normal; overflow-wrap: anywhere }
+.pcr-dec-tbl th:first-child, .pcr-dec-tbl td:first-child { width: 26% }
+/* Live Chart on phones: timeframe buttons wrap; chart never wider than the screen */
+@media (max-width: 760px) {
+  .clive .toolbar .seg { flex-wrap: wrap; max-width: 100% }
+  .clive .toolbar .seg button { flex: 1 0 auto; min-width: 40px }
+  .clive .toolbar .coin-pick, .clive .sym-pick .coin-pick { width: 100%; max-width: 100% }
+  .clive .sym-pick { width: 100% }
+  .lc-wrap { max-width: 100% }
+}
+/* Compact Market Bias + Nifty PCR strip (ORB, Intraday Scanner, IPO, Learning) */
+.mini-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin: 0 0 10px }
+.pcr-mini { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap }
+.pcr-mini .pcr-v { font-size: 16px; font-variant-numeric: tabular-nums }
+.pcr-mini .pcr-bar { width: 120px }
+/* Nifty PCR pill: same outlined box as the Market Bias pill, coloured by its zone */
+.pcr-mini { font-weight: 600; font-size: 12px; padding: 4px 10px; border-radius: var(--radius); border: 1px solid; gap: 8px; line-height: 1.4 }
+.pcr-mini.up { color: var(--up); background: var(--up-bg); border-color: #bfe3cd }
+.pcr-mini.down { color: var(--down); background: var(--down-bg); border-color: #efc6c6 }
+.pcr-mini.amber { color: var(--amber); background: var(--amber-bg); border-color: #f0dcb3 }
+.pcr-mini .pcr-k { color: inherit; font-size: 12px; font-weight: 600 }
+.pcr-mini .pcr-v { font-size: 12px; font-weight: 700; color: inherit }
+.pcr-mini .pcr-pill { background: none; padding: 0; color: inherit; font-size: 12px }
+.pcr-mini .pcr-pill::before { content: '· '; }
+.pcr-mini .pcr-bar { width: 90px; height: 6px }
+.pcr-mini .pcr-mark { top: -3px; height: 12px }
+/* Sentiment stripe on the left of the compact pills (as on the full banners) */
+.mini-strip .bias-pill, .mini-strip .pcr-mini { border-left-width: 4px; padding: 6px 12px }
+.mini-strip .bias-pill.bull, .mini-strip .pcr-mini.up { border-left-color: var(--up) }
+.mini-strip .bias-pill.bear, .mini-strip .pcr-mini.down { border-left-color: var(--down) }
+.mini-strip .bias-pill.neutral, .mini-strip .pcr-mini.amber { border-left-color: var(--amber) }

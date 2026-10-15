@@ -134,6 +134,14 @@ function StockLive({ stocks, selected, bias }) {
 }
 
 // Which scans suit the current market bias (same 5-vote bias as the ORB Scanner).
+// Compact Market Bias pill for pages other than Market Overview (which shows the full detail).
+export function BiasPill({ bias }) {
+  const label = bias?.label
+  const tone = label === 'BULLISH' ? 'bull' : label === 'BEARISH' ? 'bear' : 'neutral'
+  return <span className={'bias-pill ' + tone} title={bias?.components ? bias.components.map(c => `${c.label} ${c.points > 0 ? '+1' : c.points < 0 ? '−1' : '0'}`).join(' · ') : undefined}>
+    Market Bias: {label || 'N/A'}{isNum(bias?.score) ? ` (${bias.score > 0 ? '+' : ''}${bias.score})` : ''}</span>
+}
+
 export function BiasBanner({ bias, onPick }) {
   const label = bias?.label
   const tone = label === 'BULLISH' ? 'bull' : label === 'BEARISH' ? 'bear' : 'neutral'
@@ -185,7 +193,6 @@ export default function Scans({ trend: trendRaw, live, selected, setSelected, ch
     <div className="page-title"><h1>Intraday Scanner</h1>
       <span className="muted small">Indicator and condition scans · candles from Yahoo Finance (15-min, 1-hour, daily), today’s daily candle from NSE
         {cyc?.finished ? ` · last full pass ${istTime(cyc.finished)}` : ''}{cyc?.state === 'running' ? ` · refreshing ${cyc.done}/${cyc.total}` : ''}</span></div>
-    <BiasBanner bias={live?.bias} onPick={setTab} />
     <div className="toolbar"><SectorMulti sectors={live?.sectors || []} selected={selected} setSelected={setSelected} />
       {selected.length > 0 && <button className="btn sm clear-sectors" onClick={() => setSelected([])} title="Clear the sector filter (also clears the heatmap and ORB selection)">✕ Clear sectors ({selected.length})</button>}
       <button className="btn sm" onClick={clearAll} title="Reset every Intraday Scanner filter to its default (Bullish · 15 Min + 1 Hour · RSI 60 · ADX 25 · F&O · all sectors)">Clear filters</button></div>

@@ -6,7 +6,7 @@ import { StockChartCtx } from './components.jsx'
 import Overview from './Overview.jsx'
 import Heatmap from './Heatmap.jsx'
 import Scanner, { DEFAULT_FILTERS, filterRows } from './Scanner.jsx'
-import Scans, { BiasBanner } from './Scans.jsx'
+import Scans, { BiasPill } from './Scans.jsx'
 import { PcrMeter } from './Pcr.jsx'
 // Pages loaded only when opened (smaller first download)
 const Crypto = lazy(() => import('./Crypto.jsx'))
@@ -112,8 +112,12 @@ function App() {
     </header>
     <main className="page">
       {live.error && !live.data && <div className="alert">{live.error}</div>}
-      {page !== 'crypto' && page !== 'heatmap' && <PcrMeter />}  {/* Nifty PCR mood meter on every page except Crypto */}
-      {page !== 'trend' && page !== 'overview' && page !== 'crypto' && page !== 'heatmap' && <BiasBanner bias={live.data?.bias} onPick={id => { setSessionValue('scans.tab', id); setPage('trend'); window.scrollTo({ top: 0 }) }} />}
+      {page === 'overview' && <PcrMeter />}  {/* full PCR meter on Market Overview (heatmap has its own card) */}
+      {/* Other pages: compact strip — Market Bias pill + Nifty PCR pill */}
+      {['scanner', 'trend', 'ipo', 'learning'].includes(page) && <div className="mini-strip">
+        <BiasPill bias={live.data?.bias} />
+        <PcrMeter compact />
+      </div>}
       {page === 'overview' && <Overview live={live.data} ctx={ctx.data} />}
       {page === 'heatmap' && <Heatmap live={live.data} selected={selected} setSelected={setSelected} toggle={toggleSector} goto={setPage} />}
       {page === 'trend' && <Scans trend={trend} live={live.data} selected={selected} setSelected={setSelected} chartReq={chartReq} />}

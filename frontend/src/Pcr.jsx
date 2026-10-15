@@ -89,7 +89,7 @@ export function PcrDecision({ p }) {
 }
 
 // Meter shown on every page except Crypto: Nifty PCR for the nearest expiry, zone bar and meaning.
-export function PcrMeter() {
+export function PcrMeter({ compact = false }) {
   const res = usePoll(() => api('/api/index-options?symbol=NIFTY'), 60000, [])
   const [open, setOpen] = useState(false)
   const d = res.data
@@ -98,6 +98,9 @@ export function PcrMeter() {
   const z = pcrZone(v)
   if (!d || !z) return null
   const pos = Math.max(0, Math.min(100, (v - 0.4) / (1.9 - 0.4) * 100))  // scale 0.4 … 1.9
+  if (compact) return <span className={'pcr-mini ' + z.tone} title={z.text}>
+    <span className="pcr-k">Nifty PCR (OI)</span> <b className="pcr-v">{v.toFixed(2)}</b> <span className={'pcr-pill ' + z.tone}>{z.label}</span>
+    <span className="pcr-bar">{[0.7, 1.0, 1.3, 1.5].map(t => <i key={t} className="pcr-tick" style={{ left: (t - 0.4) / 1.5 * 100 + '%' }} />)}<i className="pcr-mark" style={{ left: pos + '%' }} /></span></span>
   return <div className={'pcr-meter ' + z.tone}>
     <div className="pcr-main">
       <span className="pcr-k">Nifty PCR (OI)</span>

@@ -25,11 +25,17 @@ export function CandleChart({ candles, tf, fmt, onNeedOlder, loadingOlder, heigh
   const [off, setOff] = useState(0)        // candles hidden on the right (0 = live end)
   const [span, setSpan] = useState(null)   // candles in view (null = fit the width)
   const drag = useRef(null)
-  useEffect(() => {
-    const ro = new ResizeObserver(([e]) => setW(Math.max(320, Math.round(e.contentRect.width))))
-    if (box.current) ro.observe(box.current)
-    return () => ro.disconnect()
-  }, [])
+  // Measure the box whenever it appears (it mounts only once candles arrive) and on resize.
+  const ro = useRef(null)
+  const setBox = el => {
+    box.current = el
+    ro.current?.disconnect()
+    if (!el) return
+    setW(Math.max(280, Math.round(el.getBoundingClientRect().width)))
+    ro.current = new ResizeObserver(([e]) => setW(Math.max(280, Math.round(e.contentRect.width))))
+    ro.current.observe(el)
+  }
+  useEffect(() => () => ro.current?.disconnect(), [])
   const H = Math.max(380, Math.round(height || 0)), VOL = Math.round(H * 0.16), L = 8, R = 72, T = 10, B = 24  // height follows the P&L card beside it
   const len = candles.length
   const n = Math.max(10, Math.min(len, span || Math.floor((w - L - R) / 7)))
@@ -82,7 +88,7 @@ export function CandleChart({ candles, tf, fmt, onNeedOlder, loadingOlder, heigh
     const i = Math.floor((e.clientX - r.left - L) / cw)
     setHover(i >= 0 && i < cs.length ? i : null)
   }
-  return <div className="lc-wrap" ref={box}>
+  return <div className="lc-wrap" ref={setBox}>
     <div className="lc-ohlc small">{h && <><b>{fmtT(h.t)}</b> O {fmt(h.o)} · H {fmt(h.h)} · L {fmt(h.l)} · C <b className={h.c >= h.o ? 'up' : 'down'}>{fmt(h.c)}</b> {pctEl(chg)} · Vol {h.v.toLocaleString('en-US', { maximumFractionDigits: 2 })}</>}
       <span className="lc-nav">{loadingOlder && <span className="muted">loading older candles…</span>}
         {(o > 0 || span) && <button className="btn sm" onClick={() => { setOff(0); setSpan(null) }} title="Back to the latest candles">Latest ⟶</button>}</span></div>
