@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { fmtPct, tone, tvIndex, tvStock, tvSymbol } from './lib.js'
 
 // Every chart link opens a new tab and stops propagation, so clicking it never
@@ -63,14 +64,22 @@ export function Drawer({ open, onClose, title, children, wide }) {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [open, onClose])
+  useEffect(() => {  // stop the page behind from scrolling while the panel is open (phones)
+    if (!open) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [open])
   if (!open) return null
-  return <>
+  // Rendered at the top of the page (portal): a panel opened from inside a scrolling table would
+  // otherwise be trapped in that box on iPhone Safari instead of opening full screen.
+  return createPortal(<>
     <div className="drawer-scrim" onClick={onClose} />
     <aside className={'drawer' + (wide ? ' wide' : '')} role="dialog" aria-label={typeof title === 'string' ? title : 'Details'}>
       <div className="drawer-head"><div className="drawer-title">{title}</div><button className="icon-btn" onClick={onClose} aria-label="Close">✕</button></div>
       <div className="drawer-body">{children}</div>
     </aside>
-  </>
+  </>, document.body)
 }
 
 export function BreadthBar({ up, down, unchanged }) {

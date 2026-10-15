@@ -1,4 +1,3 @@
-import { PcrCard } from './Pcr.jsx'
 import React, { useMemo, useState } from 'react'
 import { BreadthBar, Empty, IndexLink, Pct, Section, StockLink } from './components.jsx'
 import { fmtCr, fmtNum, fmtPct, fmtRatio, fmtSigned, fmtVol, istDate, istTime, isNum, nseTs, tone, tvStock, tvSymbol, useClock } from './lib.js'
@@ -43,9 +42,8 @@ function IndexCard({ name, label, q, vix }) {
 
 function SummaryCards({ live }) {
   const { indices } = live
-  return <div className="cards five">
+  return <div className="cards four">
     <IndexCard name="INDIA VIX" label="India VIX" q={indices.indiavix} vix />
-    <PcrCard />
     <IndexCard name="NIFTY 50" label="NIFTY 50" q={indices.nifty50} />
     <IndexCard name="NIFTY BANK" label="NIFTY BANK" q={indices.niftybank} />
     <IndexCard name="SENSEX" label="SENSEX" q={indices.sensex} />
