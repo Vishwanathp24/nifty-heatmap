@@ -66,8 +66,28 @@ function ChainTable({ exp, spot, lot }) {
   }
   const ltp = o => <td className="num strong">{px(o?.mark)}<div className="ch-sub">{pc(o?.chg_pct)}</div></td>
   const spotAt = rows.findIndex(r => r.k > spot)  // spot line goes above this row
+  // Near-the-money OI: calls from ATM up 5 strikes, puts from ATM down 5 strikes (ATM + 5 each side).
+  const sum = (list, side, key) => list.reduce((t, r) => t + (r[side]?.[key] || 0), 0)
+  const cRows = all.slice(atmI, atmI + 6), pRows = all.slice(Math.max(0, atmI - 5), atmI + 1)
+  const cOi = sum(cRows, 'call', 'oi') * m, pOi = sum(pRows, 'put', 'oi') * m
+  const cChg = sum(cRows, 'call', 'oi_chg') * m, pChg = sum(pRows, 'put', 'oi_chg') * m
+  const putsBigger = pOi > cOi, ratio = cOi && pOi ? (putsBigger ? pOi / cOi : cOi / pOi) : null
+  const kOf = r => r.k.toLocaleString(M.locale)
   return <section className="opt-sec chain-card">
     <div className="opt-sec-h"><div><h3>Option chain</h3><div className="muted small">Expiry {exp.expiry_ist} · ATM ± 10 strikes · OI in {lot ? 'units (contracts × lot ' + lot + ')' : 'contracts'}</div></div></div>
+    {cOi > 0 && pOi > 0 && <div className="near-oi">
+      <div className="near-oi-row">
+        <div className="near-oi-box down"><span>Call OI · ATM → +5 strikes</span><b>{big(cOi)}</b>
+          <small>{kOf(cRows[0])} – {kOf(cRows[cRows.length - 1])} · OI chg {cChg > 0 ? '+' : ''}{big(cChg)}</small></div>
+        <div className="near-oi-box up"><span>Put OI · ATM → −5 strikes</span><b>{big(pOi)}</b>
+          <small>{kOf(pRows[pRows.length - 1])} – {kOf(pRows[0])} · OI chg {pChg > 0 ? '+' : ''}{big(pChg)}</small></div>
+      </div>
+      <div className={'near-oi-verdict ' + (putsBigger ? 'up' : 'down')}>
+        {putsBigger ? 'Put OI is greater' : 'Call OI is greater'} — {ratio.toFixed(2)}× near the money (put / call = {(pOi / cOi).toFixed(2)}).{' '}
+        {putsBigger ? 'More put writing just below the market, often read as support.' : 'More call writing just above the market, often read as resistance.'}
+        <span className="muted"> Positioning data, not a signal.</span>
+      </div>
+    </div>}
     <div className="tbl-wrap"><table className="tbl compact chain-tbl">
       <thead><tr className="grp"><th colSpan={4} className="down">Calls</th><th /><th colSpan={4} className="up">Puts</th></tr>
         <tr><th className="num">OI</th><th className="num">OI Chg</th><th className="num">Delta</th><th className="num">LTP</th>
