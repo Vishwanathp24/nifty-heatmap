@@ -309,7 +309,7 @@ function StrategyCard({ prefix, bias, biasName, sym, optNote, hasChain, chainErr
 
 // Trade P&L calculator for one instrument (the stock / coin on the Live Chart, or Nifty 50 / Sensex
 // on Index Options). Quantity defaults to the exchange lot size and the buy price to the at-the-money
-// option premium (put when the bias is bearish, call otherwise); risk : reward defaults to 1:5 (1% stop-loss, 5% target) — all
+// option premium (put when the bias is bearish, call otherwise); risk : reward defaults to 1:5 with a 3% stop-loss (15% target) — all
 // editable. Total buy = buy price × quantity × lots; sell price = buy price × (1 + target %);
 // P&L = (sell − buy) × quantity × lots.
 const n2 = v => isNum(v) ? v.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '—'
@@ -324,10 +324,11 @@ export function atmPremium(exp, bias) {
   return isNum(p) ? { price: +p.toFixed(2), label: `ATM ${ref.atm.toLocaleString('en-IN')} ${side} (ask)` } : null
 }
 
-const RR = [1, 2, 3, 5]  // 1:N = 1% stop-loss, N% target
+const RR = [1, 2, 3, 5]  // 1:N = target is N × the stop-loss % (risk : reward)
+const SL_DEFAULT = 3     // default stop-loss %
 
-export function PnlCalc({ id, name, lot, buy, buyLabel }) {
-  const fresh = () => ({ buy: buy ?? '', qty: lot || 1, lots: 1, sl: 1, tgt: 5, edited: false })  // default 1:5
+export function PnlCalc({ id, name, lot, buy, buyLabel, horizontal = false }) {
+  const fresh = () => ({ buy: buy ?? '', qty: lot || 1, lots: 1, sl: SL_DEFAULT, tgt: SL_DEFAULT * 5, edited: false })  // default 3% stop, 1:5
   const [c, setC] = useState(() => PNL_STORE.get(id) || fresh())
   useEffect(() => { setC(PNL_STORE.get(id) || fresh()) }, [id])
   // follow the live default (lot size / ATM premium) until the user edits a field
@@ -336,17 +337,54 @@ export function PnlCalc({ id, name, lot, buy, buyLabel }) {
   const set = patch => setC(x => ({ ...x, ...patch, edited: true }))
   const num = v => v === '' ? '' : Number(v)
   const b = Number(c.buy) || 0, tg = Number(c.tgt) || 0, sl = Number(c.sl) || 0
-  const ratio = sl === 1 && RR.includes(tg) ? tg : null  // which 1:N button is on (else Custom)
+  const ratio = sl > 0 && RR.includes(+(tg / sl).toFixed(6)) ? +(tg / sl).toFixed(6) : null  // which 1:N button is on (else Custom)
   const units = (Number(c.qty) || 0) * (Number(c.lots) || 0)
   const sell = b * (1 + tg / 100), slPx = b * (1 - sl / 100)
   const totBuy = b * units, totSell = sell * units, pnl = totSell - totBuy, slLoss = (slPx - b) * units
   const inp = (k, step = 'any') => <input type="number" step={step} value={c[k]} onChange={e => set({ [k]: num(e.target.value) })} />
   const pctIn = k => <input type="number" step="0.5" min="0" value={c[k]} onChange={e => set({ [k]: num(e.target.value) })} />  // same box size as the other inputs
+  // Horizontal strip (inside the Index Options Expiries card): every field side by side.
+  const slPxIn = <input type="number" step="any" value={+slPx.toFixed(2)} onChange={e => b && set({ sl: +((1 - (Number(e.target.value) || 0) / b) * 100).toFixed(2) })} />
+  const sellIn = <input type="number" step="any" value={+sell.toFixed(2)} onChange={e => b && set({ tgt: +(((Number(e.target.value) || 0) / b - 1) * 100).toFixed(2) })} />
+  if (horizontal) return <section className="pnl-calc pnl-h">
+    <div className="pnl-h-head"><h3>Trade P&amp;L · {name}</h3>
+      <div className="seg rr-seg" title="Risk : reward — 1:3 means the target is 3 × your stop-loss % (e.g. 3% stop → 9% target)">
+        {RR.map(n => <button key={n} className={ratio === n ? 'on' : ''} onClick={() => set({ tgt: +((sl || SL_DEFAULT) * n).toFixed(2), sl: sl || SL_DEFAULT })}>1:{n}</button>)}
+        <button className={ratio == null ? 'on' : ''} onClick={() => set({})} title="Set your own stop-loss % and target %">Custom</button>
+      </div>
+      {buyLabel && !c.edited && <span className="muted small">Buy price: {buyLabel}</span>}
+      {c.edited && <button className="btn sm" onClick={() => setC(fresh())}>Reset</button>}
+    </div>
+    <div className="pnl-cards">  {/* Buy | Sell | P&L */}
+      <div className="pnl-card buy"><h4>Buy</h4>
+        <div className="pnl-h-grid">
+          <label><span>Buy price</span>{inp('buy')}</label>
+          <label><span>Quantity (lot {lot || 1})</span>{inp('qty', 1)}</label>
+          <label><span>Lots</span>{inp('lots', 1)}</label>
+          <div className="calc"><span>Total buy</span><b>{n2(totBuy)}</b></div>
+        </div></div>
+      <div className="pnl-card sell"><h4>Sell</h4>
+        <div className="pnl-h-grid">
+          <label><span>Stop-loss (%)</span>{pctIn('sl')}</label>
+          <label><span>SL price</span>{slPxIn}</label>
+          <label><span>Target profit (%)</span>{pctIn('tgt')}</label>
+          <label><span>Sell price</span>{sellIn}</label>
+          <div className="calc"><span>Total sell</span><b>{n2(totSell)}</b></div>
+        </div></div>
+      <div className="pnl-card result"><h4>P&amp;L</h4>
+        <div className="pnl-h-grid">
+          <div className="calc big"><span>P&amp;L at target</span><b className={pnl > 0 ? 'up' : pnl < 0 ? 'down' : ''}>{pnl > 0 ? '+' : ''}{n2(pnl)}</b></div>
+          <div className="calc"><span>Loss at stop-loss</span><b className={slLoss < 0 ? 'down' : ''}>{n2(slLoss)}</b></div>
+          <div className="calc"><span>Risk : reward</span><b>{sl > 0 ? '1 : ' + (+(tg / sl).toFixed(2)) : '—'}</b></div>
+        </div></div>
+    </div>
+    <div className="muted small">1:N = target is N × your stop-loss % (default 3% stop; Custom: set your own). Edit a % or a price — the other follows. Total = price × quantity × lots. Your numbers, not a recommendation.</div>
+  </section>
   return <section className="lc-card pnl-calc">
     <div className="lc-card-h"><h3>Trade P&amp;L · {name}</h3>
       {c.edited && <button className="btn sm" onClick={() => setC(fresh())}>Reset</button>}</div>
-    <div className="seg rr-seg" title="Risk : reward — 1:3 means 1% stop-loss and 3% profit">
-      {RR.map(n => <button key={n} className={ratio === n ? 'on' : ''} onClick={() => set({ sl: 1, tgt: n })}>1:{n}</button>)}
+    <div className="seg rr-seg" title="Risk : reward — 1:3 means the target is 3 × your stop-loss % (e.g. 3% stop → 9% target)">
+      {RR.map(n => <button key={n} className={ratio === n ? 'on' : ''} onClick={() => set({ tgt: +((sl || SL_DEFAULT) * n).toFixed(2), sl: sl || SL_DEFAULT })}>1:{n}</button>)}
       <button className={ratio == null ? 'on' : ''} onClick={() => set({})} title="Set your own stop-loss % and target % below">Custom</button>
     </div>
     <table className="pnl-tbl"><tbody>
@@ -362,6 +400,6 @@ export function PnlCalc({ id, name, lot, buy, buyLabel }) {
       <tr className="calc-row"><td>Total sell</td><td>{n2(totSell)}</td></tr>
       <tr className="calc-row big"><td>P&amp;L at target</td><td className={pnl > 0 ? 'up' : pnl < 0 ? 'down' : ''}>{pnl > 0 ? '+' : ''}{n2(pnl)}</td></tr>
     </tbody></table>
-    <div className="muted small">1:N = 1% stop-loss and N% target on the buy price (Custom: set your own). SL / sell price = buy price − SL % / + target % (edit either). Total = price × quantity × lots. Your numbers, not a recommendation.</div>
+    <div className="muted small">1:N = target is N × your stop-loss % (default 3% stop; Custom: set your own). SL / sell price = buy price − SL % / + target % (edit either). Total = price × quantity × lots. Your numbers, not a recommendation.</div>
   </section>
 }

@@ -22,8 +22,12 @@ LIMIT_DAYS = {"1m": 29, "5m": 59, "15m": 59, "30m": 59, "60m": 729}  # how far b
 FIRST = {"1m": 5, "5m": 8, "15m": 20, "30m": 40, "60m": 90, "1d": 400, "1wk": 2000, "1mo": 20000}  # first load, days
 
 
+INDEX_TICKERS = {"NIFTY": "^NSEI", "BANKNIFTY": "^NSEBANK"}  # indices: Yahoo tickers (no volume)
+
+
 def _yahoo(symbol, interval, p1, p2):
-    url = (f"https://query1.finance.yahoo.com/v8/finance/chart/{quote(symbol + '.NS', safe='')}"
+    ticker = INDEX_TICKERS.get(symbol, symbol + ".NS")
+    url = (f"https://query1.finance.yahoo.com/v8/finance/chart/{quote(ticker, safe='')}"
            f"?interval={interval}&period1={int(p1)}&period2={int(p2)}")
     r = sources.yahoo.get(url, timeout=15)["chart"]["result"][0]
     q = r["indicators"]["quote"][0]

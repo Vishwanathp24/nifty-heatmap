@@ -324,6 +324,70 @@ def index_options(symbol: str = "NIFTY"):
         raise HTTPException(status_code=502, detail=f"NSE option chain unavailable ({exc}).")
 
 
+_accounts = None
+
+
+def _acc():
+    global _accounts
+    if _accounts is None:
+        from accounts import Accounts
+        _accounts = Accounts()
+    return _accounts
+
+
+def _signed_in(request: Request):
+    user = _acc().user(request.headers.get("authorization"))
+    if not user:
+        raise HTTPException(status_code=401, detail="Sign in to use your saved journal.")
+    return user
+
+
+@app.get("/api/auth/config")
+def auth_config():
+    """Journal sign-in: the Google OAuth client id (empty = sign-in turned off)."""
+    from accounts import client_id
+    return {"google_client_id": client_id()}
+
+
+@app.post("/api/auth/google")
+async def auth_google(request: Request):
+    import requests
+    body = await request.json()
+    try:
+        return _acc().sign_in(str(body.get("credential", "")))
+    except PermissionError as exc:
+        raise HTTPException(status_code=401, detail=str(exc))
+    except requests.RequestException as exc:
+        raise HTTPException(status_code=502, detail=f"Could not reach Google ({type(exc).__name__}).")
+
+
+@app.get("/api/auth/me")
+def auth_me(request: Request):
+    u = _signed_in(request)
+    return {k: u[k] for k in ("email", "name", "picture")}
+
+
+@app.post("/api/auth/logout")
+def auth_logout(request: Request):
+    _acc().sign_out(request.headers.get("authorization"))
+    return {"ok": True}
+
+
+@app.get("/api/journal")
+def journal_get(request: Request):
+    return _acc().journal(_signed_in(request)["sub"])
+
+
+@app.put("/api/journal")
+async def journal_put(request: Request):
+    sub = _signed_in(request)["sub"]
+    body = await request.json()
+    try:
+        return _acc().save_journal(sub, body.get("trades"))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
 _ipo = None
 
 

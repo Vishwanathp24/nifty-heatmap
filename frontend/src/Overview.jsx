@@ -29,7 +29,7 @@ function vixRead(p) {
   return p < 0 ? ['Bullish', 'bull'] : p > 0 ? ['Bearish', 'bear'] : ['Neutral', 'neutral']
 }
 
-function IndexCard({ name, label, q, vix }) {
+export function IndexCard({ name, label, q, vix }) {
   const read = vix ? vixRead(q?.pct_prev) : null
   return <div className="card">
     <div className="card-k"><IndexLink name={name} label={label} />

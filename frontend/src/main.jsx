@@ -12,6 +12,7 @@ import { PcrMeter } from './Pcr.jsx'
 const Crypto = lazy(() => import('./Crypto.jsx'))
 const Ipo = lazy(() => import('./Ipo.jsx'))
 const Learning = lazy(() => import('./Learning.jsx'))
+const Journal = lazy(() => import('./Journal.jsx'))
 
 const REFRESH_MS = 10000
 const PAGES = [
@@ -22,6 +23,7 @@ const PAGES = [
   { id: 'crypto', label: 'Crypto', key: '6' },
   { id: 'ipo', label: 'IPO', key: '7' },
   { id: 'learning', label: 'Learning', key: '8' },
+  { id: 'journal', label: 'Journal', key: '9' },
 ]
 
 // Viewer count (last 24 h): ping every 15 s with a random per-browser id (no personal data).
@@ -114,9 +116,10 @@ function App() {
       {live.error && !live.data && <div className="alert">{live.error}</div>}
       {page === 'overview' && <PcrMeter />}  {/* full PCR meter on Market Overview (heatmap has its own card) */}
       {/* Other pages: compact strip — Market Bias pill + Nifty PCR pill */}
-      {['scanner', 'trend', 'ipo', 'learning'].includes(page) && <div className="mini-strip">
+      {['scanner', 'trend', 'ipo', 'learning', 'journal'].includes(page) && <div className="mini-strip">
         <BiasPill bias={live.data?.bias} />
         <PcrMeter compact />
+        {page === 'journal' && <div id="journal-account-slot" className="mini-slot" />}  {/* Journal puts its sign-in / saved status here */}
       </div>}
       {page === 'overview' && <Overview live={live.data} ctx={ctx.data} />}
       {page === 'heatmap' && <Heatmap live={live.data} selected={selected} setSelected={setSelected} toggle={toggleSector} goto={setPage} />}
@@ -125,6 +128,7 @@ function App() {
         {page === 'crypto' && <Crypto crypto={crypto} />}
         {page === 'ipo' && <Ipo ipo={ipo} />}
         {page === 'learning' && <Learning />}
+        {page === 'journal' && <Journal live={live.data} />}
       </Suspense>
       {page === 'scanner' && <>
         <div className="orb-switch" role="tablist" aria-label="Opening range">

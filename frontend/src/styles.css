@@ -434,13 +434,12 @@ th .arrow { font-size: 9px; margin-left: 4px; opacity: .6 }
   .orb-switch.learn-cats button:last-child:nth-child(3n+2) { grid-column: span 2 }
 }
 
-/* Top menu on phones: two rows (3 + 3, or 3 + 4 with IPO / Learning at half width) so every page, incl. IPO and Learning, is visible without sideways scrolling */
+/* Top menu on phones: two rows (4 + 4) so every page, incl. IPO and Learning, is visible without sideways scrolling */
 @media (max-width: 768px) {
-  .hdr-nav { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0; overflow: visible }
-  .hdr-nav button { grid-column: span 2; justify-content: center; padding: 9px 2px; font-size: 12.5px; gap: 4px }
-  .hdr-nav button:nth-child(n+4) { border-top: 1px solid #242C3A }
-  /* 7 pages: IPO and Learning share the last slot (half width each) so everything fits in two rows */
-  .hdr-nav button:nth-child(6):nth-last-child(2), .hdr-nav button:nth-child(7):last-child { grid-column: span 1; padding-left: 0; padding-right: 0 }
+  .hdr-nav { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; overflow: visible }
+  /* 8 pages: two rows of four */
+  .hdr-nav button { justify-content: center; text-align: center; white-space: normal; line-height: 1.2; padding: 8px 2px; font-size: 12px; gap: 4px }
+  .hdr-nav button:nth-child(n+5) { border-top: 1px solid #242C3A }
 }
 
 /* Trend Scan */
@@ -771,9 +770,9 @@ th .arrow { font-size: 9px; margin-left: 4px; opacity: .6 }
 .iopt-pnl-wrap > .opt-sec { display: flex; flex-direction: column }
 .iopt-pnl-wrap > .opt-sec > .tbl-wrap { flex: 1 1 auto }
 /* Index Options: OI chart | strategy explainer, payoff calculator (+ stop-loss) | payoff chart */
-.expl-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 12px; align-items: stretch; margin-bottom: 12px }
+.expl-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 12px; align-items: start; margin-bottom: 12px }
 /* the option chain sets the row height; the strategy explainer fits it and scrolls inside */
-.expl-row > .opt-sec:not(.chain-card) { height: 0; min-height: 100%; overflow-y: auto; box-sizing: border-box }
+
 .calc-risk .copt-notes { margin-top: 12px }
 .expl-row > .opt-sec { margin: 0; min-width: 0 }
 .expl-row .strat-groups { grid-template-columns: 1fr }
@@ -954,3 +953,212 @@ th .arrow { font-size: 9px; margin-left: 4px; opacity: .6 }
 .near-oi-verdict { font-size: 12.5px; font-weight: 600; padding: 6px 10px; border-radius: 6px }
 .near-oi-verdict.up { background: var(--up-bg); color: var(--up) } .near-oi-verdict.down { background: var(--down-bg); color: var(--down) }
 .near-oi-verdict .muted { font-weight: 400 }
+/* Index Options: your trading rules (checklist | risk check | daily tracker) */
+.rules-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; margin: 12px 0 }
+.rules-row > .opt-sec { margin: 0; min-width: 0 }
+.rule-card h3 { margin: 0 0 6px; font-size: 14px }
+.rule-sides { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 8px }
+.rule-side { border: 1px solid var(--border); border-left: 4px solid; border-radius: 6px; padding: 8px }
+.rule-side.up { border-left-color: var(--up) } .rule-side.down { border-left-color: var(--down) }
+.rule-side-h { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 4px }
+.rule-tbl { width: 100%; font-size: 12px }
+.rule-tbl td, .rule-tbl th { white-space: normal; padding: 4px 6px }
+.rule-tbl .ck { text-align: center; width: 44px }
+.rule-status { font-weight: 600; font-size: 12.5px; padding: 7px 10px; border-radius: 6px; margin: 6px 0 }
+.rule-status.ok { background: var(--up-bg); color: var(--up) } .rule-status.stop { background: var(--down-bg); color: var(--down) }
+.rule-status.wait { background: var(--panel-2); color: var(--ink-2) }
+.rule-status.big { font-size: 14px; padding: 10px 12px }
+.disc-add { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 6px 0 }
+.disc-add input { width: 150px; font: inherit; padding: 4px 8px; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--panel); color: var(--ink) }
+.disc-win { color: var(--up) } .disc-loss { color: var(--down) }
+.disc-log { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px }
+
+@media (max-width: 760px) { .rules-row, .rule-sides { grid-template-columns: 1fr } }
+/* Rule checklist summary: meters + status from the user's own rules */
+.rule-sum { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 14px; align-items: center; border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; border: 1px solid var(--border); border-left: 5px solid var(--border-strong); background: var(--panel-2) }
+.rule-sum.ce, .rule-sum.pe { background: var(--up-bg); border-left-color: var(--up) }
+.rule-sum.ce-lean, .rule-sum.pe-lean { background: var(--amber-bg); border-left-color: var(--amber) }
+.rule-sum.conflict { background: var(--down-bg); border-left-color: var(--down) }
+.rule-sum b { font-size: 14px }
+.rule-meters { display: flex; flex-direction: column; gap: 6px }
+.rule-meter { display: grid; grid-template-columns: 60px auto 34px; align-items: center; gap: 8px; font-size: 12px; font-weight: 600 }
+.rule-meter.up { color: var(--up) } .rule-meter.down { color: var(--down) }
+.rule-bar { display: inline-flex; gap: 3px }
+.rule-bar i { width: 16px; height: 10px; border-radius: 2px; background: var(--border) }
+.rule-meter.up .rule-bar i.on { background: var(--up) } .rule-meter.down .rule-bar i.on { background: var(--down) }
+@media (max-width: 760px) { .rule-sum { grid-template-columns: 1fr } }
+.chain-card .rule-sum { margin-bottom: 8px; cursor: help }
+.expl-calc { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border) }
+.expl-calc .opt-sec-h h3 { font-size: 15px }
+.opt-tools > .calc-risk { margin-top: 12px }
+/* "How to read this": collapsible */
+details.copt-notes > summary { cursor: pointer; font-weight: 700; list-style: none; display: flex; align-items: center; gap: 6px }
+details.copt-notes > summary::-webkit-details-marker { display: none }
+details.copt-notes > summary::before { content: '▸'; font-size: 12px; transition: transform .15s }
+details.copt-notes[open] > summary::before { transform: rotate(90deg) }
+details.copt-notes[open] > summary .muted { display: none }
+details.copt-notes[open] > summary { margin-bottom: 6px }
+/* Expiries card with the Trade P&L calculator as a vertical column on its right */
+.exp-pnl .pnl-calc { border: 0; padding: 0; background: transparent; box-shadow: none; margin: 0 }
+/* Trade P&L as a horizontal strip under the Expiries table */
+.exp-with-pnl > .exp-pnl { border-top: 1px solid var(--border); margin-top: 12px; padding-top: 12px }
+.pnl-h { display: flex; flex-direction: column; gap: 8px }
+.pnl-h-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap }
+.pnl-h-head h3 { margin: 0; font-size: 14px }
+.pnl-h-grid > label, .pnl-h-grid > .calc { display: flex; flex-direction: column; gap: 3px; min-width: 0 }
+.pnl-h-grid span { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.pnl-h-grid input { width: 100%; box-sizing: border-box; font: inherit; font-size: 13px; text-align: right; padding: 5px 7px; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--panel); color: var(--ink) }
+.pnl-h-grid .calc { background: var(--panel-2); border-radius: var(--radius); padding: 5px 8px }
+.pnl-h-grid .calc b { font-size: 13px; font-variant-numeric: tabular-nums; text-align: right }
+.pnl-h-grid .calc.big b { font-size: 15px }
+/* Trade P&L strip: input fields in the same grey block as the result fields */
+.pnl-h-grid > label { background: var(--panel-2); border-radius: var(--radius); padding: 5px 8px; align-self: stretch }
+.pnl-h-grid > .calc { align-self: stretch; justify-content: space-between }
+.pnl-h-grid > label input { background: var(--panel); padding: 4px 7px }
+/* Trade P&L: Buy | Sell | P&L cards */
+.pnl-cards { display: grid; grid-template-columns: 4fr 5fr 3fr; gap: 10px }
+.pnl-card { border: 1px solid var(--border); border-top: 3px solid; border-radius: 6px; padding: 8px 10px; min-width: 0; background: var(--panel) }
+.pnl-card.buy { border-top-color: var(--accent) } .pnl-card.sell { border-top-color: var(--amber) } .pnl-card.result { border-top-color: var(--up) }
+.pnl-card h4 { margin: 0 0 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .4px; color: var(--ink-2) }
+.pnl-card .pnl-h-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 6px; align-items: stretch }
+.pnl-card.result .calc.big b { font-size: 18px }
+@media (max-width: 1100px) { .pnl-cards { grid-template-columns: 1fr } }
+/* each card = one joined block (no gaps between fields) */
+.pnl-card .pnl-h-grid { gap: 0; background: var(--panel-2); border-radius: var(--radius); overflow: hidden }
+.pnl-card .pnl-h-grid > label, .pnl-card .pnl-h-grid > .calc { background: transparent; border-radius: 0; border-left: 1px solid var(--border); padding: 6px 8px }
+.pnl-card .pnl-h-grid > :first-child { border-left: 0 }
+.pnl-card.result .pnl-h-grid > .calc { justify-content: flex-start; align-items: flex-start }
+.pnl-card.result .calc b { text-align: left; font-size: 15px; line-height: 1.3 }
+.pnl-card.result .calc.big b { font-size: 15px }
+/* Trade P&L cards: every value left-aligned under its label */
+.pnl-card .pnl-h-grid > .calc { justify-content: flex-start; align-items: flex-start }
+.pnl-card .pnl-h-grid .calc b { text-align: left; line-height: 1.3; padding-top: 4px }
+.pnl-card.result .pnl-h-grid .calc b { padding-top: 0 }
+
+/* Journal */
+.journal { display: flex; flex-direction: column; gap: 12px }
+.jr-stats { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px }
+.jr-top { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 12px; align-items: start }
+.jr-fields { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; padding: 10px }
+.jr-fields label { display: flex; flex-direction: column; gap: 3px; min-width: 0; font-size: 11.5px; color: var(--muted) }
+.jr-fields label em { font-style: normal; opacity: .8 }
+.jr-fields .wide { grid-column: span 2 } .jr-fields .full { grid-column: 1 / -1 }
+.jr-fields input, .jr-fields select, .jr-fields textarea { width: 100%; box-sizing: border-box; font: inherit; font-size: 13px; color: var(--ink); padding: 6px 8px; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--panel) }
+.jr-fields textarea { resize: vertical }
+.jr-fields .jr-check { flex-direction: row; align-items: center; gap: 6px; align-self: end; padding-bottom: 7px; color: var(--ink); font-size: 13px }
+.jr-fields .jr-check input { width: auto }
+.jr-side { display: flex } .jr-side button { flex: 1; padding: 6px 0 }
+.jr-form-foot { display: flex; align-items: center; gap: 12px; padding: 8px 10px; border-top: 1px solid var(--border); flex-wrap: wrap }
+.jr-preview { flex: 1; font-size: 13px }
+.jr-equity { width: 100%; height: 170px; display: block; padding: 8px 10px 0; box-sizing: border-box }
+.jr-equity .zero { stroke: var(--border-strong); stroke-dasharray: 4 3 }
+.jr-equity .ln { fill: none; stroke-width: 2; stroke: var(--muted) } .jr-equity .ln.up { stroke: var(--up) } .jr-equity .ln.down { stroke: var(--down) }
+.jr-equity .fill { fill: var(--panel-2) } .jr-equity .fill.up { fill: var(--up-bg) } .jr-equity .fill.down { fill: var(--down-bg) }
+.jr-equity circle { fill: var(--muted) } .jr-equity circle.up { fill: var(--up) } .jr-equity circle.down { fill: var(--down) }
+.jr-empty { padding: 30px 10px; text-align: center }
+.jr-cal { padding: 10px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px }
+.jr-cal-head { display: flex; align-items: center; gap: 8px } .jr-cal-head b { min-width: 120px; text-align: center } .jr-cal-head .num { margin-left: auto; font-weight: 600 }
+.jr-cal-head .btn { padding: 2px 9px }
+.jr-cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px }
+.jr-cal-grid .dow { font-size: 10.5px; color: var(--muted); text-align: center }
+.jr-cal-grid .day { border: 1px solid var(--border); background: var(--panel); border-radius: 4px; min-height: 38px; padding: 2px 4px; display: flex; flex-direction: column; align-items: flex-start; cursor: pointer; font: inherit; font-size: 11px; color: var(--ink-2) }
+.jr-cal-grid .day small { font-family: var(--mono); font-size: 10.5px; font-weight: 600; margin-top: auto; align-self: flex-end }
+.jr-cal-grid .day.up { background: rgb(30 138 82 / var(--a)); color: var(--ink) } .jr-cal-grid .day.down { background: rgb(194 59 59 / var(--a)); color: var(--ink) }
+.jr-cal-grid .day.on { outline: 2px solid var(--accent); outline-offset: 0 }
+.jr-bar { flex-wrap: wrap; align-items: center }
+.jr-filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center }
+.jr-search { font: inherit; font-size: 12.5px; padding: 5px 8px; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--panel); color: var(--ink); width: 220px }
+.jr-tbl th.sortable { cursor: pointer; user-select: none } .jr-tbl th.sortable:hover { color: var(--ink) }
+.jr-tbl td { vertical-align: top } .jr-tbl tr.editing td { background: var(--accent-bg) }
+.jr-tbl .jr-notes { max-width: 260px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink-2) }
+.jr-tbl .nowrap { white-space: nowrap }
+.jr-act .btn { padding: 2px 6px } .jr-act .btn.down { color: var(--down) }
+.jr-tag { font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 3px; background: var(--panel-2) }
+.jr-tag.up { background: var(--up-bg) } .jr-tag.down { background: var(--down-bg) } .jr-tag.amber { background: var(--amber-bg) }
+.jr-breaks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px }
+.jr-break { border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel); padding: 8px 10px; min-width: 0 }
+.jr-break h4 { margin: 0 0 6px; font-size: 13px }
+@media (max-width: 1200px) { .jr-stats { grid-template-columns: repeat(3, minmax(0, 1fr)) } .jr-top { grid-template-columns: 1fr } }
+@media (max-width: 768px) {
+  .jr-stats { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+  .jr-fields { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+  .jr-breaks { grid-template-columns: 1fr }
+  .jr-search { width: 100% }
+  .jr-filters { width: 100% }
+}
+/* Journal: trade form */
+.jr-seg { display: flex; flex-wrap: wrap } .jr-seg button { flex: 1; padding: 6px 8px; white-space: nowrap }
+.jr-seg .jr-dot { color: var(--amber); font-size: 10px }
+.jr-strats { display: flex; flex-wrap: wrap; gap: 6px }
+.jr-chip { font: inherit; font-size: 12.5px; padding: 5px 10px; border: 1px solid var(--border-strong); border-radius: 999px; background: var(--panel); color: var(--ink); cursor: pointer }
+.jr-chip.on { background: var(--ink); color: #fff; border-color: var(--ink) }
+.jr-desc { color: var(--ink-2); font-size: 12px; margin-top: 2px }
+.jr-fields label > span b { font-weight: 600 }
+.jr-legs { border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 8px 10px; background: var(--panel-2) }
+.jr-legs-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px } .jr-legs-head .btn { margin-left: auto }
+.jr-legs-tbl { background: var(--panel) } .jr-legs-tbl td { vertical-align: middle } .jr-legs-tbl th em { font-style: normal; font-weight: 400 }
+.jr-legs-tbl select, .jr-legs-tbl input { font: inherit; font-size: 13px; padding: 4px 6px; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--panel); color: var(--ink); width: 100%; box-sizing: border-box; min-width: 80px }
+.jr-legs-tbl input { text-align: right }
+.jr-legs-tbl .seg button { padding: 4px 9px }
+.jr-ro { padding: 6px 8px; border: 1px dashed var(--border-strong); border-radius: var(--radius); color: var(--ink); font-size: 13px; font-family: var(--mono) }
+.jr-pad { padding: 6px 0 }
+@media (max-width: 768px) {
+  .jr-legs-tbl select, .jr-legs-tbl input { min-width: 64px }
+  .jr-legs-head { flex-wrap: wrap }
+  .jr-fields .wide { grid-column: 1 / -1 }
+}
+@media (max-width: 768px) { .jr-legs-tbl select { min-width: 92px } }
+.jr-ltp { font-style: normal; font-size: 12px; color: var(--ink-2); margin-top: 2px } .jr-ltp b { font-family: var(--mono); margin-left: 3px }
+.jr-tbl tr.locked td { background: var(--panel-2); color: var(--muted) }
+.jr-tbl tr.locked td b, .jr-tbl tr.locked .jr-tag, .jr-tbl tr.locked .up, .jr-tbl tr.locked .down { opacity: .7 }
+.jr-act .btn.jr-lock { font-size: 11.5px; color: var(--muted) } .jr-act .btn.jr-lock:hover { color: var(--down) }
+.jr-close-row td { background: var(--amber-bg) !important; color: var(--ink) }
+.jr-close-row label { display: inline-flex; align-items: center; gap: 6px; margin: 0 12px 0 8px; font-size: 12.5px }
+.jr-close-row input { width: 90px; font: inherit; font-size: 13px; padding: 4px 6px; border: 1px solid var(--border-strong); border-radius: var(--radius); text-align: right }
+.jr-close-row .btn { margin-left: 6px }
+.jr-account { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel) }
+.jr-account img { width: 26px; height: 26px; border-radius: 50% }
+.jr-account .btn { margin-left: auto }
+.jr-gbtn { min-height: 32px }
+.mini-slot { display: contents }
+.mini-strip .jr-account { padding: 6px 12px; font-size: 12.5px; align-self: stretch; gap: 8px; border-left: 4px solid var(--accent); min-height: 0 }
+.mini-strip .jr-account .btn { margin-left: 4px; padding: 2px 8px; font-size: 12px }
+.mini-strip .jr-account img { width: 20px; height: 20px }
+.mini-strip .jr-gbtn { min-height: 0 }
+.jr-days { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px; padding: 10px }
+.jr-day { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 10px; border: 1px solid var(--border); border-left: 4px solid var(--border-strong); border-radius: var(--radius); background: var(--panel); cursor: pointer; font: inherit; text-align: left; color: var(--ink) }
+.jr-day.up { border-left-color: var(--up); background: var(--up-bg) } .jr-day.down { border-left-color: var(--down); background: var(--down-bg) }
+.jr-day.on { outline: 2px solid var(--accent) }
+.jr-day-d { font-size: 11.5px; color: var(--ink-2); font-weight: 600 }
+.jr-day-p { font-family: var(--mono); font-size: 16px }
+.jr-day-n { font-size: 11px; color: var(--muted) }
+.jr-day { cursor: default } .jr-day.total { border-width: 1px 1px 1px 4px; border-style: solid; box-shadow: inset 0 0 0 1px var(--border-strong) }
+.jr-day-n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100% }
+.jr-side-break { padding: 0 10px 10px } .jr-side-break .jr-break { border-color: var(--border) }
+/* Journal: scan broker screenshot */
+.jr-scan { border-bottom: 1px solid var(--border); padding: 8px 10px; background: var(--accent-bg); outline: none }
+.jr-scan-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px }
+.jr-scan-bar .btn { padding: 4px 10px }
+.jr-scan-body { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: 10px; margin-top: 8px }
+.jr-scan-body img { width: 160px; max-height: 220px; object-fit: contain; object-position: top; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel) }
+.jr-scan-res { display: flex; flex-direction: column; gap: 6px; min-width: 0 }
+.jr-scan-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 6px 8px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); font-size: 13px }
+.jr-scan-row .btn { margin-left: auto; padding: 3px 10px }
+.jr-prog { height: 4px; background: var(--border); border-radius: 2px; margin-top: 4px; overflow: hidden } .jr-prog i { display: block; height: 100%; background: var(--accent) }
+@media (max-width: 768px) { .jr-scan-body { grid-template-columns: 1fr } .jr-scan-body img { width: 100%; max-height: 160px } }
+.jr-scan-all { display: flex; align-items: center; gap: 10px; flex-wrap: wrap }
+.jr-raw pre { max-height: 220px; overflow: auto; white-space: pre-wrap; font-size: 11px; background: var(--panel); border: 1px solid var(--border); padding: 6px; border-radius: var(--radius) }
+.jr-scan-row.done { opacity: .65 } .jr-saved { margin-left: auto; font-weight: 600; font-size: 12.5px }
+.jr-scan-row .btn.ghost { margin-left: auto } .jr-scan-row .btn.ghost + .btn { margin-left: 0 }
+.jr-scan-mood { display: inline-flex; align-items: center; gap: 6px; font-size: 13px }
+.jr-scan-mood select { font: inherit; font-size: 13px; padding: 4px 8px; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--panel); color: var(--ink) }
+/* Today's trades: compact blocks */
+.jr-days { grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); gap: 6px; padding: 8px 10px }
+.jr-day { padding: 4px 8px; gap: 0; border-left-width: 3px }
+.jr-day-d { font-size: 10.5px }
+.jr-day-p { font-size: 13px; line-height: 1.35 }
+.jr-day-n { font-size: 10.5px }
+.jr-act .btn.jr-lock.open { color: var(--amber) }
+.jr-tbl .jr-pick { width: 28px; text-align: center } .jr-tbl .jr-pick input { cursor: pointer }
+.jr-del-sel { color: #fff; background: var(--down); border-color: var(--down) }
+.btn.jr-del-sel:hover, .btn.jr-del-sel:focus-visible { color: #fff; background: #a52f2f; border-color: #a52f2f }
