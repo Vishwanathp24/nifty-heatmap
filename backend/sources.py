@@ -92,6 +92,9 @@ def all_indices():
             "name": x.get("index"), "last": f(x.get("last")), "open": f(x.get("open")), "high": f(x.get("high")),
             "low": f(x.get("low")), "prev": f(x.get("previousClose")),
             "adv": int(f(x.get("advances")) or 0), "dec": int(f(x.get("declines")) or 0), "unch": int(f(x.get("unchanged")) or 0),
+            # reference closes for the weekly / monthly heatmap (NSE: one week ago, ~30 days ago)
+            "week": f(x.get("oneWeekAgoVal")), "week_date": x.get("oneWeekAgo"),
+            "month": f(x.get("oneMonthAgoVal")), "month_date": x.get("date30dAgo"),
         }
     if not out:
         raise SourceError("allIndices returned no data")

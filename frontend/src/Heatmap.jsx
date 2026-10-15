@@ -3,7 +3,12 @@ import { BreadthBar, ChartIcon, Drawer, Empty, IndexLink, Pct, Seg, SortTh, Stoc
 import { StockDrawer } from './Scanner.jsx'
 import { api, fmtNum, fmtPct, fmtRatio, fmtSigned, fmtVol, heatClass, isNum, istTime, sortRows, tone, useSessionState } from './lib.js'
 
-const pctOf = (s, basis) => s.quote?.[basis === 'open' ? 'pct_open' : 'pct_prev']
+const PCT_KEY = { open: 'pct_open', prev: 'pct_prev', week: 'pct_week', month: 'pct_month' }
+const pctOf = (s, basis) => s.quote?.[PCT_KEY[basis]]
+// Daily / Weekly / Monthly heatmap: weekly and monthly moves are larger, so the colour bands widen
+// (weekly ×2.5, monthly ×5) to keep the tiles readable.
+const SCALE = { open: 1, prev: 1, week: 2.5, month: 5 }
+const BASIS_WORD = { open: 'vs open', prev: 'vs prev', week: '1 week', month: '1 month' }
 
 // Live constituents straight from NSE for this index (refreshed every 10 s while open).
 function useSectorStocks(symbol) {
@@ -125,7 +130,9 @@ export default function Heatmap({ live, selected, setSelected, toggle, goto }) {
   // Selection cleared elsewhere (ORB / Intraday Scanner "Clear"): show all sectors again.
   useEffect(() => { if (!selected.length && view !== 'all') setView('all') }, [selected.length])
   const [sort, setSort] = useSessionState('hm.sort', 'desc')
-  const [basis, setBasis] = useSessionState('hm.basis', 'open')
+  const [dayBasis, setBasis] = useSessionState('hm.basis', 'open')
+  const [period, setPeriod] = useSessionState('hm.period', 'day')
+  const basis = period === 'day' ? dayBasis : period  // what colours / sorts the tiles
   const [detail, setDetail] = useState(null)
   const [stockSym, setStockSym] = useState(null)  // Top 20 row opened in the details drawer
 
@@ -160,7 +167,9 @@ export default function Heatmap({ live, selected, setSelected, toggle, goto }) {
       <select value={sort} onChange={e => setSort(e.target.value)} aria-label="Sort sectors">
         <option value="desc">% Change High → Low</option><option value="asc">% Change Low → High</option><option value="alpha">Alphabetical</option>
       </select>
-      <Seg value={basis} onChange={setBasis} options={[{ value: 'open', label: 'vs Open', title: "Colour and sort by change vs today's open" }, { value: 'prev', label: 'vs Prev Close', title: 'Colour and sort by change vs previous close' }]} />
+      <Seg value={period} onChange={setPeriod} options={[{ value: 'day', label: 'Daily', title: "Today's move" }, { value: 'week', label: 'Weekly', title: 'Change over the last week (vs the close one week ago)' }, { value: 'month', label: 'Monthly', title: 'Change over the last month (vs the close ~30 days ago)' }]} />
+      {period === 'day' && <Seg value={dayBasis} onChange={setBasis} options={[{ value: 'open', label: 'vs Open', title: "Colour and sort by change vs today's open" }, { value: 'prev', label: 'vs Prev Close', title: 'Colour and sort by change vs previous close' }]} />}
+      {period !== 'day' && (() => { const d = sectors.find(x => x.quote?.[period + '_date'])?.quote?.[period + '_date']; return d && <span className="muted small">since the close on {d} · NSE</span> })()}
     </div>
     <div className="toolbar sel-bar">
       <span className="strong">Selected Sectors: {selected.length}</span>
@@ -174,10 +183,10 @@ export default function Heatmap({ live, selected, setSelected, toggle, goto }) {
     <div className="heatmap">
       {shown.map(s => {
         const p = pctOf(s, basis)
-        const other = basis === 'open' ? s.quote?.pct_prev : s.quote?.pct_open
+        const other = basis === 'open' ? s.quote?.pct_prev : basis === 'prev' ? s.quote?.pct_open : s.quote?.pct_prev
         const isSel = selected.includes(s.symbol)
         return <div key={s.symbol} role="button" tabIndex={0}
-          className={'tile ' + heatClass(p) + (isSel ? ' selected' : '') + (detail === s.symbol ? ' viewing' : '')}
+          className={'tile ' + heatClass(isNum(p) ? p / SCALE[basis] : p) + (isSel ? ' selected' : '') + (detail === s.symbol ? ' viewing' : '')}
           onClick={() => setDetail(s.symbol)} onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), setDetail(s.symbol))}
           title={`${s.symbol} — click to see its stocks`}>
           <div className="tile-head">
@@ -189,21 +198,22 @@ export default function Heatmap({ live, selected, setSelected, toggle, goto }) {
             <ChartIcon name={s.symbol} />
           </div>
           <div className="tile-val">{fmtNum(s.quote?.ltp)}</div>
-          <div className="tile-pct">{fmtPct(p)} <small>{basis === 'open' ? 'vs open' : 'vs prev'}</small></div>
-          <div className="tile-foot"><span>{basis === 'open' ? 'prev' : 'open'} {fmtPct(other)}</span><span title="NSE advances / declines vs previous close">{s.nse_breadth.up}↑ {s.nse_breadth.down}↓</span></div>
+          <div className="tile-pct">{fmtPct(p)} <small>{BASIS_WORD[basis]}</small></div>
+          <div className="tile-foot"><span>{basis === 'open' ? 'prev' : basis === 'prev' ? 'open' : 'today'} {fmtPct(other)}</span><span title="NSE advances / declines vs previous close (today)">{s.nse_breadth.up}↑ {s.nse_breadth.down}↓</span></div>
         </div>
       })}
       {!shown.length && <Empty>No sectors match.</Empty>}
     </div>
     <div className="legend">
-      <span>Colour scale ({basis === 'open' ? 'vs open' : 'vs prev close'}):</span>
-      {[['heat-dn-4', '≤ −2%'], ['heat-dn-3', '−1 to −2%'], ['heat-dn-2', '−0.5 to −1%'], ['heat-dn-1', '−0.1 to −0.5%'], ['heat-0', '±0.1%'], ['heat-up-1', '+0.1 to +0.5%'], ['heat-up-2', '+0.5 to +1%'], ['heat-up-3', '+1 to +2%'], ['heat-up-4', '≥ +2%']].map(([c, l]) =>
-        <span key={c} className="legend-item"><i className={c} />{l}</span>)}
+      <span>Colour scale ({({ open: 'vs open', prev: 'vs prev close', week: '1 week', month: '1 month' })[basis]}):</span>
+      {(() => { const k = SCALE[basis], f = v => +(v * k).toFixed(2)
+        return [['heat-dn-4', `≤ −${f(2)}%`], ['heat-dn-3', `−${f(1)} to −${f(2)}%`], ['heat-dn-2', `−${f(0.5)} to −${f(1)}%`], ['heat-dn-1', `−${f(0.1)} to −${f(0.5)}%`], ['heat-0', `±${f(0.1)}%`], ['heat-up-1', `+${f(0.1)} to +${f(0.5)}%`], ['heat-up-2', `+${f(0.5)} to +${f(1)}%`], ['heat-up-3', `+${f(1)} to +${f(2)}%`], ['heat-up-4', `≥ +${f(2)}%`]].map(([c, l]) =>
+          <span key={c} className="legend-item"><i className={c} />{l}</span>) })()}
     </div>
     <FoMovers stocks={live.stocks} selected={selected} labels={Object.fromEntries(sectors.map(x => [x.symbol, x.label]))} onOpen={setStockSym} openSym={stockSym} />
     {stockSym && <StockDrawer stock={live.stocks.find(x => x.symbol === stockSym)} onClose={() => setStockSym(null)} />}
     <Drawer open={!!detailSector} onClose={() => setDetail(null)} wide title={detailSector?.label ? `${detailSector.label} · ${detailSector.symbol}` : ''}>
-      {detailSector && <SectorPanel sector={detailSector} basis={basis} selected={selected} toggle={toggle} />}
+      {detailSector && <SectorPanel sector={detailSector} basis={dayBasis} selected={selected} toggle={toggle} />}
     </Drawer>
   </>
 }

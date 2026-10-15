@@ -55,7 +55,9 @@ def quote_view(q):
     ltp, prev, opn = q["ltp"], q.get("prev"), q.get("open") or None
     return {"ltp": ltp, "open": opn, "high": q.get("high"), "low": q.get("low"), "prev_close": prev,
             "change": round(ltp - prev, 2) if prev else None, "pct_prev": _pct(ltp, prev),
-            "change_open": round(ltp - opn, 2) if opn else None, "pct_open": _pct(ltp, opn)}
+            "change_open": round(ltp - opn, 2) if opn else None, "pct_open": _pct(ltp, opn),
+            "pct_week": _pct(ltp, q.get("week")), "week_date": q.get("week_date"),
+            "pct_month": _pct(ltp, q.get("month")), "month_date": q.get("month_date")}
 
 
 def breadth(rows, key):
