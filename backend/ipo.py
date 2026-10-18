@@ -332,3 +332,29 @@ def ipo_detail(symbol, series="EQ"):
     with _DETAIL_LOCK:
         _DETAIL[key] = (time.time(), out)
     return out
+
+
+_YT = {}  # query -> (fetched_at, [video ids])
+
+
+def youtube_top(query, n=4):
+    """Top n YouTube search results for an IPO (no API key: reads the public results page).
+    shortcut: scrapes YouTube's page, so a layout change returns no ids (the app then links to a search);
+    switch to the YouTube Data API if that starts happening."""
+    import requests
+    q = " ".join(str(query).split())[:120]
+    hit = _YT.get(q)
+    if hit and time.time() - hit[0] < 6 * 3600:
+        return {"query": q, "ids": hit[1]}
+    ids = []
+    try:
+        r = requests.get("https://www.youtube.com/results", params={"search_query": q, "hl": "en"},
+                         headers={"User-Agent": "Mozilla/5.0", "Accept-Language": "en"}, timeout=10)
+        for v in re.findall(r'"videoId":"([A-Za-z0-9_-]{11})"', r.text):
+            if v not in ids:
+                ids.append(v)
+        ids = ids[:n]
+    except Exception:
+        pass
+    _YT[q] = (time.time(), ids)
+    return {"query": q, "ids": ids}

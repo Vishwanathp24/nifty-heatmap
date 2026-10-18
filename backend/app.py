@@ -398,6 +398,13 @@ def ipo_detail_route(symbol: str, series: str = "EQ"):
     return _live_call(ipo_detail, symbol, series)
 
 
+@app.get("/api/ipo/video")
+def ipo_video(q: str):
+    """IPO blog post -> the top YouTube result for "<company> IPO review" (embedded without autoplay)."""
+    from ipo import youtube_top
+    return youtube_top(q)
+
+
 @app.get("/api/ipo")
 def ipo():
     """Upcoming / open IPOs and recent listings (NSE mainboard + NSE SME)."""

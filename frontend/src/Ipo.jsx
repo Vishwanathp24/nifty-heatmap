@@ -22,13 +22,12 @@ const CAT_LABEL = { qib: 'QIB (institutions)', nii: 'NII (HNIs) — total', bnii
 const ICON = { up: '👍', down: '👎', neutral: '➖' }
 const cr = v => isNum(v) ? '₹' + v.toLocaleString('en-IN', { maximumFractionDigits: 0 }) + ' Cr' : '—'
 
-function IpoDetail({ row, onClose }) {
+function IpoDetail({ row, onClose, page }) {  // page: render the review inline (blog article) instead of in a drawer
   const series = row.board === 'NSE SME' ? 'SME' : 'EQ'
   const res = usePoll(() => api(`/api/ipo/detail?symbol=${encodeURIComponent(row.symbol)}&series=${series}`), 120000, [row.symbol])
   const d = res.data && res.data.symbol === row.symbol ? res.data : null
   const ups = d ? d.checks.filter(c => c.verdict === 'up').length : 0, downs = d ? d.checks.filter(c => c.verdict === 'down').length : 0
-  return <Drawer open onClose={onClose} wide title={row.company}>
-    {!d ? <Empty>{res.error || 'Loading issue details from NSE…'}</Empty> : <div className="ipo-detail">
+  const body = <>{!d ? <Empty>{res.error || 'Loading issue details from NSE…'}</Empty> : <div className="ipo-detail">
       {(() => { const rt = ipoRating(d, row); return <div className={'ipo-rate-banner ' + rt.key}>
         <b>{RATING_ICON[rt.key]} {rt.label}</b> <span>{rt.ups} 👍 · {rt.downs} 👎 — {rt.why}</span>
         <div className="small muted">Based only on exchange data (demand, issue structure, size, board, anchors) — not on valuation or financials, and not a buy / sell verdict.</div></div> })()}
@@ -83,8 +82,8 @@ function IpoDetail({ row, onClose }) {
         </div>
       </div>
       <div className="muted small">Data: NSE IPO feed · updated {istTime(d.fetched_at)} IST. The checklist rates individual factors from exchange data; it is not an overall recommendation — read the prospectus and decide for yourself. Not investment advice.</div>
-    </div>}
-  </Drawer>
+    </div>}</>
+  return page ? body : <Drawer open onClose={onClose} wide title={row.company}>{body}</Drawer>
 }
 
 // Traffic-light rating of how an IPO scores on the checklist (exchange data only — not a buy / sell
@@ -198,6 +197,66 @@ function Recent({ rows, board, below, search }) {
   </div>
 }
 
+// Blog: IPO updates & reviews, as compact cards (status, issue name, dates, price band, updated time).
+// Written from the same NSE data as the tables; click a card for the full review.
+const dd = iso => { if (!iso) return 'N/A'; const [y, m, day] = iso.split('-'); return `${day}-${MON[Number(m) - 1]}-${y}` }
+const band = b => b ? b.replace(/₹\s*/g, 'Rs. ') + ' per Equity Share' : 'Price band not announced yet'
+const upd = iso => iso ? new Date(iso).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : ''
+// Top 4 YouTube results for the IPO, embedded at the end of a post. No autoplay; privacy-enhanced player.
+function IpoVideo({ company }) {
+  const q = (company || '').replace(/ Limited$/i, '') + ' IPO review'
+  const res = usePoll(() => api('/api/ipo/video?q=' + encodeURIComponent(q)), 3.6e6, [q])
+  const search = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(q)
+  return <section className="blog-video">
+    <h3>Videos</h3>
+    {res.data?.ids?.length ? <div className="blog-videos">{res.data.ids.map(id => <iframe key={id} src={`https://www.youtube-nocookie.com/embed/${id}`} title={`YouTube: ${q}`} loading="lazy"
+      allow="encrypted-media; picture-in-picture" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" />)}</div>
+      : <p className="muted">{res.data || res.error ? 'No videos found.' : 'Finding videos…'}</p>}
+    <p className="muted small">Top YouTube results for “{q}”, picked automatically; views in videos are the creators’, not a recommendation. <a href={search} target="_blank" rel="noopener noreferrer">More on YouTube</a></p>
+  </section>
+}
+const listedLine = r => `Listed ${dd(r.listing_date)} · Issue Rs. ${fmtNum(r.issue_price)}` + (isNum(r.listing_gain) ? ` · listing ${r.listing_gain >= 0 ? '+' : '−'}${Math.abs(r.listing_gain).toFixed(2)}%` : '') + (isNum(r.pct_vs_issue) ? ` · now ${r.pct_vs_issue >= 0 ? '+' : '−'}${Math.abs(r.pct_vs_issue).toFixed(2)}% vs issue` : '')
+const pill = p => p.r.listing_date ? ['listed', 'Listed'] : p.r.status === 'Open' ? ['open', 'Open'] : ['soon', 'Upcoming']
+function Blog({ data, board }) {
+  const [sel, setSel] = useState(null)  // key of the open post
+  const onBoard = r => board === 'all' || (board === 'sme') === (r.board === 'NSE SME')
+  const when = 'Updated ' + upd(data.fetched_at)
+  const posts = [...data.upcoming.filter(onBoard).map(r => ({ key: 'u' + r.symbol, r })),
+    ...[...data.recent].filter(onBoard).sort((a, b) => b.listing_date.localeCompare(a.listing_date)).slice(0, 12).map(r => ({ key: 'l' + r.symbol + r.listing_date, r }))]
+  const open = k => { setSel(k); window.scrollTo({ top: 0, behavior: 'smooth' }) }
+  const post = posts.find(p => p.key === sel)
+  if (post) {
+    const r = post.r, [cls, label] = pill(post)
+    return <div className="blog-page">
+      <article className="blog-article">
+        <button className="btn sm" onClick={() => setSel(null)}>All posts</button>
+        <span className={'blog-pill ' + cls}>{label}</span>
+        <h2>{r.company} IPO</h2>
+        <p className="muted">{r.listing_date ? listedLine(r) : `${dd(r.open)} to ${dd(r.close)} · ${band(r.price_band)}`}<br />{when}</p>
+        {r.listing_date && isNum(r.ltp) && <p>{r.company} listed on {dd(r.listing_date)} at Rs. {fmtNum(r.listing_price)} against an issue price of Rs. {fmtNum(r.issue_price)}. It now trades at Rs. {fmtNum(r.ltp)}. <StockLink symbol={r.symbol} company={r.company}>Chart</StockLink></p>}
+        <IpoDetail row={r} page />
+        <IpoVideo company={r.company} />
+      </article>
+      <aside className="blog-side">
+        <h3>Latest posts</h3>
+        {posts.filter(p => p.key !== sel).slice(0, 6).map(p => { const [c, l] = pill(p); return <button key={p.key} className="blog-side-item" onClick={() => open(p.key)}>
+          <span className={'blog-pill ' + c}>{l}</span><b>{p.r.company} IPO</b></button> })}
+      </aside>
+    </div>
+  }
+  return <>
+    <div className="blog">
+      {posts.map(p => { const r = p.r, [cls, label] = pill(p); return <button key={p.key} className="blog-card" onClick={() => open(p.key)} title="Read the full post">
+        <span className={'blog-pill ' + cls}>{label}</span>
+        <b>{r.company} IPO</b>
+        <span className="muted">{r.listing_date ? listedLine(r) : `${dd(r.open)} to ${dd(r.close)} · ${band(r.price_band)}`}</span>
+        <span className="muted">{when}</span>
+      </button> })}
+    </div>
+    {!posts.length && <Empty>No IPO news for this board yet.</Empty>}
+  </>
+}
+
 export default function Ipo({ ipo }) {
   const [view, setView] = useSessionState('ipo.view', 'upcoming')
   const [board, setBoard] = useSessionState('ipo.board', 'all')
@@ -210,7 +269,7 @@ export default function Ipo({ ipo }) {
     <div className="page-title"><h1>IPOs</h1>
       <span className="muted small">NSE mainboard and NSE SME issues · source: NSE public issue data{data?.fetched_at ? ` · updated ${istTime(data.fetched_at)}` : ''}</span></div>
     <div className="orb-switch" role="tablist" aria-label="IPO list">
-      {[['upcoming', 'Upcoming IPOs', 'open & forthcoming'], ['recent', 'Recent IPOs', `listed in last ${data?.recent_days || 120} days`]].map(([v, label, sub]) =>
+      {[['upcoming', 'Upcoming IPOs', 'open & forthcoming'], ['recent', 'Recent IPOs', `listed in last ${data?.recent_days || 120} days`], ['blog', 'Blog', 'IPO updates & reviews']].map(([v, label, sub]) =>
         <button key={v} role="tab" aria-selected={view === v} className={view === v ? 'on' : ''} onClick={() => setView(v)}>
           {label} <small>{sub}</small>{counts[v] != null && <span className="count">{counts[v]}</span>}</button>)}
     </div>
@@ -223,7 +282,7 @@ export default function Ipo({ ipo }) {
       </>}
     </div>
     {!data ? <Empty>{ipo.error || 'Loading IPO data from NSE…'}</Empty>
-      : view === 'upcoming' ? <Upcoming rows={data.upcoming} board={board} /> : <Recent rows={data.recent} board={board} below={below} search={search} />}
+      : view === 'upcoming' ? <Upcoming rows={data.upcoming} board={board} /> : view === 'blog' ? <Blog data={data} board={board} /> : <Recent rows={data.recent} board={board} below={below} search={search} />}
     <p className="muted small">BSE-only SME issues are not included (NSE data only). Subscription is NSE's live “times subscribed” across all categories. Listing price = opening price on the listing day (NSE bhavcopy). GMP links open a web search for “[company] IPO GMP today” (GMP is unofficial; no exchange publishes it). % vs Issue Price uses NSE's official close after market hours and the live price during the session. The checklist rates individual factors from NSE data — it is not a buy / sell verdict. Not investment advice.</p>
   </div>
 }
