@@ -269,9 +269,9 @@ export default function Ipo({ ipo }) {
     <div className="page-title"><h1>IPOs</h1>
       <span className="muted small">NSE mainboard and NSE SME issues · source: NSE public issue data{data?.fetched_at ? ` · updated ${istTime(data.fetched_at)}` : ''}</span></div>
     <div className="orb-switch" role="tablist" aria-label="IPO list">
-      {[['upcoming', 'Upcoming IPOs', 'open & forthcoming'], ['recent', 'Recent IPOs', `listed in last ${data?.recent_days || 120} days`], ['blog', 'Blog', 'IPO updates & reviews']].map(([v, label, sub]) =>
+      {[['upcoming', 'Upcoming IPOs'], ['recent', 'Recent IPOs'], ['blog', 'IPO updates & reviews']].map(([v, label, sub]) =>
         <button key={v} role="tab" aria-selected={view === v} className={view === v ? 'on' : ''} onClick={() => setView(v)}>
-          {label} <small>{sub}</small>{counts[v] != null && <span className="count">{counts[v]}</span>}</button>)}
+          {label}{sub && <small> {sub}</small>}{counts[v] != null && <span className="count">{counts[v]}</span>}</button>)}
     </div>
     <div className="toolbar">
       <Seg value={board} onChange={setBoard} options={[{ value: 'all', label: 'All' }, { value: 'main', label: 'Mainboard' }, { value: 'sme', label: 'NSE SME' }]} />
