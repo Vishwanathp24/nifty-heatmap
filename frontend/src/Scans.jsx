@@ -204,6 +204,7 @@ export default function Scans({ trend: trendRaw, live, selected, setSelected, ch
       : tab === 'chart' ? <StockLive key={'sl' + chartReq} stocks={live?.stocks || []} selected={selected} bias={live?.bias?.label} />
       : !data ? <Empty>{trend.error || 'Loading scan data…'}</Empty>
       : !data.rows.length ? <Empty>Calculating for the first time — this takes about 2–3 minutes…</Empty>
-        : tab === 'trend' ? <Trend key={'t' + resetKey} trend={trend} settings={settings} /> : <ConditionScan key={tab + resetKey} id={tab} data={data} />}
+        : tab === 'trend' ? <Trend key={'t' + resetKey} trend={trend} settings={settings} />
+        : <ConditionScan key={tab + resetKey} id={tab} data={data} />}
   </div>
 }

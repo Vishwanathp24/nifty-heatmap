@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { api, isNum, usePersistentState } from './lib.js'
-import { VIEWS, BIAS_VIEW, BUYER, refStrikes } from './OptionTools.jsx'
+import { VIEWS, BIAS_VIEW, BUYER, FIT, refStrikes } from './OptionTools.jsx'
 import { IndexCard } from './Overview.jsx'
 
 // Journal — the user's own options trade log. Pick option buyer / seller, the underlying (Nifty, Sensex,
@@ -25,11 +25,20 @@ const EXTRA = {
   ],
   move: [],
 }
-const VIEW_LABEL = {
-  buyer: { bull: 'Bullish · buy CE', bear: 'Bearish · buy PE', move: 'Big move · CE + PE' },
-  seller: { bull: 'Bullish · sell PE', bear: 'Bearish · sell CE', range: 'Range-bound' },
+// Same views as the Strategy explainer. A view can have no structure for one side (buyers have none
+// for range-bound, sellers none for a big move) — the form then says so.
+const VIEW_LABEL = { bull: 'Bullish', bear: 'Bearish', range: 'Range-bound', move: 'Big move' }
+// Implied-volatility regime, as the explainer reads it: India VIX for Indian options (13–20 = normal),
+// the coin's DVOL for crypto.
+const IV_BANDS = { BTC: [40, 65], ETH: [55, 85], SOL: [55, 90], XRP: [55, 90] }
+const regimeOf = (seg, und, live, d) => {
+  const iv = seg === 'Crypto' ? d?.dvol : live?.indices?.indiavix?.ltp ?? d?.dvol, [lo, hi] = IV_BANDS[und] || [13, 20]
+  return !isNum(iv) ? 'normal' : iv < lo ? 'low' : iv > hi ? 'high' : 'normal'
 }
-const strategies = (role, view) => [...(VIEWS[view]?.list || []), ...(EXTRA[view] || [])].filter(s => (role === 'buyer') === BUYER.has(s[0]))
+const fitOf = (role, view, regime) => FIT[role === 'buyer' ? 'buy' : 'sell'][view]?.[regime] || null
+// strategies for a side + view, the one that fits current conditions first
+const strategies = (role, view, fit) => [...(VIEWS[view]?.list || []), ...(EXTRA[view] || [])]
+  .filter(s => (role === 'buyer') === BUYER.has(s[0])).sort((a, b) => (b[0] === fit) - (a[0] === fit))
 
 const todayIst = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
 const nowIst = () => new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit' })
@@ -38,7 +47,7 @@ const money = (v, sign) => v == null ? '—' : (sign && v > 0 ? '+' : '') + v.to
 const tone = v => v > 0 ? 'up' : v < 0 ? 'down' : ''
 const pct = v => v == null ? '—' : Math.round(v * 100) + '%'
 const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7)
-const firstView = (role, bias) => { const v = BIAS_VIEW[bias?.label]; return VIEW_LABEL[role][v] ? v : 'bull' }
+const firstView = (role, bias) => BIAS_VIEW[bias?.label] || 'bull'  // follow the Market Bias, like the explainer
 // More than 2 trades in a day (or in one screenshot) defaults the mood to Revenge — the user can change it.
 const moodFor = n => n > 2 ? 'Revenge' : 'Calm'
 const blank = (bias, keep = {}) => {
@@ -337,7 +346,9 @@ function TradeForm({ form, setForm, onSave, onAddAll, onCancel, live }) {
   const exps = d?.expiries || []
   const exp = exps.find(e => e.expiry_ist === form.expiry) || exps[0]
   const strikes = exp?.chain?.map(r => r.k) || []
-  const list = strategies(form.role, form.view)
+  const regime = regimeOf(form.seg, form.und, live, d)
+  const fit = fitOf(form.role, form.view, regime)
+  const list = strategies(form.role, form.view, fit)
   const spec = list.find(s => s[0] === form.strategy)
   const stockQ = form.seg === 'Stock' ? live?.stocks?.find(x => x.symbol === form.und) : null
   const set = patch => setForm(f => ({ ...f, ...patch }))
@@ -374,14 +385,19 @@ function TradeForm({ form, setForm, onSave, onAddAll, onCancel, live }) {
   const scanClear = useRef(null)
   const useScan = r => {
     const [role, view, strategy] = OCR_STRAT[r.a + r.t]
-    setForm(f => ({ ...f, auto: false, role, view, strategy, seg: OCR_SEG(r.und), und: r.und, expiry: '', time: r.time || f.time,
+    setForm(f => ({ ...f, auto: false, stratPicked: true, role, view, strategy, seg: OCR_SEG(r.und), und: r.und, expiry: '', time: r.time || f.time,
       legs: [{ a: r.a, t: r.t, k: r.k, entry: r.entry ?? '', exit: r.exit ?? '' }], lots: 1, lotSize: '', qtyHint: r.qty, expHint: r.expiry }))
     setErr('')
   }
 
+  useEffect(() => {
+    if (form.id || form.stratPicked || !list.length) return
+    const want = list[0][0]
+    if (want !== form.strategy) setForm(f => ({ ...f, strategy: want, auto: true }))
+  }, [fit, form.view, form.role, list.length])  // eslint-disable-line react-hooks/exhaustive-deps
   const pick = patch => set({ ...patch, auto: true })
-  const setRole = role => { const view = firstView(role, bias); pick({ role, view, strategy: strategies(role, view)[0]?.[0] || '' }) }
-  const setView = view => pick({ view, strategy: strategies(form.role, view)[0]?.[0] || '' })
+  const setRole = role => pick({ role, strategy: strategies(role, form.view, fitOf(role, form.view, regime))[0]?.[0] || '', legs: [], stratPicked: false })
+  const setView = view => pick({ view, strategy: strategies(form.role, view, fitOf(form.role, view, regime))[0]?.[0] || '', legs: [], stratPicked: false })
   const setSeg = seg => pick({ seg, und: { Nifty: 'NIFTY', Sensex: 'SENSEX', Stock: '', Crypto: 'BTC' }[seg], expiry: '', lotSize: '', legs: [] })
   const setLeg = (i, patch) => set({ auto: false, legs: form.legs.map((l, j) => {
     if (j !== i) return l
@@ -401,7 +417,7 @@ function TradeForm({ form, setForm, onSave, onAddAll, onCancel, live }) {
     if (form.legs.some(l => num(l.k) == null || num(l.entry) == null)) return setErr('Every leg needs a strike and an entry premium.')
     if (!(num(form.lots) > 0)) return setErr('Enter lots above 0.')
     setErr('')
-    const { auto, qtyHint, expHint, ...t } = form
+    const { auto, qtyHint, expHint, stratPicked, ...t } = form
     if (qtyHint != null) Object.assign(t, { lots: 1, lotSize: qtyHint })  // chain never loaded: keep the scanned quantity
     onSave({ ...t, lotSize: num(t.lotSize) || 1 })
     scanClear.current?.()  // the screenshot is not kept once the trade is added
@@ -433,12 +449,15 @@ function TradeForm({ form, setForm, onSave, onAddAll, onCancel, live }) {
           </select>}</label>
 
       <label className="full"><span>Market view {bias?.label && <em>· Market Bias now: <b className={biasView === 'bull' ? 'up' : biasView === 'bear' ? 'down' : ''}>{bias.label}</b></em>}</span>
-        <div className="seg jr-seg">{Object.entries(VIEW_LABEL[form.role]).map(([v, l]) =>
+        <div className="seg jr-seg">{Object.entries(VIEW_LABEL).map(([v, l]) =>
           <button type="button" key={v} className={(form.view === v ? 'on ' + (VIEWS[v].tone || '') : '')} onClick={() => setView(v)} title={v === biasView ? 'Matches the current Market Bias' : ''}>
             {l}{v === biasView && <span className="jr-dot" aria-label="matches Market Bias"> ●</span>}</button>)}</div></label>
       <label className="full"><span>Strategy</span>
-        <div className="jr-strats">{list.map(s => s[0]).map(n =>
-          <button type="button" key={n} className={'jr-chip' + (form.strategy === n ? ' on' : '')} onClick={() => pick({ strategy: n })}>{n}</button>)}</div>
+        {list.length ? <div className="jr-strats">{list.map(s => s[0]).map(n =>
+          <button type="button" key={n} className={'jr-chip' + (form.strategy === n ? ' on' : '')} onClick={() => pick({ strategy: n, stratPicked: true })}
+            title={n === fit ? `Fits a ${VIEW_LABEL[form.view].toLowerCase()} view with ${regime} volatility, as in the Strategy explainer` : ''}>{n}{n === fit && <span className="jr-fit"> ✓ fits current conditions</span>}</button>)}</div>
+          : <span className="jr-desc">{form.role === 'buyer' ? 'Option buyers have no structure for a range-bound view — it is a seller\u2019s setup.' : 'Option sellers have no structure for a big move either way — it is a buyer\u2019s setup.'}{' '}
+            <button type="button" className="btn ghost" onClick={() => setRole(form.role === 'buyer' ? 'seller' : 'buyer')}>Switch to option {form.role === 'buyer' ? 'seller' : 'buyer'}</button></span>}
         {spec && <span className="jr-desc">{spec[1]}</span>}</label>
     </div>
 
@@ -644,7 +663,7 @@ export default function Journal({ live }) {
   }
   const strip = t => { const { c, name, ...rest } = t; return rest }
   const edit = t => { setForm({ ...blank(live?.bias), ...strip(t), auto: false }); document.getElementById('jr-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
-  const dup = t => { const { id, ...rest } = strip(t); setForm({ ...blank(live?.bias), ...rest, legs: (rest.legs || []).map(l => ({ ...l, exit: '' })), date: todayIst(), time: nowIst(), auto: false }) }
+  const dup = t => { const { id, ...rest } = strip(t); setForm({ ...blank(live?.bias), ...rest, legs: (rest.legs || []).map(l => ({ ...l, exit: '' })), date: todayIst(), time: nowIst(), auto: false, stratPicked: true }) }
   const saveClose = () => {
     const t = trades.find(x => x.id === closing.id)
     if (!t || closing.exits.some(v => num(v) == null)) return

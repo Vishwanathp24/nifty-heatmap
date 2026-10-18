@@ -21,6 +21,7 @@ from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 
 import sources
+from concurrent.futures import ThreadPoolExecutor
 
 OPEN, CLOSE = 9 * 60 + 15, 15 * 60 + 30
 
@@ -315,7 +316,7 @@ def yahoo_1m_today(symbol):
     return day, out
 
 
-def today_from_minutes(session, y1m, nse_bars, ltp=None):
+def today_from_minutes(session, y1m, nse_bars, ltp=None, size=15):
     """Today's 15-min candles built minute by minute: Yahoo 1-min OHLCV where present
     (true intra-minute high/low), NSE's per-minute bars for minutes Yahoo lacks (it
     often drops the last 15 minutes), and the final close set to NSE's price (the
@@ -327,7 +328,7 @@ def today_from_minutes(session, y1m, nse_bars, ltp=None):
     out = []
     for m in sorted(mins):
         o, h, l, c, v = mins[m]
-        slot = OPEN + (m - OPEN) // 15 * 15
+        slot = OPEN + (m - OPEN) // size * size
         if out and out[-1]["m"] == slot:
             b = out[-1]
             b["h"], b["l"], b["c"], b["v"] = max(b["h"], h), min(b["l"], l), c, b["v"] + v
@@ -345,6 +346,7 @@ class TrendScan:
         self.lock = threading.Lock()
         self.rows = {}  # sym -> {"15": {...}, "60": {...}, "daily": {...}, "hourly": {...}, "at": epoch}
         self.daily = {}  # sym -> (fetched_on_date, [daily bars]) — history refreshed once a day
+        self.hist = {}  # (sym, "15") -> (session, [15-min candles before that session])
         self.cycle = {"state": "starting", "done": 0, "total": 0, "started": None, "finished": None}
         self.thread = None
 
@@ -370,39 +372,52 @@ class TrendScan:
             syms = sorted(uni["scan"])
             self.cycle = {"state": "running", "done": 0, "total": len(syms),
                           "started": datetime.now(timezone.utc).isoformat(), "finished": self.cycle.get("finished")}
-            for s in syms:
-                try:
-                    with self.engine.lock:
-                        day_bars, session = dict(self.engine.bars.get(s) or {}), self.engine.session
-                        ltp = ((self.engine.quotes or {}).get(s) or {}).get("ltp")
-                    c15 = yahoo_15m(s)
-                    y_day, y1m = yahoo_1m_today(s)
-                    if session and y_day in (session, None) and (y1m or day_bars):
-                        # history from 15-min candles, today rebuilt from 1-minute data
-                        c15 = [b for b in c15 if b["d"] < session] + today_from_minutes(session, y1m, day_bars, ltp)
-                    else:
-                        c15 = fill_tail(c15, day_bars, session)
-                    h1 = to_hourly(c15)
-                    today = datetime.now(timezone.utc).date().isoformat()
-                    if self.daily.get(s, (None,))[0] != today:
-                        self.daily[s] = (today, yahoo_daily(s))
-                    q = (self.engine.quotes or {}).get(s)
-                    nse_q = q if q and self.engine.session == (c15[-1]["d"] if c15 else None) else None
-                    d1 = with_today(self.daily[s][1], c15, nse_q)
-                    row = {"15": indicators(c15), "60": indicators(h1), "daily": daily_metrics(d1),
-                           "hourly": hourly_metrics(to_hourly_clock(c15)), "at": time.time()}
-                    now = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
-                    now_min = now.hour * 60 + now.minute if now.date().isoformat() == (c15[-1]["d"] if c15 else "") else CLOSE
-                    row["since"] = radar_times(c15, self.daily[s][1], now_min)
-                    with self.lock:
-                        self.rows[s] = row
-                except Exception:
-                    traceback.print_exc(limit=1)
-                self.cycle["done"] += 1
+            # 4 stocks at a time (Yahoo calls stay paced by the shared client); one pass fits well inside 3 minutes
+            with ThreadPoolExecutor(max_workers=4) as ex:
+                list(ex.map(lambda s: self._scan_one(s, uni), syms))
             self.cycle["state"] = "idle"
             self.cycle["finished"] = datetime.now(timezone.utc).isoformat()
-            # Continuous refresh in market hours (one pass takes a couple of minutes); else every 30 min.
+            # Continuous refresh in market hours (one pass takes about a minute); else every 30 min.
             time.sleep(15 if self._market_hours() else 1800)
+
+    def _history(self, s, kind, session, fetch):
+        """Candles before today, fetched once per session (they don't change during the day)."""
+        hit = self.hist.get((s, kind))
+        if not hit or hit[0] != session:
+            hit = (session, [b for b in fetch(s) if b["d"] < session])
+            self.hist[(s, kind)] = hit
+        return hit[1]
+
+    def _scan_one(self, s, uni):
+        try:
+            with self.engine.lock:
+                day_bars, session = dict(self.engine.bars.get(s) or {}), self.engine.session
+                ltp = ((self.engine.quotes or {}).get(s) or {}).get("ltp")
+            y_day, y1m = yahoo_1m_today(s)
+            minutes = bool(session and y_day in (session, None) and (y1m or day_bars))
+            if minutes:
+                # history once a day, today rebuilt from 1-minute data every pass
+                c15 = self._history(s, "15", session, yahoo_15m) + today_from_minutes(session, y1m, day_bars, ltp)
+            else:
+                c15 = fill_tail(yahoo_15m(s), day_bars, session)
+            h1 = to_hourly(c15)
+            today = datetime.now(timezone.utc).date().isoformat()
+            if self.daily.get(s, (None,))[0] != today:
+                self.daily[s] = (today, yahoo_daily(s))
+            q = (self.engine.quotes or {}).get(s)
+            nse_q = q if q and self.engine.session == (c15[-1]["d"] if c15 else None) else None
+            d1 = with_today(self.daily[s][1], c15, nse_q)
+            row = {"15": indicators(c15), "60": indicators(h1), "daily": daily_metrics(d1),
+                   "hourly": hourly_metrics(to_hourly_clock(c15)), "at": time.time()}
+            now = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
+            now_min = now.hour * 60 + now.minute if now.date().isoformat() == (c15[-1]["d"] if c15 else "") else CLOSE
+            row["since"] = radar_times(c15, self.daily[s][1], now_min)
+            with self.lock:
+                self.rows[s] = row
+        except Exception:
+            traceback.print_exc(limit=1)
+        with self.lock:
+            self.cycle["done"] += 1
 
     def snapshot(self):
         self.ensure_started()

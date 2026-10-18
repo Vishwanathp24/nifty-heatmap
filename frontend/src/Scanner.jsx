@@ -254,7 +254,7 @@ export default function Scanner({ orb, live, selected, setSelected, tf, setTf, c
       <span className="muted small">{orName} Opening Range (09:15–{orEndTxt} IST) · signal = first {tf}-min candle closing beyond the range{Number(confirm3) === 1 ? ', confirmed by the next 3-min candle closing beyond the break candle\'s close' : Number(confirm3) === 2 ? ', confirmed by the next 3-min candle also closing beyond the range' : ''}</span></div>
 
     <div className="scan-head">
-      <span className={'bias-pill ' + (bias === 'BULLISH' ? 'bull' : bias === 'BEARISH' ? 'bear' : 'neutral')}>Market Bias: {bias || 'N/A'}{isNum(live?.bias?.score) ? ` (${live.bias.score > 0 ? '+' : ''}${live.bias.score})` : ''}</span>
+      {/* Market Bias is shown once, in the strip above the page (with the PCR pill) */}
       <div className="tabs" role="tablist">
         {[['all', 'All'], ['breakout', 'Breakout'], ['breakdown', 'Breakdown']].map(([id, label]) =>
           <button key={id} role="tab" aria-selected={tab === id}
