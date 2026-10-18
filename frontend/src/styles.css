@@ -436,11 +436,13 @@ th .arrow { font-size: 9px; margin-left: 4px; opacity: .6 }
 
 /* Top menu on phones: two rows (3 + 5) so every page, incl. IPO and Learning, is visible without sideways scrolling */
 @media (max-width: 768px) {
-  .hdr-nav { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0; overflow: visible }
-  .hdr-nav button { grid-column: span 2; justify-content: center; padding: 9px 2px; font-size: 12.5px; gap: 4px }
-  .hdr-nav button:nth-child(n+4) { border-top: 1px solid #242C3A }
-  /* 8 pages: row 1 = Overview · Heatmap · ORB; row 2 = Intraday Scanner (wide) + Crypto · IPO · Learning · Journal (short names, one slot each) */
-  .hdr-nav button:nth-child(n+5) { grid-column: span 1; padding-left: 0; padding-right: 0 }
+  /* 8 pages in two rows: Overview · Heatmap · ORB, then Intraday Scanner · Crypto · IPO · Learning · Journal.
+     Each item is as wide as its label (rows share out the spare space), with phone-sized tap targets. */
+  .hdr-nav { display: flex; flex-wrap: wrap; gap: 0; overflow: visible }
+  .hdr-nav::before { content: ""; flex-basis: 100%; height: 0; order: 2 }  /* line break after the 3rd item */
+  .hdr-nav button { flex: 1 1 auto; justify-content: center; min-height: 40px; padding: 8px 4px; font-size: 12.5px; gap: 4px; white-space: nowrap }
+  .hdr-nav button:nth-child(-n+3) { order: 1 }
+  .hdr-nav button:nth-child(n+4) { order: 3; border-top: 1px solid #242C3A }
 }
 
 /* Trend Scan */
@@ -610,7 +612,7 @@ th .arrow { font-size: 9px; margin-left: 4px; opacity: .6 }
 /* Compact header: brand + menu + status on one line on laptop screens */
 .hdr { gap: 14px; padding: 0 14px }
 .hdr-nav { gap: 0 }
-.hdr-nav button { padding: 0 11px; font-size: 13px }
+@media (min-width: 769px) { .hdr-nav button { padding: 0 11px; font-size: 13px } }  /* desktop only: phones use the two-row menu */
 .hdr-status { gap: 10px; font-size: 12px }
 .hdr-status .mkt { font-size: 10.5px; padding: 2px 7px }
 .hdr-clock { font-size: 12.5px }
