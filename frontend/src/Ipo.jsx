@@ -7,6 +7,14 @@ import { api, fmtNum, fmtVol, isNum, istTime, sortRows, usePoll, useSessionState
 const gmpUrl = company => 'https://www.google.com/search?q=' + encodeURIComponent(`${(company || '').replace(/ Limited$/i, '')} IPO GMP today`)
 // Calendar days from the listing date to today (IST).
 const daysSince = iso => iso ? Math.floor((Date.now() - new Date(iso + 'T00:00:00+05:30').getTime()) / 86400000) : null
+// SEBI T+3: shares list on the 3rd trading day after bidding closes.
+// shortcut: skips weekends only, not exchange holidays; read NSE's listing notice when one falls in between.
+const tPlus3 = iso => {
+  if (!iso) return null
+  const t = new Date(iso + 'T00:00:00Z')
+  for (let n = 0; n < 3;) { t.setUTCDate(t.getUTCDate() + 1); if (t.getUTCDay() % 6) n++ }
+  return t.toISOString().slice(0, 10)
+}
 const chg = v => isNum(v) ? <span className={v >= 0 ? 'up' : 'down'}>{v >= 0 ? '⇡' : '⇣'} {Math.abs(v).toFixed(2)}%</span> : '—'
 // Fixed "30 Sep 2026" style (Intl's en-GB writes "Sept", unlike the other months).
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -124,6 +132,8 @@ function IpoRow({ r, onDetails }) {
       <td className="muted">{r.board}</td>
       <td><span className={'ipo-status ' + (r.status === 'Open' ? 'open' : 'soon')}>{r.status}</span></td>
       <td>{d_(r.open)} – {d_(r.close)}</td>
+      <td>{d_(r.close)}{/upto ([^)]+)\)/i.test(d?.upi_cutoff || '') && <div className="muted small">UPI by {d.upi_cutoff.match(/upto ([^)]+)\)/i)[1]}</div>}</td>
+      <td>{r.close ? d_(tPlus3(r.close)) : 'N/A'}</td>
       <td className="num">{r.price_band || 'N/A'}</td>
       <td className="num">{d?.lot ? fmtNum(d.lot, 0) : r.lot_size ? fmtNum(r.lot_size, 0) : 'N/A'}</td>
       <td className="num">{fmtVol(r.issue_shares)}</td>
@@ -145,6 +155,8 @@ function Upcoming({ rows, board }) {
         <SortTh label="Board" k="board" {...sp} defaultDir="asc" />
         <SortTh label="Status" k="status" {...sp} defaultDir="asc" />
         <SortTh label="Subscription Period" k="open" {...sp} defaultDir="asc" />
+        <SortTh label="Last Day to Apply" k="close" {...sp} defaultDir="asc" title="Bidding closes on this day; UPI mandates must be accepted by the cut-off time NSE lists for the issue." />
+        <SortTh label="Listing Date" k="close" {...sp} defaultDir="asc" title="3rd trading day after bidding closes (SEBI T+3). Weekends skipped; an exchange holiday in between moves it a day later." />
         <th className="num">Price Band</th>
         <SortTh label="Lot Size" k="lot_size" {...sp} num />
         <SortTh label="Issue Size (shares)" k="issue_shares" {...sp} num />
