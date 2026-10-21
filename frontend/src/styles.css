@@ -459,6 +459,7 @@ th .arrow { font-size: 9px; margin-left: 4px; opacity: .6 }
 .trend-tbl:not(.cond-tbl) tr > td:nth-child(7), .trend-tbl:not(.cond-tbl) tr:not(.grp) > th:nth-child(7), .trend-tbl:not(.cond-tbl) tr > td:nth-child(15), .trend-tbl:not(.cond-tbl) tr:not(.grp) > th:nth-child(15) { border-left: 2px solid var(--border-strong) }
 @media (max-width: 700px) {
   .orb-switch.learn-cats.scan-tabs { grid-template-columns: repeat(2, 1fr) }
+  .orb-switch.learn-cats.scan-tabs button:last-child:nth-child(odd) { grid-column: 1 / -1 }  /* odd tab count: last one full width */
 }
 
 .bias-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 9px 12px; margin: 2px 0 12px; border: 1px solid var(--border); border-left: 4px solid var(--muted); border-radius: var(--radius); background: var(--panel) }

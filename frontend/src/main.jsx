@@ -97,6 +97,7 @@ function App() {
   const orbCount = orb.data?.rows ? filterRows(orb.data.rows, orbFilters, selected, orb.data).length : null
   const orb15Count = orb15.data?.rows ? filterRows(orb15.data.rows, orbFilters15, selected, orb15.data).length : null
   const orb30Count = orb30.data?.rows ? filterRows(orb30.data.rows, orbFilters30, selected, orb30.data).length : null
+  const orbLists = { 15: orb15.data?.rows && filterRows(orb15.data.rows, orbFilters15, selected, orb15.data), 30: orb30.data?.rows && filterRows(orb30.data.rows, orbFilters30, selected, orb30.data), 60: orb.data?.rows && filterRows(orb.data.rows, orbFilters, selected, orb.data) }
   const orbNow = { 15: [orb15Count, '15 Min'], 30: [orb30Count, '30 Min'], 60: [orbCount, '1 Hour'] }[orbView] || [orb15Count, '15 Min']
 
   // Chart icon next to any stock symbol -> Intraday Scanner, Live Chart tab, that stock.
@@ -130,7 +131,7 @@ function App() {
       </div>}
       {page === 'overview' && <Overview live={live.data} ctx={ctx.data} />}
       {page === 'heatmap' && <Heatmap live={live.data} selected={selected} setSelected={setSelected} toggle={toggleSector} goto={setPage} />}
-      {page === 'trend' && <Scans trend={trend} live={live.data} selected={selected} setSelected={setSelected} chartReq={chartReq} />}
+      {page === 'trend' && <Scans trend={trend} live={live.data} selected={selected} setSelected={setSelected} chartReq={chartReq} orbLists={orbLists} />}
       <Suspense fallback={<div className="empty">Loading…</div>}>
         {page === 'crypto' && <Crypto crypto={crypto} />}
         {page === 'ipo' && <Ipo ipo={ipo} />}

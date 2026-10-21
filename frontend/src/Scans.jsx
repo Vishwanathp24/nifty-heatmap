@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Empty, SortTh, StockLink } from './components.jsx'
+import { Empty, Seg, SortTh, StockLink } from './components.jsx'
 import { fmtNum, hhmmTo12, isNum, istTime, setSessionValue, sortRows, useSessionState } from './lib.js'
 import Trend, { trendNeed, trendRows, useTrendSettings } from './Trend.jsx'
 import { SectorMulti } from './Scanner.jsx'
@@ -104,13 +104,58 @@ function ConditionScan({ id, data }) {
   </>
 }
 
-const TABS = [['iopt', 'Index Options'], ['trend', 'Trending Stocks'], ['bull', 'Bullish Intraday'], ['bear', 'Bearish Intraday'], ['btst', 'BTST Stocks'], ['chart', 'Live Chart']]
+const TABS = [['iopt', 'Index Options'], ['trend', 'Trending Stocks'], ['bull', 'Bullish Intraday'], ['bear', 'Bearish Intraday'], ['btst', 'BTST Stocks'], ['common', 'Common Stocks'], ['chart', 'Live Chart']]
 
 // Live Chart: NSE stock candles (Yahoo) on 1m ... 1M with the indicator table; the stock list
 // follows the sector filter.
 // Prices without the ₹ sign (cleaner).
 const inr = v => !isNum(v) ? '—' : v.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const inrShort = v => !isNum(v) ? '—' : v >= 1000 ? Math.round(v).toLocaleString('en-IN') : inr(v)
+// Common Stocks: F&O stocks that appear in every scan for one direction - Trending Stocks, Bullish /
+// Bearish Intraday and the 15 / 30 / 60-minute ORB breakouts (breakdowns) - each list as its tab shows it.
+const COMMON = [['trend', 'Trending'], ['intra', 'Intraday'], ['o15', '15 Min ORB'], ['o30', '30 Min ORB'], ['o60', '1 Hour ORB']]
+function CommonStocks({ data, settings, orbLists, bias }) {
+  const [dir, setDir] = useState(bias === 'BEARISH' ? 'bear' : 'bull')
+  const [allOnly, setAllOnly] = useSessionState('common.allOnly', true)
+  const bull = dir === 'bull', sig = bull ? 'BREAKOUT' : 'BREAKDOWN'
+  const rows = useMemo(() => {
+    const need = trendNeed(settings.tfs), intra = bull ? 'bull' : 'bear'
+    const sets = {
+      trend: trendRows(data.rows, { ...settings, dir }).filter(r => (settings.universe === 'all' || r.fo) && r.score === need),
+      intra: scanRows(data.rows, intra).filter(r => r.met === SCANS[intra].conds.length),
+      o15: (orbLists[15] || []).filter(r => r.signal === sig), o30: (orbLists[30] || []).filter(r => r.signal === sig), o60: (orbLists[60] || []).filter(r => r.signal === sig),
+    }
+    const info = Object.fromEntries(data.rows.map(r => [r.symbol, r]))
+    const hits = new Map()
+    // time each list caught the stock: ORB = break candle, Trending / Intraday = start of today's qualifying run
+    for (const [k] of COMMON) for (const r of sets[k]) { const h = hits.get(r.symbol) || { symbol: r.symbol, company: r.company, sector: r.sector, ltp: r.ltp, pct_prev: r.pct_prev, ...info[r.symbol], in: {} }; h.in[k] = r.break_time || r.since || true; hits.set(r.symbol, h) }
+    return [...hits.values()].map(h => { const ts = Object.values(h.in).filter(t => typeof t === 'string'); return { ...h, n: Object.keys(h.in).length, at: ts.sort().pop() || null } })
+      .sort((a, b) => b.n - a.n || (b.at || '').localeCompare(a.at || '') || a.symbol.localeCompare(b.symbol))
+  }, [data, settings, orbLists, dir])
+  const N = COMMON.length, all = rows.filter(r => r.n === N), shown = allOnly ? all : rows.filter(r => r.n >= 2)
+  return <>
+    <div className="toolbar">
+      <Seg value={dir} onChange={setDir} options={[{ value: 'bull', label: 'Bullish', tone: 'up' }, { value: 'bear', label: 'Bearish', tone: 'down' }]} />
+      <label className="check-label"><input type="checkbox" checked={allOnly} onChange={e => setAllOnly(e.target.checked)} />Only stocks in all {N} scans</label>
+    </div>
+    <p className="muted small qualify-line"><b className={bull ? 'up' : 'down'}>{all.length}</b> stock{all.length === 1 ? '' : 's'} in all {N} {bull ? 'bullish' : 'bearish'} scans: Trending Stocks, {bull ? 'Bullish' : 'Bearish'} Intraday and the 15 Min, 30 Min and 1 Hour ORB {bull ? 'breakouts' : 'breakdowns'} (each with the filters set on its own tab).</p>
+    <div className="tbl-wrap panel"><table className="tbl">
+      <thead><tr><th>Symbol</th><th>Sector</th><th className="num">LTP</th><th className="num">Chg %</th><th className="num">In</th><th className="num" title="When the stock entered the last of its scans (IST): the latest of the times below">Captured</th>{COMMON.map(([k, l]) => <th key={k} className="num">{l}</th>)}</tr></thead>
+      <tbody>{shown.map(r => <tr key={r.symbol}>
+        <td><StockLink symbol={r.symbol} company={r.company} className="strong" /></td>
+        <td className="muted">{r.sector}</td>
+        <td className="num">{fmtNum(r.ltp)}</td>
+        <td className={'num ' + (r.pct_prev > 0 ? 'up' : r.pct_prev < 0 ? 'down' : '')}>{isNum(r.pct_prev) ? (r.pct_prev > 0 ? '+' : '') + r.pct_prev.toFixed(2) + '%' : '—'}</td>
+        <td className={'num strong ' + (r.n === N ? (bull ? 'up' : 'down') : '')}>{r.n}/{N}</td>
+        <td className="num strong">{r.at ? hhmmTo12(r.at) : '—'}</td>
+        {COMMON.map(([k]) => <td key={k} className={'num ind ' + (r.in[k] ? 'pass' : 'fail')}>{r.in[k] ? '✓' + (typeof r.in[k] === 'string' ? ' ' + hhmmTo12(r.in[k]) : '') : '—'}</td>)}
+      </tr>)}</tbody>
+    </table>
+    {!shown.length && <Empty>{allOnly ? `No stock is in all ${N} ${bull ? 'bullish' : 'bearish'} scans right now. Untick “Only stocks in all ${N} scans” to see the closest ones.` : 'No stock is in two or more of these scans right now.'}</Empty>}</div>
+    <p className="muted small">✓ = the stock is in that scan right now (green), with the time it entered (ORB: break candle; Trending / Intraday: start of today’s qualifying run, blank when the replay has no start); — = not in it. Captured = the latest of those times. Lists follow each tab’s own filters and the sector selection, so changing a filter there changes this list. Condition screen, not a buy/sell recommendation.</p>
+  </>
+}
+
 function StockLive({ stocks, selected, bias }) {
   const [sym, setSym] = useSessionState('slive.sym', 'RELIANCE')
   const opts = useMemo(() => {
@@ -155,7 +200,7 @@ export function BiasBanner({ bias, onPick }) {
   </div>
 }
 
-export default function Scans({ trend: trendRaw, live, selected, setSelected, chartReq = 0 }) {
+export default function Scans({ trend: trendRaw, live, selected, setSelected, chartReq = 0, orbLists = {} }) {
   const [tab, setTab] = useSessionState('scans.tab', 'iopt')  // Index Options is the first tab
   useEffect(() => { if (chartReq) setTab('chart') }, [chartReq])  // chart icon clicked on a stock
   const base = useTrendSettings()
@@ -205,6 +250,7 @@ export default function Scans({ trend: trendRaw, live, selected, setSelected, ch
       : !data ? <Empty>{trend.error || 'Loading scan data…'}</Empty>
       : !data.rows.length ? <Empty>Calculating for the first time — this takes about 2–3 minutes…</Empty>
         : tab === 'trend' ? <Trend key={'t' + resetKey} trend={trend} settings={settings} />
+        : tab === 'common' ? <CommonStocks key={'c' + resetKey} data={data} settings={settings} orbLists={orbLists} bias={live?.bias?.label} />
         : <ConditionScan key={tab + resetKey} id={tab} data={data} />}
   </div>
 }
