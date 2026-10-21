@@ -189,8 +189,9 @@ function IntradayChart({ data, extra }) {  // extra: optional 15-min range {or_h
   </svg>
 }
 
+const OR_END = { 15: '09:30', 30: '09:45', 60: '10:15' }, OR_NAME = { 15: '15-minute', 30: '30-minute', 60: '1-hour' }, OR_TITLE = { 15: '15 Min', 30: '30 Min', 60: '1 Hour' }
 function SignalDrawer({ row, tf, confirm3, orm, onClose }) {
-  const orEndTxt = orm === 15 ? '09:30' : '10:15'
+  const orEndTxt = OR_END[orm]
   const [data, setData] = useState(null)
   const [err, setErr] = useState('')
   useEffect(() => {
@@ -232,8 +233,8 @@ function SignalDrawer({ row, tf, confirm3, orm, onClose }) {
 export default function Scanner({ orb, live, selected, setSelected, tf, setTf, confirm3, setConfirm3, f, setF, orm = 60 }) {
   const [tab, setTab] = useSessionState(`orb${orm}.tab`, 'all')
   const [sort, setSort] = useSessionState(`orb${orm}.sort`, DEFAULT_SORT)  // default: Break Time, latest first
-  const orEndTxt = orm === 15 ? '09:30' : '10:15'
-  const orName = orm === 15 ? '15-minute' : '1-hour'
+  const orEndTxt = OR_END[orm]
+  const orName = OR_NAME[orm]
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [drawer, setDrawer] = useState(null)
   const filters = { ...DEFAULT_FILTERS, ...f }
@@ -250,7 +251,7 @@ export default function Scanner({ orb, live, selected, setSelected, tf, setTf, c
   const eng = data?.engine
 
   return <>
-    <div className="page-title"><h1>ORB Scanner · {orm === 15 ? '15 Min' : '1 Hour'}</h1>
+    <div className="page-title"><h1>ORB Scanner · {OR_TITLE[orm]}</h1>
       <span className="muted small">{orName} Opening Range (09:15–{orEndTxt} IST) · signal = first {tf}-min candle closing beyond the range{Number(confirm3) === 1 ? ', confirmed by the next 3-min candle closing beyond the break candle\'s close' : Number(confirm3) === 2 ? ', confirmed by the next 3-min candle also closing beyond the range' : ''}</span></div>
 
     <div className="scan-head">

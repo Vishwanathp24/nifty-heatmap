@@ -74,15 +74,20 @@ function App() {
   const [tf, setTf] = useSessionState('orb.tf.v4', 15)  // break candle: 5 or 15 min
   const [confirm3, setConfirm3] = useSessionState('orb.confirmMode', 1)  // 3-min confirmation: 0 off, 1 beyond break close, 2 beyond OR level
   const [orbFilters, setOrbFilters] = useSessionState('orb.filters.v3', DEFAULT_FILTERS)  // v3: defaults = full-day volume basis, F&O universe
-  const [orbView, setOrbView] = useSessionState('orb.view', 15)  // ORB Scanner sub-tab: 15 = 15 Min ORB (default), 60 = 1 Hour ORB
+  const [orbView, setOrbView] = useSessionState('orb.view', 15)  // ORB Scanner sub-tab: 15 / 30 / 60-minute opening range (15 default)
   // 15-minute ORB scanner: same rules, its own independent settings
   const [tf15, setTf15] = useSessionState('orb15.tf', 15)
   const [confirm15, setConfirm15] = useSessionState('orb15.confirmMode', 1)
   const [orbFilters15, setOrbFilters15] = useSessionState('orb15.filters', DEFAULT_FILTERS)
+  // 30-minute ORB scanner: same rules, its own independent settings
+  const [tf30, setTf30] = useSessionState('orb30.tf', 15)
+  const [confirm30, setConfirm30] = useSessionState('orb30.confirmMode', 1)
+  const [orbFilters30, setOrbFilters30] = useSessionState('orb30.filters', DEFAULT_FILTERS)
 
   const live = usePoll(() => api('/api/live'), auto ? REFRESH_MS : 3.6e6, [auto])
   const orb = usePoll(() => api(`/api/orb?tf=${tf}&confirm=${Number(confirm3)}&orm=60`), auto ? REFRESH_MS : 3.6e6, [auto, tf, confirm3])
   const orb15 = usePoll(() => api(`/api/orb?tf=${tf15}&confirm=${Number(confirm15)}&orm=15`), auto ? REFRESH_MS : 3.6e6, [auto, tf15, confirm15])
+  const orb30 = usePoll(() => api(`/api/orb?tf=${tf30}&confirm=${Number(confirm30)}&orm=30`), auto ? REFRESH_MS : 3.6e6, [auto, tf30, confirm30])
   const ctx = usePoll(() => api('/api/context'), 60000, [])
   const trend = usePoll(() => api('/api/trend'), page === 'trend' ? 30000 : 3.6e6, [page === 'trend'])
   const crypto = usePoll(() => api('/api/crypto'), page === 'crypto' ? 10000 : 3.6e6, [page === 'crypto'])
@@ -91,6 +96,8 @@ function App() {
   const toggleSector = useCallback(sym => setSelected(s => s.includes(sym) ? s.filter(x => x !== sym) : [...s, sym]), [setSelected])
   const orbCount = orb.data?.rows ? filterRows(orb.data.rows, orbFilters, selected, orb.data).length : null
   const orb15Count = orb15.data?.rows ? filterRows(orb15.data.rows, orbFilters15, selected, orb15.data).length : null
+  const orb30Count = orb30.data?.rows ? filterRows(orb30.data.rows, orbFilters30, selected, orb30.data).length : null
+  const orbNow = { 15: [orb15Count, '15 Min'], 30: [orb30Count, '30 Min'], 60: [orbCount, '1 Hour'] }[orbView] || [orb15Count, '15 Min']
 
   // Chart icon next to any stock symbol -> Intraday Scanner, Live Chart tab, that stock.
   const [chartReq, setChartReq] = useState(0)
@@ -107,7 +114,7 @@ function App() {
         {PAGES.map(p => <button key={p.id} className={page === p.id ? 'active' : ''} onClick={() => setPage(p.id)}>
           {p.label}
           {p.id === 'heatmap' && selected.length ? <span className="badge">{selected.length}</span> : null}
-          {p.id === 'scanner' && (orbView === 15 ? orb15Count : orbCount) != null ? <span className="badge" title={`Signals passing the current ${orbView === 15 ? '15 Min' : '1 Hour'} ORB filters`}>{orbView === 15 ? orb15Count : orbCount}</span> : null}
+          {p.id === 'scanner' && orbNow[0] != null ? <span className="badge" title={`Signals passing the current ${orbNow[1]} ORB filters`}>{orbNow[0]}</span> : null}
         </button>)}
       </nav>
       <StatusBar live={live} auto={auto} setAuto={setAuto} crypto={page === 'crypto'} />
@@ -132,12 +139,14 @@ function App() {
       </Suspense>
       {page === 'scanner' && <>
         <div className="orb-switch" role="tablist" aria-label="Opening range">
-          {[[15, '15 Min ORB', '09:15–09:30', orb15Count], [60, '1 Hour ORB', '09:15–10:15', orbCount]].map(([v, label, range, n]) =>
+          {[[15, '15 Min ORB', '09:15–09:30', orb15Count], [30, '30 Min ORB', '09:15–09:45', orb30Count], [60, '1 Hour ORB', '09:15–10:15', orbCount]].map(([v, label, range, n]) =>
             <button key={v} role="tab" aria-selected={orbView === v} className={orbView === v ? 'on' : ''} onClick={() => setOrbView(v)}>
               {label} <small>{range}</small>{n != null && <span className="count">{n}</span>}</button>)}
         </div>
         {orbView === 60
           ? <Scanner key="orb60" orm={60} orb={orb} live={live.data} selected={selected} setSelected={setSelected} tf={tf} setTf={setTf} confirm3={confirm3} setConfirm3={setConfirm3} f={orbFilters} setF={setOrbFilters} />
+          : orbView === 30
+          ? <Scanner key="orb30" orm={30} orb={orb30} live={live.data} selected={selected} setSelected={setSelected} tf={tf30} setTf={setTf30} confirm3={confirm30} setConfirm3={setConfirm30} f={orbFilters30} setF={setOrbFilters30} />
           : <Scanner key="orb15" orm={15} orb={orb15} live={live.data} selected={selected} setSelected={setSelected} tf={tf15} setTf={setTf15} confirm3={confirm15} setConfirm3={setConfirm15} f={orbFilters15} setF={setOrbFilters15} />}
       </>}
     </main>

@@ -172,7 +172,7 @@ def yahoo_opening(symbol, session):
         if ist.date().isoformat() == session:
             mins[ist.hour * 60 + ist.minute] = (h, l)
     out = {}
-    for orm in (15, 60):
+    for orm in (15, 30, 60):
         window = [mins[m] for m in range(9 * 60 + 15, 9 * 60 + 15 + orm) if m in mins]
         last = max(mins) if mins else 0
         if window and last >= 9 * 60 + 15 + orm:  # window fully elapsed in Yahoo's data
