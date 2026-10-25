@@ -29,6 +29,14 @@ _SERIES = {"SME": ("ST", "SM"), "EQ": ("EQ", "BE"), "BE": ("BE", "EQ")}
 # Listing-day open/close per symbol, from NSE bhavcopies; cached on disk because
 # past days never change (one ~200 KB download per listing date otherwise).
 LISTING_CACHE = DB_PATH.parent / "ipo_listing_prices.json"
+# NSE drops an issue from "upcoming" when bidding ends and adds it to "past" only once it lists, so
+# for ~3 days it is in neither. Remember every issue seen as upcoming and keep it as "Closed" until it lists.
+SEEN_CACHE = DB_PATH.parent / "ipo_seen_upcoming.json"
+CLOSED_KEEP_DAYS = 10
+# shortcut: Jio Platforms closed before SEEN_CACHE existed (NSE symbol not known); drops out once it lists
+_SEED = {"JIO PLATFORMS": {"symbol": None, "company": "Jio Platforms Limited", "board": "Mainboard", "status": "Upcoming",
+                           "open": "2026-10-21", "close": "2026-10-23", "price_band": "₹1065 to ₹1119", "lot_size": 12,
+                           "issue_shares": None, "subscription": None}}
 
 
 def _d(v):
@@ -86,8 +94,40 @@ class IpoData:
                 "issue_shares": int(_num(x.get("issueSize"))) if _num(x.get("issueSize")) else None,
                 "subscription": round(subs[x.get("symbol")], 2) if subs.get(x.get("symbol")) is not None else None,
             })
-        out.sort(key=lambda r: (r["status"] != "Open", r["open"] or "9999", r["company"] or ""))
+        out += self._closed_not_listed(out)
+        out.sort(key=lambda r: ({"Open": 0, "Upcoming": 1}.get(r["status"], 2), r["open"] or "9999", r["company"] or ""))
         self.upcoming = (out, time.time())
+        return out
+
+    def _closed_not_listed(self, current):
+        """Issues seen earlier as upcoming whose bidding has ended but which have not listed yet."""
+        try:
+            seen = json.loads(SEEN_CACHE.read_text())
+        except (OSError, ValueError):
+            seen = dict(_SEED)
+        key = lambda r: r.get("symbol") or (r.get("company") or "").upper().replace(" LIMITED", "").strip()
+        for r in current:
+            seen[key(r)] = r
+        try:
+            past = self._get_past()
+        except sources.SourceError:
+            past = []
+        listed = {r["symbol"] for r in past} | {(r["company"] or "").upper().replace(" LIMITED", "").strip() for r in past}
+        today, oldest = date.today().isoformat(), (date.today() - timedelta(days=CLOSED_KEEP_DAYS)).isoformat()
+        cur = {key(r) for r in current}
+        out = []
+        for k, r in list(seen.items()):
+            if k in cur:
+                continue
+            if k in listed or (r.get("company") or "").upper().replace(" LIMITED", "").strip() in listed or not r.get("close") or r["close"] < oldest:
+                seen.pop(k)
+            elif r["close"] < today:
+                out.append({**r, "status": "Closed", "subscription": r.get("subscription")})
+        try:
+            SEEN_CACHE.parent.mkdir(parents=True, exist_ok=True)
+            SEEN_CACHE.write_text(json.dumps(seen))
+        except OSError:
+            pass
         return out
 
     def _get_past(self):

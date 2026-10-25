@@ -11,6 +11,7 @@ from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -24,6 +25,9 @@ from store import Store
 IST = ZoneInfo("Asia/Kolkata")
 app = FastAPI(title="NSE Sector heatmap")
 app.add_middleware(GZipMiddleware, minimum_size=2000)
+# Copies of the dashboard hosted elsewhere (own server, Netlify) read the public market data straight
+# from here: reads only, no cookies; writes (journal / sign-in) stay same-site.
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET"], allow_credentials=False)
 engine = Engine(Store())
 
 # Access key for requests arriving through a tunnel (the Netlify site). Local

@@ -24,7 +24,7 @@ const PAGES = [
   { id: 'ipo', label: 'IPO', key: '7' },
   { id: 'learning', label: 'Learning', key: '8' },
   { id: 'journal', label: 'Journal', key: '9' },
-]
+].filter(p => !import.meta.env.VITE_PAGES || import.meta.env.VITE_PAGES.split(',').includes(p.id))  // VITE_PAGES: build with only these pages (Netlify copy)
 
 // Viewer count (last 24 h): ping every 15 s with a random per-browser id (no personal data).
 function useViewers() {

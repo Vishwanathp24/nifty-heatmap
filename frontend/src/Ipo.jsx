@@ -32,7 +32,7 @@ const cr = v => isNum(v) ? '₹' + v.toLocaleString('en-IN', { maximumFractionDi
 
 function IpoDetail({ row, onClose, page }) {  // page: render the review inline (blog article) instead of in a drawer
   const series = row.board === 'NSE SME' ? 'SME' : 'EQ'
-  const res = usePoll(() => api(`/api/ipo/detail?symbol=${encodeURIComponent(row.symbol)}&series=${series}`), 120000, [row.symbol])
+  const res = usePoll(() => row.symbol ? api(`/api/ipo/detail?symbol=${encodeURIComponent(row.symbol)}&series=${series}`) : Promise.reject(new Error('NSE has no issue details for this IPO any more (bidding closed). It moves to Recent IPOs once it lists.')), 120000, [row.symbol])
   const d = res.data && res.data.symbol === row.symbol ? res.data : null
   const ups = d ? d.checks.filter(c => c.verdict === 'up').length : 0, downs = d ? d.checks.filter(c => c.verdict === 'down').length : 0
   const body = <>{!d ? <Empty>{res.error || 'Loading issue details from NSE…'}</Empty> : <div className="ipo-detail">
@@ -120,17 +120,17 @@ const d_ = d  // date formatter (inside IpoRow `d` is the detail data)
 // One IPO row: rating dot before the name; the name opens the details panel (rating, checklist, subscription).
 function IpoRow({ r, onDetails }) {
   const series = r.board === 'NSE SME' ? 'SME' : 'EQ'
-  const res = usePoll(() => api(`/api/ipo/detail?symbol=${encodeURIComponent(r.symbol)}&series=${series}`), 300000, [r.symbol])
+  const res = usePoll(() => r.symbol ? api(`/api/ipo/detail?symbol=${encodeURIComponent(r.symbol)}&series=${series}`) : Promise.resolve(null), 300000, [r.symbol])
   const d = res.data && res.data.symbol === r.symbol ? res.data : null
   const rt = ipoRating(d, r)
   return <>
     <tr className={'ipo-row' + (rt ? ' rate-' + rt.key : '')}>
       <td><div className="ipo-name">
-        <span className={'ipo-dot ' + (rt?.key || 'loading')} title={rt ? `${rt.label} — ${rt.why}` : 'Loading checklist…'} />
+        <span className={'ipo-dot ' + (rt?.key || (r.symbol ? 'loading' : ''))} title={rt ? `${rt.label} — ${rt.why}` : r.symbol ? 'Loading checklist…' : 'No NSE checklist once bidding has closed'} />
         <div><button className="link-btn strong" onClick={onDetails} title="Open company / issue details, subscription and checklist">{r.company}</button>
           <div className="muted small">{r.symbol}</div></div></div></td>
       <td className="muted">{r.board}</td>
-      <td><span className={'ipo-status ' + (r.status === 'Open' ? 'open' : 'soon')}>{r.status}</span></td>
+      <td><span className={'ipo-status ' + (r.status === 'Open' ? 'open' : r.status === 'Closed' ? 'closed' : 'soon')}>{r.status}</span></td>
       <td>{d_(r.open)} – {d_(r.close)}</td>
       <td>{d_(r.close)}{/upto ([^)]+)\)/i.test(d?.upi_cutoff || '') && <div className="muted small">UPI by {d.upi_cutoff.match(/upto ([^)]+)\)/i)[1]}</div>}</td>
       <td>{r.close ? d_(tPlus3(r.close)) : 'N/A'}</td>
@@ -228,7 +228,7 @@ function IpoVideo({ company }) {
   </section>
 }
 const listedLine = r => `Listed ${dd(r.listing_date)} · Issue Rs. ${fmtNum(r.issue_price)}` + (isNum(r.listing_gain) ? ` · listing ${r.listing_gain >= 0 ? '+' : '−'}${Math.abs(r.listing_gain).toFixed(2)}%` : '') + (isNum(r.pct_vs_issue) ? ` · now ${r.pct_vs_issue >= 0 ? '+' : '−'}${Math.abs(r.pct_vs_issue).toFixed(2)}% vs issue` : '')
-const pill = p => p.r.listing_date ? ['listed', 'Listed'] : p.r.status === 'Open' ? ['open', 'Open'] : ['soon', 'Upcoming']
+const pill = p => p.r.listing_date ? ['listed', 'Listed'] : p.r.status === 'Open' ? ['open', 'Open'] : p.r.status === 'Closed' ? ['listed', 'Closed'] : ['soon', 'Upcoming']
 function Blog({ data, board }) {
   const [sel, setSel] = useState(null)  // key of the open post
   const onBoard = r => board === 'all' || (board === 'sme') === (r.board === 'NSE SME')
