@@ -8,6 +8,30 @@ const stop = e => e.stopPropagation()
 
 // Opens a stock in Intraday Scanner -> Live Chart (provided by the app shell).
 export const StockChartCtx = createContext(null)
+// Today's Top 20 F&O gainers / losers (set in main.jsx): map = symbol -> ['up' | 'down', rank];
+// only = '' | 'up' | 'down', the scanner filter shared by every scanner table.
+export const TopMoversCtx = createContext({ map: {}, only: '', setOnly: () => {} })
+
+// Scanner rows with the Top 20 filter applied; when it is on, ordered by rank (#1 first).
+export function useTopPass() {
+  const { map, only } = useContext(TopMoversCtx)
+  return rows => only ? rows.filter(r => map[r.symbol]?.[0] === only).sort((a, b) => map[a.symbol][1] - map[b.symbol][1]) : rows
+}
+
+export function TopFilter() {
+  const { only, setOnly } = useContext(TopMoversCtx)
+  return <Seg value={only} onChange={setOnly} options={[{ value: '', label: 'All stocks', title: 'Show every stock in this scan' },
+    { value: 'up', label: 'Top 20 gainers', tone: 'up', title: 'Only stocks in today’s Top 20 F&O gainers' },
+    { value: 'down', label: 'Top 20 losers', tone: 'down', title: 'Only stocks in today’s Top 20 F&O losers' }]} />
+}
+
+// Tag shown beside a symbol in the scanners when it is in today's Top 20 gainers or losers.
+export function TopTag({ symbol }) {
+  const t = useContext(TopMoversCtx).map[symbol]
+  if (!t) return null
+  const [dir, rank] = t
+  return <span className={'top-tag ' + dir} title={`Top 20 F&O ${dir === 'up' ? 'gainer' : 'loser'} today: #${rank} by % change vs previous close`}>{dir === 'up' ? '▲' : '▼'} #{rank}</span>
+}
 
 export const CandleIcon = () => <svg viewBox="0 0 14 14" width="13" height="13" aria-hidden="true">
   <path d="M3 2v10M7 4v8M11 1v9" stroke="currentColor" strokeWidth="1" /><rect x="1.8" y="5" width="2.4" height="4" fill="currentColor" />

@@ -1,8 +1,8 @@
-import React, { Suspense, lazy, useCallback, useEffect, useState } from 'react'
+import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import './styles.css'
 import { api, istDate, istTime, nseTs, setSessionValue, useClock, usePersistentState, useSessionState, usePoll } from './lib.js'
-import { StockChartCtx } from './components.jsx'
+import { StockChartCtx, TopMoversCtx } from './components.jsx'
 import Overview from './Overview.jsx'
 import Heatmap from './Heatmap.jsx'
 import Scanner, { DEFAULT_FILTERS, filterRows } from './Scanner.jsx'
@@ -74,11 +74,15 @@ function App() {
   const [tf, setTf] = useSessionState('orb.tf.v4', 15)  // break candle: 5 or 15 min
   const [confirm3, setConfirm3] = useSessionState('orb.confirmMode', 1)  // 3-min confirmation: 0 off, 1 beyond break close, 2 beyond OR level
   const [orbFilters, setOrbFilters] = useSessionState('orb.filters.v3', DEFAULT_FILTERS)  // v3: defaults = full-day volume basis, F&O universe
-  const [orbView, setOrbView] = useSessionState('orb.view', 15)  // ORB Scanner sub-tab: 15 / 30 / 60-minute opening range (15 default)
+  const [orbView, setOrbView] = useSessionState('orb.view', 15)  // ORB Scanner sub-tab: 5 / 15 / 30 / 60-minute opening range (15 default)
   // 15-minute ORB scanner: same rules, its own independent settings
   const [tf15, setTf15] = useSessionState('orb15.tf', 15)
   const [confirm15, setConfirm15] = useSessionState('orb15.confirmMode', 1)
   const [orbFilters15, setOrbFilters15] = useSessionState('orb15.filters', DEFAULT_FILTERS)
+  // 5-minute ORB scanner: same rules, its own independent settings
+  const [tf5, setTf5] = useSessionState('orb5.tf', 5)
+  const [confirm5, setConfirm5] = useSessionState('orb5.confirmMode', 1)
+  const [orbFilters5, setOrbFilters5] = useSessionState('orb5.filters', DEFAULT_FILTERS)
   // 30-minute ORB scanner: same rules, its own independent settings
   const [tf30, setTf30] = useSessionState('orb30.tf', 15)
   const [confirm30, setConfirm30] = useSessionState('orb30.confirmMode', 1)
@@ -87,6 +91,7 @@ function App() {
   const live = usePoll(() => api('/api/live'), auto ? REFRESH_MS : 3.6e6, [auto])
   const orb = usePoll(() => api(`/api/orb?tf=${tf}&confirm=${Number(confirm3)}&orm=60`), auto ? REFRESH_MS : 3.6e6, [auto, tf, confirm3])
   const orb15 = usePoll(() => api(`/api/orb?tf=${tf15}&confirm=${Number(confirm15)}&orm=15`), auto ? REFRESH_MS : 3.6e6, [auto, tf15, confirm15])
+  const orb5 = usePoll(() => api(`/api/orb?tf=${tf5}&confirm=${Number(confirm5)}&orm=5`), auto ? REFRESH_MS : 3.6e6, [auto, tf5, confirm5])
   const orb30 = usePoll(() => api(`/api/orb?tf=${tf30}&confirm=${Number(confirm30)}&orm=30`), auto ? REFRESH_MS : 3.6e6, [auto, tf30, confirm30])
   const ctx = usePoll(() => api('/api/context'), 60000, [])
   const trend = usePoll(() => api('/api/trend'), page === 'trend' ? 30000 : 3.6e6, [page === 'trend'])
@@ -96,9 +101,10 @@ function App() {
   const toggleSector = useCallback(sym => setSelected(s => s.includes(sym) ? s.filter(x => x !== sym) : [...s, sym]), [setSelected])
   const orbCount = orb.data?.rows ? filterRows(orb.data.rows, orbFilters, selected, orb.data).length : null
   const orb15Count = orb15.data?.rows ? filterRows(orb15.data.rows, orbFilters15, selected, orb15.data).length : null
+  const orb5Count = orb5.data?.rows ? filterRows(orb5.data.rows, orbFilters5, selected, orb5.data).length : null
   const orb30Count = orb30.data?.rows ? filterRows(orb30.data.rows, orbFilters30, selected, orb30.data).length : null
   const orbLists = { 15: orb15.data?.rows && filterRows(orb15.data.rows, orbFilters15, selected, orb15.data), 30: orb30.data?.rows && filterRows(orb30.data.rows, orbFilters30, selected, orb30.data), 60: orb.data?.rows && filterRows(orb.data.rows, orbFilters, selected, orb.data) }
-  const orbNow = { 15: [orb15Count, '15 Min'], 30: [orb30Count, '30 Min'], 60: [orbCount, '1 Hour'] }[orbView] || [orb15Count, '15 Min']
+  const orbNow = { 5: [orb5Count, '5 Min'], 15: [orb15Count, '15 Min'], 30: [orb30Count, '30 Min'], 60: [orbCount, '1 Hour'] }[orbView] || [orb15Count, '15 Min']
 
   // Chart icon next to any stock symbol -> Intraday Scanner, Live Chart tab, that stock.
   const [chartReq, setChartReq] = useState(0)
@@ -107,7 +113,16 @@ function App() {
     setChartReq(n => n + 1); setPage('trend'); window.scrollTo({ top: 0 })
   }, [])
 
-  return <StockChartCtx.Provider value={openStockChart}><div className="app">
+  // Today's Top 20 F&O gainers / losers (same ranking as the Sector Heatmap list), tagged in every scanner.
+  const [topOnly, setTopOnly] = useSessionState('top20.only', '')  // scanners: '' all, 'up' Top 20 gainers, 'down' losers
+  const topMovers = useMemo(() => {
+    const fo = (live.data?.stocks || []).filter(s => s.fo && Number.isFinite(s.pct_prev)).sort((a, b) => b.pct_prev - a.pct_prev)
+    const n = Math.min(20, Math.floor(fo.length / 2)), out = {}
+    fo.slice(0, n).forEach((s, i) => { if (s.pct_prev > 0) out[s.symbol] = ['up', i + 1] })
+    fo.slice(-n).reverse().forEach((s, i) => { if (s.pct_prev < 0) out[s.symbol] = ['down', i + 1] })
+    return { map: out, only: topOnly, setOnly: setTopOnly }
+  }, [live.data?.stocks, topOnly])
+  return <StockChartCtx.Provider value={openStockChart}><TopMoversCtx.Provider value={topMovers}><div className="app">
     <header className="hdr">
       <button className="hdr-brand" onClick={() => { setPage('overview'); window.scrollTo({ top: 0 }) }} title="Go to homepage (Market Overview)">
         <span>NSE Sector Heatmap</span></button>
@@ -140,12 +155,14 @@ function App() {
       </Suspense>
       {page === 'scanner' && <>
         <div className="orb-switch" role="tablist" aria-label="Opening range">
-          {[[15, '15 Min ORB', '09:15–09:30', orb15Count], [30, '30 Min ORB', '09:15–09:45', orb30Count], [60, '1 Hour ORB', '09:15–10:15', orbCount]].map(([v, label, range, n]) =>
+          {[[5, '5 Min ORB', '09:15–09:20', orb5Count], [15, '15 Min ORB', '09:15–09:30', orb15Count], [30, '30 Min ORB', '09:15–09:45', orb30Count], [60, '1 Hour ORB', '09:15–10:15', orbCount]].map(([v, label, range, n]) =>
             <button key={v} role="tab" aria-selected={orbView === v} className={orbView === v ? 'on' : ''} onClick={() => setOrbView(v)}>
               {label} <small>{range}</small>{n != null && <span className="count">{n}</span>}</button>)}
         </div>
         {orbView === 60
           ? <Scanner key="orb60" orm={60} orb={orb} live={live.data} selected={selected} setSelected={setSelected} tf={tf} setTf={setTf} confirm3={confirm3} setConfirm3={setConfirm3} f={orbFilters} setF={setOrbFilters} />
+          : orbView === 5
+          ? <Scanner key="orb5" orm={5} orb={orb5} live={live.data} selected={selected} setSelected={setSelected} tf={tf5} setTf={setTf5} confirm3={confirm5} setConfirm3={setConfirm5} f={orbFilters5} setF={setOrbFilters5} />
           : orbView === 30
           ? <Scanner key="orb30" orm={30} orb={orb30} live={live.data} selected={selected} setSelected={setSelected} tf={tf30} setTf={setTf30} confirm3={confirm30} setConfirm3={setConfirm30} f={orbFilters30} setF={setOrbFilters30} />
           : <Scanner key="orb15" orm={15} orb={orb15} live={live.data} selected={selected} setSelected={setSelected} tf={tf15} setTf={setTf15} confirm3={confirm15} setConfirm3={setConfirm15} f={orbFilters15} setF={setOrbFilters15} />}
@@ -155,7 +172,7 @@ function App() {
       Decision-support scanner — no buy/sell, target or stop-loss recommendations. Data: NSE (indices, quotes, per-minute prices, bhavcopy volumes, FII/DII, GIFT Nifty, market status), BSE (Sensex), Yahoo Finance (overseas indices, Scanner candles, opening-range fallback).
       {live.data?.source_ts && <> Latest NSE quote: {istDate(nseTs(live.data.source_ts))} {istTime(nseTs(live.data.source_ts))} IST.</>}
     </footer>
-  </div></StockChartCtx.Provider>
+  </div></TopMoversCtx.Provider></StockChartCtx.Provider>
 }
 
 createRoot(document.getElementById('root')).render(<App />)

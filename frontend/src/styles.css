@@ -1197,3 +1197,5 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
 .blog-videos { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px }
 @media (max-width: 700px) { .blog-videos { grid-template-columns: repeat(2, minmax(0, 1fr)) } }
 .blog-video iframe { width: 100%; aspect-ratio: 16 / 9; border: 0; border-radius: 8px; background: #000 }
+.top-tag { display: inline-block; margin-left: 6px; font-size: 10.5px; font-weight: 700; padding: 0 5px; border-radius: 3px; white-space: nowrap; vertical-align: 1px }
+.top-tag.up { color: var(--up); background: var(--up-bg) } .top-tag.down { color: var(--down); background: var(--down-bg) }

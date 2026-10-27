@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react'
-import { Empty, Seg, SortTh, StockLink } from './components.jsx'
+import { Empty, Seg, SortTh, StockLink, TopFilter, TopTag, useTopPass } from './components.jsx'
 import { fmtNum, hhmmTo12, isNum, sortRows, useSessionState } from './lib.js'
 
 // Indicator checks per timeframe. Bullish: price above VWAP / EMA 5 / EMA 9,
@@ -98,13 +98,16 @@ export default function Trend({ trend, settings, link, prefix = 'trend', fmtLtp 
   const base = rows.filter(r => (universe === 'all' || r.fo)
     && (!q || r.symbol.includes(q) || (r.company || '').toUpperCase().includes(q)))
   const full = base.filter(r => r.ok)
-  const shown = sortRows(allOnly ? full : base, sort.key, sort.dir)
+  const topPass = useTopPass()
+  const sorted = sortRows(allOnly ? full : base, sort.key, sort.dir)
+  const shown = link ? sorted : topPass(sorted)  // crypto (link) has no NSE Top 20
   const sp = { sort, setSort }
 
   return <>
     <div className="toolbar">
       <Seg value={dir} onChange={setDir} options={[{ value: 'bull', label: 'Bullish', tone: 'up' }, { value: 'bear', label: 'Bearish', tone: 'down' }]} />
       <Seg value={tfs} onChange={setTfs} options={[{ value: 'both', label: '15 Min + 1 Hour' }, { value: '15', label: '15 Min only' }, { value: '60', label: '1 Hour only' }]} />
+      {!link && <TopFilter />}
       <label className="field-inline">RSI {bull ? '>' : '<'}
         <select value={rsiMin} onChange={e => setRsiMin(Number(e.target.value))}>
           {[50, 55, 60, 65, 70].map(v => <option key={v} value={v}>{bull ? v : 100 - v}</option>)}</select></label>
@@ -136,7 +139,7 @@ export default function Trend({ trend, settings, link, prefix = 'trend', fmtLtp 
             </tr>
           </thead>
           <tbody>{shown.map(r => <tr key={r.symbol}>
-            <td>{link ? link(r) : <StockLink symbol={r.symbol} company={r.company} className="strong" />}</td>
+            <td>{link ? link(r) : <><StockLink symbol={r.symbol} company={r.company} className="strong" /><TopTag symbol={r.symbol} /></>}</td>
             <td className="muted">{r.sector}</td>
             <td className="num">{fmtLtp(r.ltp)}</td>
             <td className={'num ' + (r.pct_prev > 0 ? 'up' : r.pct_prev < 0 ? 'down' : '')}>{isNum(r.pct_prev) ? (r.pct_prev > 0 ? '+' : '') + r.pct_prev.toFixed(2) + '%' : '—'}</td>

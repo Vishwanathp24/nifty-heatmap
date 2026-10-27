@@ -75,7 +75,7 @@ class Engine:
         self.indices, self.quotes, self.sensex = {}, {}, None
         self.session = None          # ISO date of the session in memory
         self.bars = {}               # sym -> {minute: [o, h, l, c, v, cum, src]}
-        self.orx = {60: {}, 30: {}, 15: {}}  # OR minutes -> {sym: (hi, lo)} exact opening range
+        self.orx = {60: {}, 30: {}, 15: {}, 5: {}}  # OR minutes -> {sym: (hi, lo)} exact opening range
         self.yor = {}  # sym -> {orm: (hi, lo)} opening range from Yahoo 1-min OHLC (fallback)
         self.yor_tried = {}  # sym -> time.time() of the last Yahoo attempt
         self.snap = {}               # sym -> {"high", "low"} from the previous snapshot
@@ -189,9 +189,9 @@ class Engine:
     def _switch_session(self, session, now):
         self.session = session
         self.bars = self.store.session_bars(session)
-        # shortcut: the 30-min range is kept in memory only (no table in store.py); after a mid-session
+        # shortcut: the 30- and 5-min ranges are kept in memory only (no table in store.py); after a mid-session
         # restart it falls back to Yahoo / the recorded minute bars, like the others do when missing.
-        self.orx = {60: self.store.orx(session, "orx"), 30: {}, 15: self.store.orx(session, "orx15")}
+        self.orx = {60: self.store.orx(session, "orx"), 30: {}, 15: self.store.orx(session, "orx15"), 5: {}}
         self.yor, self.yor_tried = {}, {}
         self.snap = {}
         over = self._session_over(now)
@@ -245,6 +245,8 @@ class Engine:
                     self.orx[30][sym] = (hi, lo)
                 if m < OPEN_MIN + 15:
                     self.orx[15][sym] = (hi, lo)
+                if m < OPEN_MIN + 5:
+                    self.orx[5][sym] = (hi, lo)
                     or15_rows.append((self.session, sym, hi, lo))
         self.store.save_bars(rows)
         self.store.save_orx(or_rows, "orx")

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Drawer, Empty, Pct, Seg, SortTh, StockLink } from './components.jsx'
+import { Drawer, Empty, Pct, Seg, SortTh, StockLink, TopFilter, TopTag, useTopPass } from './components.jsx'
 import { api, fmtNum, fmtPct, fmtPrice, fmtRatio, fmtVol, hhmmTo12, isNum, sessionLabel, sortRows, tone, tvStock, useSessionState } from './lib.js'
 
 // Defaults = the qualification rule: volume-confirmed (> 1.0x) and still
@@ -189,7 +189,7 @@ function IntradayChart({ data, extra }) {  // extra: optional 15-min range {or_h
   </svg>
 }
 
-const OR_END = { 15: '09:30', 30: '09:45', 60: '10:15' }, OR_NAME = { 15: '15-minute', 30: '30-minute', 60: '1-hour' }, OR_TITLE = { 15: '15 Min', 30: '30 Min', 60: '1 Hour' }
+const OR_END = { 5: '09:20', 15: '09:30', 30: '09:45', 60: '10:15' }, OR_NAME = { 5: '5-minute', 15: '15-minute', 30: '30-minute', 60: '1-hour' }, OR_TITLE = { 5: '5 Min', 15: '15 Min', 30: '30 Min', 60: '1 Hour' }
 function SignalDrawer({ row, tf, confirm3, orm, onClose }) {
   const orEndTxt = OR_END[orm]
   const [data, setData] = useState(null)
@@ -224,7 +224,7 @@ function SignalDrawer({ row, tf, confirm3, orm, onClose }) {
     {s.rejected?.length > 0 && <div className="note-box"><b>{s.rejected.length} earlier break{s.rejected.length > 1 ? 's' : ''} rejected</b> (3-min confirmation failed — hollow markers on the chart):
       {s.rejected.map(r => <div key={r.min}>· {r.time.replace(/^0/, '')} break close {fmtNum(r.price)} → 3-min close {fmtNum(r.confirm_close)}</div>)}</div>}
     {!s.or_exact && <div className="note-box">Opening range taken from NSE's 1-minute price series because the app was not running before {orEndTxt} — intraminute wicks may be missed.</div>}
-    <h4>Intraday 5-minute chart <span className="muted small">shaded {orm === 15 ? 'pink' : 'light blue'} = opening range 09:15–{orEndTxt} · dashed = OR high / low · marker = {Number(confirm3) ? '3-min confirmation close · hollow = rejected break' : `first ${tf}-min close beyond the range`}</span></h4>
+    <h4>Intraday 5-minute chart <span className="muted small">shaded {orm <= 15 ? 'pink' : 'light blue'} = opening range 09:15–{orEndTxt} · dashed = OR high / low · marker = {Number(confirm3) ? '3-min confirmation close · hollow = rejected break' : `first ${tf}-min close beyond the range`}</span></h4>
     {err ? <div className="alert">{err}</div> : data ? <IntradayChart data={data} /> : <Empty>Loading candles…</Empty>}
     <a className="btn primary" href={tvStock(row.symbol)} target="_blank" rel="noopener noreferrer">Open TradingView ↗</a>
   </Drawer>
@@ -246,7 +246,8 @@ export default function Scanner({ orb, live, selected, setSelected, tf, setTf, c
   const base = useMemo(() => filterRows(data?.rows || [], filters, selected), [data, selected, f]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const counts = { all: base.length, breakout: base.filter(r => r.signal === 'BREAKOUT').length, breakdown: base.filter(r => r.signal === 'BREAKDOWN').length }
-  const rows = sortRows(tab === 'all' ? base : base.filter(r => r.signal === tab.toUpperCase()), sort.key, sort.dir)
+  const topPass = useTopPass()
+  const rows = topPass(sortRows(tab === 'all' ? base : base.filter(r => r.signal === tab.toUpperCase()), sort.key, sort.dir))
   const sp = { sort, setSort }
   const eng = data?.engine
 
@@ -270,6 +271,7 @@ export default function Scanner({ orb, live, selected, setSelected, tf, setTf, c
 
     <div className="toolbar"><SectorMulti sectors={sectors} selected={selected} setSelected={setSelected} />
       {selected.length > 0 && <button className="btn sm clear-sectors" onClick={() => setSelected([])} title="Clear the sector filter (also clears the heatmap selection)">✕ Clear sectors ({selected.length})</button>}
+      <TopFilter />
       <button className="btn sm filters-toggle" onClick={() => setFiltersOpen(o => !o)}>{filtersOpen ? 'Hide filters' : 'Filters'}</button></div>
     <div className={'filters-wrap' + (filtersOpen ? ' open' : '')}>
       <Filters f={filters} setF={setF} tf={tf} setTf={setTf} confirm3={confirm3} setConfirm3={setConfirm3} reset={() => { setF(DEFAULT_FILTERS); setSort(DEFAULT_SORT); setTf(15); setConfirm3(1) }} />
@@ -307,7 +309,7 @@ export default function Scanner({ orb, live, selected, setSelected, tf, setTf, c
         </tr></thead>
         <tbody>
           {rows.map(r => <tr key={r.symbol} onClick={() => setDrawer(r)} className={(data?.live && r.age_min <= 15 ? 'fresh ' : '') + (drawer?.symbol === r.symbol ? 'active' : '')}>
-            <td><StockLink symbol={r.symbol} company={r.company} className="strong" /></td>
+            <td><StockLink symbol={r.symbol} company={r.company} className="strong" /><TopTag symbol={r.symbol} /></td>
             <td className="muted" title={r.sectors.join(', ')}>{r.sector}</td>
             <td><span className={'sig ' + (r.signal === 'BREAKOUT' ? 'up' : 'down')}>{r.signal}</span>{!r.holding && <span className="inside" title="Price back inside the opening range">in range</span>}</td>
             <td className="num">{fmtNum(r.ltp)}</td>

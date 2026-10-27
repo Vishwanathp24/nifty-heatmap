@@ -143,8 +143,8 @@ def orb(tf: int = 15, confirm: int = 1, orm: int = 60):
 
 @app.get("/api/orb/candles")
 def orb_candles(symbol: str, tf: int = 15, confirm: int = 1, orm: int = 60):
-    if tf not in (5, 15) or orm not in (15, 30, 60):
-        raise HTTPException(status_code=400, detail="tf must be 5 or 15; orm must be 15, 30 or 60")
+    if tf not in (5, 15) or orm not in (5, 15, 30, 60):
+        raise HTTPException(status_code=400, detail="tf must be 5 or 15; orm must be 5, 15, 30 or 60")
     return engine.candles(symbol.strip().upper(), tf, confirm if confirm in (0, 1, 2) else 1, orm)
 
 

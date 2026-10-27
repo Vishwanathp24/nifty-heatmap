@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Empty, Seg, SortTh, StockLink } from './components.jsx'
+import { Empty, Seg, SortTh, StockLink, TopFilter, TopTag, useTopPass } from './components.jsx'
 import { fmtNum, hhmmTo12, isNum, istTime, setSessionValue, sortRows, useSessionState } from './lib.js'
 import Trend, { trendNeed, trendRows, useTrendSettings } from './Trend.jsx'
 import { SectorMulti } from './Scanner.jsx'
@@ -68,7 +68,8 @@ function ConditionScan({ id, data }) {
   const q = search.trim().toUpperCase()
   const base = rows.filter(r => !q || r.symbol.includes(q) || (r.company || '').toUpperCase().includes(q))
   const full = base.filter(r => r.met === sc.conds.length)
-  const shown = sortRows(allOnly ? full : base, sort.key, sort.dir)
+  const topPass = useTopPass()
+  const shown = topPass(sortRows(allOnly ? full : base, sort.key, sort.dir))
   const sp = { sort, setSort }
   const N = sc.conds.length
   return <>
@@ -76,6 +77,7 @@ function ConditionScan({ id, data }) {
     <div className="toolbar">
       <input className="search" placeholder="Search symbol" value={search} onChange={e => setSearch(e.target.value)} />
       <label className="check-label"><input type="checkbox" checked={allOnly} onChange={e => setAllOnly(e.target.checked)} />Only stocks meeting all {N} conditions</label>
+      <TopFilter />
     </div>
     <div className="tbl-wrap panel trend-wrap">
       <table className="tbl trend-tbl cond-tbl">
@@ -89,7 +91,7 @@ function ConditionScan({ id, data }) {
           {sc.conds.map(c => <SortTh key={c.k} label={c.label} k={'v_' + c.k} {...sp} num title={c.title} />)}
         </tr></thead>
         <tbody>{shown.map(r => <tr key={r.symbol}>
-          <td><StockLink symbol={r.symbol} company={r.company} className="strong" /></td>
+          <td><StockLink symbol={r.symbol} company={r.company} className="strong" /><TopTag symbol={r.symbol} /></td>
           <td className="muted">{r.sector}</td>
           <td className="num">{fmtNum(r.ltp)}</td>
           <td className={'num ' + (r.pct_prev > 0 ? 'up' : r.pct_prev < 0 ? 'down' : '')}>{isNum(r.pct_prev) ? (r.pct_prev > 0 ? '+' : '') + r.pct_prev.toFixed(2) + '%' : '—'}</td>
@@ -132,17 +134,19 @@ function CommonStocks({ data, settings, orbLists, bias }) {
     return [...hits.values()].map(h => { const ts = Object.values(h.in).filter(t => typeof t === 'string'); return { ...h, n: Object.keys(h.in).length, at: ts.sort().pop() || null } })
       .sort((a, b) => b.n - a.n || (b.at || '').localeCompare(a.at || '') || a.symbol.localeCompare(b.symbol))
   }, [data, settings, orbLists, dir])
-  const N = COMMON.length, all = rows.filter(r => r.n === N), shown = allOnly ? all : rows.filter(r => r.n >= 2)
+  const topPass = useTopPass()
+  const N = COMMON.length, all = rows.filter(r => r.n === N), shown = topPass(allOnly ? all : rows.filter(r => r.n >= 2))
   return <>
     <div className="toolbar">
       <Seg value={dir} onChange={setDir} options={[{ value: 'bull', label: 'Bullish', tone: 'up' }, { value: 'bear', label: 'Bearish', tone: 'down' }]} />
       <label className="check-label"><input type="checkbox" checked={allOnly} onChange={e => setAllOnly(e.target.checked)} />Only stocks in all {N} scans</label>
+      <TopFilter />
     </div>
     <p className="muted small qualify-line"><b className={bull ? 'up' : 'down'}>{all.length}</b> stock{all.length === 1 ? '' : 's'} in all {N} {bull ? 'bullish' : 'bearish'} scans: Trending Stocks, {bull ? 'Bullish' : 'Bearish'} Intraday and the 15 Min, 30 Min and 1 Hour ORB {bull ? 'breakouts' : 'breakdowns'} (each with the filters set on its own tab).</p>
     <div className="tbl-wrap panel"><table className="tbl">
       <thead><tr><th>Symbol</th><th>Sector</th><th className="num">LTP</th><th className="num">Chg %</th><th className="num">In</th><th className="num" title="When the stock entered the last of its scans (IST): the latest of the times below">Captured</th>{COMMON.map(([k, l]) => <th key={k} className="num">{l}</th>)}</tr></thead>
       <tbody>{shown.map(r => <tr key={r.symbol}>
-        <td><StockLink symbol={r.symbol} company={r.company} className="strong" /></td>
+        <td><StockLink symbol={r.symbol} company={r.company} className="strong" /><TopTag symbol={r.symbol} /></td>
         <td className="muted">{r.sector}</td>
         <td className="num">{fmtNum(r.ltp)}</td>
         <td className={'num ' + (r.pct_prev > 0 ? 'up' : r.pct_prev < 0 ? 'down' : '')}>{isNum(r.pct_prev) ? (r.pct_prev > 0 ? '+' : '') + r.pct_prev.toFixed(2) + '%' : '—'}</td>
