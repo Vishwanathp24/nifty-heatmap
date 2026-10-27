@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Empty, Seg } from './components.jsx'
 import { api, isNum, istTime, usePersistentState, usePoll, useSessionState } from './lib.js'
 import OptionTools, { BIAS_VIEW, BUYER, FIT, NONE, VIEWS, legPrice, refStrikes, setMoney } from './OptionTools.jsx'
@@ -58,6 +58,10 @@ export function CandleChart({ candles, tf, fmt, onNeedOlder, loadingOlder, heigh
   const [hover, setHover] = useState(null)
   const [off, setOff] = useState(0)        // candles hidden on the right (0 = live end)
   const [span, setSpan] = useState(null)   // candles in view (null = fit the width)
+  const clip = 'lc' + useId().replace(/[^\w-]/g, '')                     // plot-area clip so stretched candles don't spill over the axes
+  const [yz, setYz] = useState(1)          // price-scale zoom: 1 = auto fit, > 1 = squeezed (more price range), < 1 = stretched
+  const [yp, setYp] = useState(0)          // vertical pan: price shift of the view's middle (0 = centred on the candles)
+  const zoomY = f => setYz(z => Math.max(0.2, Math.min(5, z * f)))
   const drag = useRef(null)
   // Measure the box whenever it appears (it mounts only once candles arrive) and on resize.
   const ro = useRef(null)
@@ -103,7 +107,11 @@ export function CandleChart({ candles, tf, fmt, onNeedOlder, loadingOlder, heigh
   useEffect(() => {  // non-passive wheel listener so the page doesn't scroll while zooming
     const el = box.current?.querySelector('svg')
     if (!el) return
-    const wheel = e => { e.preventDefault(); const z = zoom.current; setSpan(Math.max(20, Math.min(z.len, Math.round(z.n * (e.deltaY > 0 ? 1.15 : 1 / 1.15))))) }
+    const wheel = e => {
+      e.preventDefault()
+      if (e.offsetX > el.clientWidth - 72) { zoomY(e.deltaY > 0 ? 1.1 : 1 / 1.1); return }  // over the price scale: zoom price
+      const z = zoom.current; setSpan(Math.max(20, Math.min(z.len, Math.round(z.n * (e.deltaY > 0 ? 1.15 : 1 / 1.15)))))
+    }
     el.addEventListener('wheel', wheel, { passive: false })
     return () => el.removeEventListener('wheel', wheel)
   }, [cs.length > 0])
@@ -131,7 +139,8 @@ export function CandleChart({ candles, tf, fmt, onNeedOlder, loadingOlder, heigh
   })
   const hi = Math.max(...cs.map(c => c.h), ...orbs.map(r => r.hi)), lo = Math.min(...cs.map(c => c.l), ...orbs.map(r => r.lo))  // keep ORB levels on the scale
   const pad = (hi - lo) * 0.05 || hi * 0.001
-  const yMax = hi + pad, yMin = lo - pad
+  const mid = (hi + lo) / 2 + yp, half = ((hi - lo) / 2 + pad) * yz  // price-scale zoom around the middle of the view
+  const yMax = mid + half, yMin = mid - half
   const vMax = Math.max(...cs.map(c => c.v)) || 1
   const cw = (w - L - R) / cs.length
   const x = i => L + cw * i + cw / 2
@@ -158,10 +167,19 @@ export function CandleChart({ candles, tf, fmt, onNeedOlder, loadingOlder, heigh
   const ticksX = [...days, ...axis.filter(a => !a.day && !days.some(b => Math.abs(b.i - a.i) * cw < 50))]
   const h = hover != null ? cs[hover] : cs[cs.length - 1]
   const chg = h ? (h.c - h.o) / h.o * 100 : null
-  const down = e => { drag.current = { x: e.clientX, o }; e.currentTarget.setPointerCapture(e.pointerId) }
+  const down = e => {
+    const onAxis = e.clientX - e.currentTarget.getBoundingClientRect().left > w - R  // drag on the price scale = stretch / squeeze price
+    drag.current = onAxis ? { y: e.clientY, yz, axis: true } : { x: e.clientX, y: e.clientY, o, yp }
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }
   const move = e => {
     const r = e.currentTarget.getBoundingClientRect()
-    if (drag.current) { setOff(Math.max(0, drag.current.o + Math.round((e.clientX - drag.current.x) / cw))); setHover(null); return }
+    if (drag.current?.axis) { setYz(Math.max(0.2, Math.min(5, drag.current.yz * Math.exp((e.clientY - drag.current.y) * 0.006)))); return }
+    if (drag.current) {  // left / right moves through time, up / down moves the price view
+      setOff(Math.max(0, drag.current.o + Math.round((e.clientX - drag.current.x) / cw)))
+      setYp(drag.current.yp + (e.clientY - drag.current.y) / (H - VOL - T - B) * (yMax - yMin))
+      setHover(null); return
+    }
     const i = Math.floor((e.clientX - r.left - L) / cw)
     setHover(i >= 0 && i < cs.length ? i : null)
   }
@@ -183,13 +201,18 @@ export function CandleChart({ candles, tf, fmt, onNeedOlder, loadingOlder, heigh
       {sv && sv[hover != null ? hover : cs.length - 1] && (() => { const p = sv[hover != null ? hover : cs.length - 1]; return <span className={'lc-st-k ' + (p.dir === 1 ? 'up' : 'down')}> · ST {fmt(p.v)} {p.dir === 1 ? '▲' : '▼'}</span> })()}
       {orbs.length > 0 && (() => { const r = orbs.find(r => r.i <= (hover ?? cs.length - 1) && (hover ?? cs.length - 1) <= r.last) || orbs[orbs.length - 1]; return <span className="lc-orb-k"> · ORB 15 H {fmt(r.hi)} / L {fmt(r.lo)}</span> })()}</>}
       <span className="lc-nav">{loadingOlder && <span className="muted">loading older candles…</span>}
-        {(o > 0 || span) && <button className="btn sm" onClick={() => { setOff(0); setSpan(null) }} title="Back to the latest candles">Latest ⟶</button>}</span></div>
+        <button className="btn sm" onClick={() => zoomY(1.25)} title="Squeeze the price scale (candles shorter)" aria-label="Zoom price out">−</button>
+        <button className="btn sm" onClick={() => zoomY(0.8)} title="Stretch the price scale (candles taller)" aria-label="Zoom price in">+</button>
+        {(o > 0 || span || yz !== 1 || yp !== 0) && <button className="btn sm" onClick={() => { setOff(0); setSpan(null); setYz(1); setYp(0) }} title="Back to the latest candles and the automatic price scale">Latest ⟶</button>}</span></div>
     <svg width={w} height={H} className={'lc' + (drag.current ? ' dragging' : '')} onPointerDown={down} onPointerMove={move}
       onPointerUp={() => { drag.current = null }} onPointerLeave={() => { if (!drag.current) setHover(null) }}
-      onDoubleClick={() => { setOff(0); setSpan(null) }}>
+      onDoubleClick={() => { setOff(0); setSpan(null); setYz(1); setYp(0) }}>
+      <rect x={w - R} y={T} width={R} height={H - VOL - T - B} className="lc-yaxis"><title>Drag up / down or scroll here to stretch or squeeze the price scale · double-click the chart to reset</title></rect>
       {ticks.map((p, i) => <g key={i}><line x1={L} x2={w - R} y1={y(p)} y2={y(p)} className="lc-grid" /><text x={w - R + 6} y={y(p) + 4} className="lc-ax">{fmt(p)}</text></g>)}
       {breaks.map(i => <line key={'s' + cs[i].t} x1={x(i) - cw / 2} x2={x(i) - cw / 2} y1={T} y2={H - B} className="lc-session"><title>New session · {istDay(cs[i].t)}</title></line>)}
       {ticksX.map(a => <text key={'t' + cs[a.i].t} x={x(a.i) < L + 24 ? L : x(a.i)} y={H - 6} className={'lc-ax' + (a.day ? ' lc-day' : '')} textAnchor={x(a.i) < L + 24 ? 'start' : 'middle'}>{a.text}</text>)}
+      <clipPath id={clip}><rect x={0} y={T} width={w - R} height={H - B - T} /></clipPath>
+      <g clipPath={`url(#${clip})`}>
       {cs.map((c, i) => {
         const up = c.c >= c.o, bw = Math.max(1, cw * 0.65)
         return <g key={c.t} className={up ? 'lc-up' : 'lc-dn'}>
@@ -222,6 +245,7 @@ export function CandleChart({ candles, tf, fmt, onNeedOlder, loadingOlder, heigh
               <text x={x(i)} y={buy ? yy + 21 : yy - 13} textAnchor="middle">{buy ? 'Buy' : 'Sell'}</text></g> })}</>
       })()}
       {ev.map((e, k) => e && <polyline key={'ema' + k} className={'lc-ema s' + k} points={e.map((v, i) => v == null ? '' : `${x(i)},${y(v)}`).filter(Boolean).join(' ')} />)}
+      </g>
       {hover != null && <line x1={x(hover)} x2={x(hover)} y1={T} y2={H - B} className="lc-cross" />}
       {last && last.c <= yMax && last.c >= yMin && <g><line x1={L} x2={w - R} y1={y(last.c)} y2={y(last.c)} className={'lc-last ' + (last.c >= last.o ? 'up' : 'down')} />
         <rect x={w - R + 2} y={y(last.c) - 9} width={R - 4} height={18} rx="3" className={'lc-tag ' + (last.c >= last.o ? 'up' : 'down')} />
@@ -357,7 +381,7 @@ export function ChartView({ prefix, opts, sym, onPick, candlesUrl, indUrl, fmt, 
           return <PnlCalc id={prefix + ':' + sym} name={sym} lot={lot} buy={ap?.price ?? (isNum(last?.c) ? +last.c.toFixed(2) : '')} buyLabel={ap ? ap.label : 'last price'} /> })()}
         </div>
       </div>
-      <div className="muted small">Drag the chart left / right to move through time (older candles load as you go) · scroll to zoom · double-click or “Latest” to return · dashed lines = new session (day) · EMA lines (blue / orange / violet) Supertrend 11 / 2 (green up / red down, Buy / Sell where it flips) and daily Fibonacci pivots — tick or change them above the chart · blue shaded box + dashed blue lines = 15-min opening range (intraday timeframes). Hover a candle for its open / high / low / close. Times in IST.{note ? ' ' + note : ''}</div>
+      <div className="muted small">Drag the chart left / right to move through time and up / down to move the price view (older candles load as you go) · scroll to zoom time · drag or scroll the price scale (right) to stretch / squeeze price, or use − / + · double-click or “Latest” to return · dashed lines = new session (day) · EMA lines (blue / orange / violet) Supertrend 11 / 2 (green up / red down, Buy / Sell where it flips) and daily Fibonacci pivots — tick or change them above the chart · blue shaded box + dashed blue lines = 15-min opening range (intraday timeframes). Hover a candle for its open / high / low / close. Times in IST.{note ? ' ' + note : ''}</div>
       <div className="lc-cards">
         <section className="lc-card"><div className="lc-card-h"><h3>Indicators</h3><span className="muted small">{sym} · 1m … 1M</span></div>
           {!fb && indUrl ? <IndTable url={indUrl(sym)} sym={sym} fmtShort={fmtShort} source={indSource} /> : <div className="muted small">No indicator data for {sym} (not on OKX).</div>}</section>

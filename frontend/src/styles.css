@@ -1220,3 +1220,4 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
 .lc-sig { pointer-events: none } .lc-sig text { font-size: 10px; font-weight: 700; fill: #fff }
 .lc-sig.buy path, .lc-sig.buy rect { fill: var(--up) } .lc-sig.sell path, .lc-sig.sell rect { fill: var(--down) }
 .lc-ema-opt.lc-ema-all { color: var(--ink-2); cursor: pointer }
+.lc-yaxis { fill: transparent; cursor: ns-resize }
