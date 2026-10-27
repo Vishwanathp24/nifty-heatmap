@@ -299,8 +299,6 @@ export default function Scanner({ orb, live, selected, setSelected, tf, setTf, c
           <th className="num">Break Price</th>
           <SortTh label="Break Time" k="break_min" {...sp} num title="Close time of the first candle closing beyond the range. Click: Latest → Earliest / Earliest → Latest" />
           <SortTh label={data?.live ? 'Fresh' : `Fresh (at ${data?.as_of_time || '15:30'})`} k="age_min" {...sp} num defaultDir="asc" />
-          <SortTh label="Cum Vol @ break" k="cum_volume" {...sp} num title="Cumulative volume 09:15 → break time" />
-          <SortTh label="Avg @ break" k="avg_volume" {...sp} num title="Average cumulative volume up to the same clock time over sessions this app recorded (max 5)" />
           {filters.volBasis === 'now'
             ? <SortTh label={data?.live ? 'Vol Ratio (session)' : 'Vol Ratio (full day)'} k="vol_ratio_now" {...sp} num title={data?.live ? 'Volume so far vs recorded sessions to the same time' : 'Full-day volume vs 5-day average (NSE bhavcopy)'} />
             : <SortTh label="Vol Ratio" k="vol_ratio" {...sp} num title="Cum Vol / 5D Avg at break time (time-adjusted)" />}
@@ -319,8 +317,6 @@ export default function Scanner({ orb, live, selected, setSelected, tf, setTf, c
             <td className="num">{fmtNum(r.break_price)}</td>
             <td className="num strong">{hhmmTo12(r.break_time)}</td>
             <td className="num"><Fresh row={r} live={data?.live} /></td>
-            <td className="num">{fmtVol(r.cum_volume)}</td>
-            <td className="num">{fmtVol(r.avg_volume)}</td>
             {(v => <td className={'num strong ' + (v >= 1.5 ? 'up' : v < 1 ? 'muted' : '')}>{fmtRatio(v)}</td>)(filters.volBasis === 'now' ? r.vol_ratio_now : r.vol_ratio)}
             <td className={'num ' + tone(r.distance_pct)}>{fmtPct(r.distance_pct)}</td>
             <td className="num">{fmtNum(r.day_high)}</td>

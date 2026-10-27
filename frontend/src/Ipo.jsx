@@ -89,7 +89,7 @@ function IpoDetail({ row, onClose, page }) {  // page: render the review inline 
           <a href={'https://www.google.com/search?q=' + encodeURIComponent(`${row.company.replace(/ Limited$/i, '')} company business financials`)} target="_blank" rel="noopener noreferrer">🏢 About the company ↗</a>
         </div>
       </div>
-      <div className="muted small">Data: NSE IPO feed · updated {istTime(d.fetched_at)} IST. The checklist rates individual factors from exchange data; it is not an overall recommendation — read the prospectus and decide for yourself. Not investment advice.</div>
+      <div className="muted small">Data: NSE IPO feed · {d.snapshot ? <b>last saved {istTime(d.fetched_at)} IST (NSE no longer serves this issue; these are its final figures)</b> : <>updated {istTime(d.fetched_at)} IST</>}. The checklist rates individual factors from exchange data; it is not an overall recommendation — read the prospectus and decide for yourself. Not investment advice.</div>
     </div>}</>
   return page ? body : <Drawer open onClose={onClose} wide title={row.company}>{body}</Drawer>
 }

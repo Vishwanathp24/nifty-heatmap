@@ -33,8 +33,8 @@ LISTING_CACHE = DB_PATH.parent / "ipo_listing_prices.json"
 # for ~3 days it is in neither. Remember every issue seen as upcoming and keep it as "Closed" until it lists.
 SEEN_CACHE = DB_PATH.parent / "ipo_seen_upcoming.json"
 CLOSED_KEEP_DAYS = 10
-# shortcut: Jio Platforms closed before SEEN_CACHE existed (NSE symbol not known); drops out once it lists
-_SEED = {"JIO PLATFORMS": {"symbol": None, "company": "Jio Platforms Limited", "board": "Mainboard", "status": "Upcoming",
+# shortcut: Jio Platforms closed before SEEN_CACHE existed (added by hand, NSE symbol JPL); drops out once it lists
+_SEED = {"JIO PLATFORMS": {"symbol": "JPL", "company": "Jio Platforms Limited", "board": "Mainboard", "status": "Upcoming",
                            "open": "2026-10-21", "close": "2026-10-23", "price_band": "₹1065 to ₹1119", "lot_size": 12,
                            "issue_shares": None, "subscription": None}}
 
@@ -105,6 +105,9 @@ class IpoData:
             seen = json.loads(SEEN_CACHE.read_text())
         except (OSError, ValueError):
             seen = dict(_SEED)
+        for k, v in _SEED.items():  # fill the symbol into an entry saved before it was known
+            if k in seen and not seen[k].get("symbol"):
+                seen[k]["symbol"] = v["symbol"]
         key = lambda r: r.get("symbol") or (r.get("company") or "").upper().replace(" LIMITED", "").strip()
         for r in current:
             seen[key(r)] = r
@@ -299,7 +302,13 @@ def ipo_detail(symbol, series="EQ"):
         hit = _DETAIL.get(key)
     if hit and time.time() - hit[0] < DETAIL_TTL:
         return hit[1]
-    d = sources.nse.get(sources.NSE_API + f"ipo-detail?symbol={symbol}&series={series}", timeout=25)
+    try:
+        d = sources.nse.get(sources.NSE_API + f"ipo-detail?symbol={symbol}&series={series}", timeout=25)
+    except sources.SourceError:
+        snap = _saved_detail(key)
+        if snap:
+            return snap
+        raise
     info = {(x.get("title") or "").strip(): _clean(x.get("value")) for x in (d.get("issueInfo") or {}).get("dataList", []) if x.get("title")}
     raw = {(x.get("title") or "").strip(): str(x.get("value") or "") for x in (d.get("issueInfo") or {}).get("dataList", []) if x.get("title")}
     link = lambda t: (re.search(r"https?://\S+?\.(?:zip|pdf)", raw.get(t, "")) or [None])[0]
@@ -369,9 +378,40 @@ def ipo_detail(symbol, series="EQ"):
         "subscription": subs, "total_times": total, "checks": checks, "sme": sme,
         "fetched_at": datetime.now(IST).isoformat(),
     }
+    if out.get("period"):
+        _save_detail(key, out)
+    else:  # NSE no longer serves this issue: show the last details we saved for it
+        out = _saved_detail(key) or out
     with _DETAIL_LOCK:
         _DETAIL[key] = (time.time(), out)
     return out
+
+
+# Last good NSE details per issue, so a closed IPO keeps its final subscription / checklist.
+DETAIL_SAVE = DB_PATH.parent / "ipo_details.json"
+
+
+def _saved_detail(key):
+    try:
+        snap = json.loads(DETAIL_SAVE.read_text()).get(key)
+    except (OSError, ValueError):
+        return None
+    return {**snap, "snapshot": True} if snap else None
+
+
+def _save_detail(key, out):
+    try:
+        saved = json.loads(DETAIL_SAVE.read_text())
+    except (OSError, ValueError):
+        saved = {}
+    cutoff = (datetime.now(IST) - timedelta(days=RECENT_DAYS)).isoformat()
+    saved = {k: v for k, v in saved.items() if (v.get("fetched_at") or "") >= cutoff}
+    saved[key] = out
+    try:
+        DETAIL_SAVE.parent.mkdir(parents=True, exist_ok=True)
+        DETAIL_SAVE.write_text(json.dumps(saved))
+    except OSError:
+        pass
 
 
 _YT = {}  # query -> (fetched_at, [video ids])
