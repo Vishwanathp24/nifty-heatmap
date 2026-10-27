@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { fmtPct, tone, tvIndex, tvStock, tvSymbol } from './lib.js'
+import { fmtPct, isNum, tone, tvIndex, tvStock, tvSymbol } from './lib.js'
 
 // Every chart link opens a new tab and stops propagation, so clicking it never
 // selects a card, opens a drawer or touches any dashboard state.
@@ -126,4 +126,11 @@ export function Seg({ options, value, onChange, className = '' }) {
 
 export function Empty({ children }) {
   return <div className="empty">{children}</div>
+}
+
+export function BiasPill({ bias }) {
+  const label = bias?.label
+  const tone = label === 'BULLISH' ? 'bull' : label === 'BEARISH' ? 'bear' : 'neutral'
+  return <span className={'bias-pill ' + tone} title={bias?.components ? bias.components.map(c => `${c.label} ${c.points > 0 ? '+1' : c.points < 0 ? '−1' : '0'}`).join(' · ') : undefined}>
+    Market Bias: {label || 'N/A'}{isNum(bias?.score) ? ` (${bias.score > 0 ? '+' : ''}${bias.score})` : ''}</span>
 }

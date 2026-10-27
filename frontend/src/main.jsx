@@ -2,17 +2,17 @@ import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from
 import { createRoot } from 'react-dom/client'
 import './styles.css'
 import { api, istDate, istTime, nseTs, setSessionValue, useClock, usePersistentState, useSessionState, usePoll } from './lib.js'
-import { StockChartCtx, TopMoversCtx } from './components.jsx'
+import { BiasPill, StockChartCtx, TopMoversCtx } from './components.jsx'
 import Overview from './Overview.jsx'
 import Heatmap from './Heatmap.jsx'
 import Scanner, { DEFAULT_FILTERS, filterRows } from './Scanner.jsx'
-import Scans, { BiasPill } from './Scans.jsx'
 import { PcrMeter } from './Pcr.jsx'
 // Pages loaded only when opened (smaller first download)
 const Crypto = lazy(() => import('./Crypto.jsx'))
 const Ipo = lazy(() => import('./Ipo.jsx'))
 const Learning = lazy(() => import('./Learning.jsx'))
 const Journal = lazy(() => import('./Journal.jsx'))
+const Scans = lazy(() => import('./Scans.jsx'))  // Intraday Scanner: charts, option chain, payoff tools - loaded when opened
 
 const REFRESH_MS = 10000
 const PAGES = [
@@ -89,10 +89,13 @@ function App() {
   const [orbFilters30, setOrbFilters30] = useSessionState('orb30.filters', DEFAULT_FILTERS)
 
   const live = usePoll(() => api('/api/live'), auto ? REFRESH_MS : 3.6e6, [auto])
-  const orb = usePoll(() => api(`/api/orb?tf=${tf}&confirm=${Number(confirm3)}&orm=60`), auto ? REFRESH_MS : 3.6e6, [auto, tf, confirm3])
-  const orb15 = usePoll(() => api(`/api/orb?tf=${tf15}&confirm=${Number(confirm15)}&orm=15`), auto ? REFRESH_MS : 3.6e6, [auto, tf15, confirm15])
-  const orb5 = usePoll(() => api(`/api/orb?tf=${tf5}&confirm=${Number(confirm5)}&orm=5`), auto ? REFRESH_MS : 3.6e6, [auto, tf5, confirm5])
-  const orb30 = usePoll(() => api(`/api/orb?tf=${tf30}&confirm=${Number(confirm30)}&orm=30`), auto ? REFRESH_MS : 3.6e6, [auto, tf30, confirm30])
+  // ORB scans refresh every 10 s only where they are shown (ORB Scanner; Intraday Scanner's Common Stocks);
+  // elsewhere once a minute, just for the menu badge.
+  const orbMs = !auto ? 3.6e6 : page === 'scanner' || page === 'trend' ? REFRESH_MS : 60000
+  const orb = usePoll(() => api(`/api/orb?tf=${tf}&confirm=${Number(confirm3)}&orm=60`), orbMs, [orbMs, tf, confirm3])
+  const orb15 = usePoll(() => api(`/api/orb?tf=${tf15}&confirm=${Number(confirm15)}&orm=15`), orbMs, [orbMs, tf15, confirm15])
+  const orb5 = usePoll(() => api(`/api/orb?tf=${tf5}&confirm=${Number(confirm5)}&orm=5`), orbMs, [orbMs, tf5, confirm5])
+  const orb30 = usePoll(() => api(`/api/orb?tf=${tf30}&confirm=${Number(confirm30)}&orm=30`), orbMs, [orbMs, tf30, confirm30])
   const ctx = usePoll(() => api('/api/context'), 60000, [])
   const trend = usePoll(() => api('/api/trend'), page === 'trend' ? 30000 : 3.6e6, [page === 'trend'])
   const crypto = usePoll(() => api('/api/crypto'), page === 'crypto' ? 10000 : 3.6e6, [page === 'crypto'])
@@ -146,8 +149,8 @@ function App() {
       </div>}
       {page === 'overview' && <Overview live={live.data} ctx={ctx.data} />}
       {page === 'heatmap' && <Heatmap live={live.data} selected={selected} setSelected={setSelected} toggle={toggleSector} goto={setPage} />}
-      {page === 'trend' && <Scans trend={trend} live={live.data} selected={selected} setSelected={setSelected} chartReq={chartReq} orbLists={orbLists} />}
       <Suspense fallback={<div className="empty">Loading…</div>}>
+        {page === 'trend' && <Scans trend={trend} live={live.data} selected={selected} setSelected={setSelected} chartReq={chartReq} orbLists={orbLists} />}
         {page === 'crypto' && <Crypto crypto={crypto} />}
         {page === 'ipo' && <Ipo ipo={ipo} />}
         {page === 'learning' && <Learning />}

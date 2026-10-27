@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Empty, Seg, SortTh, StockLink, TopFilter, TopTag, useTopPass } from './components.jsx'
+import { BiasPill, Empty, Seg, SortTh, StockLink, TopFilter, TopTag, useTopPass } from './components.jsx'
 import { fmtNum, hhmmTo12, isNum, istTime, setSessionValue, sortRows, useSessionState } from './lib.js'
 import Trend, { trendNeed, trendRows, useTrendSettings } from './Trend.jsx'
 import { SectorMulti } from './Scanner.jsx'
@@ -184,12 +184,6 @@ function StockLive({ stocks, selected, bias }) {
 
 // Which scans suit the current market bias (same 5-vote bias as the ORB Scanner).
 // Compact Market Bias pill for pages other than Market Overview (which shows the full detail).
-export function BiasPill({ bias }) {
-  const label = bias?.label
-  const tone = label === 'BULLISH' ? 'bull' : label === 'BEARISH' ? 'bear' : 'neutral'
-  return <span className={'bias-pill ' + tone} title={bias?.components ? bias.components.map(c => `${c.label} ${c.points > 0 ? '+1' : c.points < 0 ? '−1' : '0'}`).join(' · ') : undefined}>
-    Market Bias: {label || 'N/A'}{isNum(bias?.score) ? ` (${bias.score > 0 ? '+' : ''}${bias.score})` : ''}</span>
-}
 
 export function BiasBanner({ bias, onPick }) {
   const label = bias?.label
