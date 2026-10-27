@@ -1207,4 +1207,16 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
 .lc-ema-opt.off { opacity: .45 }
 .lc-ema-opt input[type=checkbox] { accent-color: currentColor; margin: 0 }
 .lc-ema-opt input[type=number] { width: 46px; font: inherit; font-weight: 600; color: inherit; border: 0; background: transparent; padding: 0 } .lc-ema-k, .lc-orb-k { white-space: nowrap; font-weight: 600 }
-.lc-orb line { stroke: var(--amber); stroke-width: 2; stroke-dasharray: 6 4 } .lc-orb .lc-orz { fill: var(--amber); opacity: .18 } .lc-orb-k { color: var(--amber) }
+/* ORB: dark navy blue, dashed (EMA 5 is the lighter, solid blue) */
+.lc-orb line { stroke: #0b3d91; stroke-width: 2; stroke-dasharray: 6 4 } .lc-orb .lc-orz { fill: #0b3d91; opacity: .15 } .lc-orb-k { color: #0b3d91 }
+:root[data-theme="dark"] .lc-orb line, :root[data-theme="dark"] .lc-orb .lc-orz { stroke: #6aa8ff; fill: #6aa8ff } :root[data-theme="dark"] .lc-orb-k { color: #6aa8ff }
+.lc-st { fill: none; stroke-width: 2; pointer-events: none } .lc-st.up { stroke: var(--up) } .lc-st.down { stroke: var(--down) }
+.lc-st-k { white-space: nowrap; font-weight: 600 } .lc-st-k.up { color: var(--up) } .lc-st-k.down { color: var(--down) }
+.lc-st-opt { color: var(--ink-2) }
+.lc-piv line { stroke-width: 1; opacity: .7 } .lc-piv text { font-size: 10px; font-weight: 600 }
+.lc-piv.p line { stroke: var(--ink-2) } .lc-piv.p text { fill: var(--ink-2) }
+.lc-piv.r line { stroke: var(--down) } .lc-piv.r text { fill: var(--down) } .lc-piv.s line { stroke: var(--up) } .lc-piv.s text { fill: var(--up) }
+.lc-piv-opt { color: var(--ink-2) }
+.lc-sig { pointer-events: none } .lc-sig text { font-size: 10px; font-weight: 700; fill: #fff }
+.lc-sig.buy path, .lc-sig.buy rect { fill: var(--up) } .lc-sig.sell path, .lc-sig.sell rect { fill: var(--down) }
+.lc-ema-opt.lc-ema-all { color: var(--ink-2); cursor: pointer }

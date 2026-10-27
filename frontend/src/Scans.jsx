@@ -160,25 +160,25 @@ function CommonStocks({ data, settings, orbLists, bias }) {
   </>
 }
 
-function StockLive({ stocks, selected, bias }) {
-  const [sym, setSym] = useSessionState('slive.sym', 'RELIANCE')
+function StockLive({ stocks, selected, bias, nifty }) {
+  const [sym, setSym] = useSessionState('slive.sym', 'NIFTY')  // Nifty 50 index first and by default
   const opts = useMemo(() => {
     const list = stocks.filter(r => !selected.length || r.sectors.some(x => selected.includes(x)))
       .map(r => ({ symbol: r.symbol, name: r.company })).sort((a, b) => a.symbol.localeCompare(b.symbol))
-    if (!list.some(c => c.symbol === sym)) { const r = stocks.find(r => r.symbol === sym); list.unshift({ symbol: sym, name: r?.company || '' }) }
-    return list
+    if (sym !== 'NIFTY' && !list.some(c => c.symbol === sym)) { const r = stocks.find(r => r.symbol === sym); list.unshift({ symbol: sym, name: r?.company || '' }) }
+    return [{ symbol: 'NIFTY', name: 'Nifty 50 index' }, ...list]
   }, [stocks, selected, sym])
-  const st = stocks.find(r => r.symbol === sym)
+  const st = sym === 'NIFTY' ? nifty && { ...nifty, sector: 'Index', fo: true } : stocks.find(r => r.symbol === sym)
   const chg = st && st.prev_close ? (st.ltp - st.prev_close) / st.prev_close * 100 : null
   return <ChartView prefix="slive" label="Stock" opts={opts} sym={sym} onPick={setSym}
     candlesUrl={(s, tf, before) => `/api/chart/candles?symbol=${encodeURIComponent(s)}&tf=${tf}` + (before ? `&before=${before}` : '')}
     indUrl={s => '/api/chart/indicators?symbol=' + encodeURIComponent(s)}
     fmt={inr} fmtShort={inrShort} pollMs={15000} indSource="Yahoo Finance candles; 3m built from 1m, 2h / 3h / 4h from 1h inside each session"
-    sourceLine={() => `Yahoo Finance ${sym}.NS · refreshes every 15 sec`}
+    sourceLine={() => `Yahoo Finance ${sym === 'NIFTY' ? '^NSEI (index, no volume)' : sym + '.NS'} · refreshes every 15 sec`}
     head={st && <span className="muted small">{st.sector} · LTP {inr(st.ltp)} <span className={chg > 0 ? 'up' : chg < 0 ? 'down' : ''}>{isNum(chg) ? (chg > 0 ? '+' : '') + chg.toFixed(2) + '%' : ''}</span> vs prev close</span>}
     bias={bias} biasName="Market Bias" chainUrl={st?.fo ? s => '/api/index-options?symbol=' + encodeURIComponent(s) : null}
     optMarket={{ key: 'slopt', cur: '', locale: 'en-IN', biasName: 'Market Bias', vol: 'ATM IV', unit: 'share', underlying: sym, ivBands: {} }}
-    optNote={st?.fo ? `${sym} is in the F&O segment, so its NSE option chain is used for the strikes below (lot sizes differ per stock).` : `${sym} is not in the F&O segment, so it has no listed options.`}
+    optNote={sym === 'NIFTY' ? 'Nifty 50 option chain (NSE) is used for the strikes below.' : st?.fo ? `${sym} is in the F&O segment, so its NSE option chain is used for the strikes below (lot sizes differ per stock).` : `${sym} is not in the F&O segment, so it has no listed options.`}
     note="The stock list follows the sector filter. Yahoo keeps 1-min candles for about 30 days and 5 – 60-min candles for 60 days, so dragging back stops there on those timeframes." />
 }
 
@@ -244,7 +244,7 @@ export default function Scans({ trend: trendRaw, live, selected, setSelected, ch
         {label}{counts[v] != null && <span className="count">{counts[v]}</span>}</button>)}
     </div>
     {tab === 'iopt' ? <OptionsBoard market={INDIA} bias={live?.bias} />
-      : tab === 'chart' ? <StockLive key={'sl' + chartReq} stocks={live?.stocks || []} selected={selected} bias={live?.bias?.label} />
+      : tab === 'chart' ? <StockLive key={'sl' + chartReq} stocks={live?.stocks || []} selected={selected} bias={live?.bias?.label} nifty={live?.indices?.nifty50} />
       : !data ? <Empty>{trend.error || 'Loading scan data…'}</Empty>
       : !data.rows.length ? <Empty>Calculating for the first time — this takes about 2–3 minutes…</Empty>
         : tab === 'trend' ? <Trend key={'t' + resetKey} trend={trend} settings={settings} />

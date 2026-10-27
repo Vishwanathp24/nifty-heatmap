@@ -10,6 +10,29 @@ import OptionTools, { BIAS_VIEW, BUYER, FIT, NONE, VIEWS, legPrice, refStrikes, 
 export const CHART_TFS = ['1m', '3m', '5m', '15m', '30m', '1h', '2h', '3h', '4h', '1D', '1W', '1M']
 const LONG_TF = new Set(['1D', '1W', '1M'])
 const ORB_TF = new Set(['1m', '3m', '5m', '15m'])  // timeframes fine enough to show the 15-minute opening range
+// Supertrend at every candle (chart: ATR 11, multiplier 2; same rules as the backend's indicator table, which uses 10 / 3):
+// {v, dir} with dir 1 = up (line below price), -1 = down (line above price); null before the ATR exists.
+function supertrendSeries(cs, n = 10, mult = 3) {
+  const out = new Array(cs.length).fill(null)
+  if (cs.length < n + 1) return out
+  const tr = cs.map((b, i) => i ? Math.max(b.h - b.l, Math.abs(b.h - cs[i - 1].c), Math.abs(b.l - cs[i - 1].c)) : b.h - b.l)
+  let atr = tr.slice(0, n).reduce((t, v) => t + v, 0) / n, fub = null, flb = null, dir = null
+  for (let k = n - 1; k < cs.length; k++) {
+    if (k > n - 1) atr = (atr * (n - 1) + tr[k]) / n
+    const hl2 = (cs[k].h + cs[k].l) / 2, ub = hl2 + mult * atr, lb = hl2 - mult * atr
+    const pc = k ? cs[k - 1].c : cs[k].c
+    fub = fub == null || ub < fub || pc > fub ? ub : fub
+    flb = flb == null || lb > flb || pc < flb ? lb : flb
+    if (dir == null) dir = cs[k].c > fub ? 1 : -1
+    else if (dir === -1 && cs[k].c > fub) dir = 1
+    else if (dir === 1 && cs[k].c < flb) dir = -1
+    out[k] = { v: dir === 1 ? flb : fub, dir }
+  }
+  return out
+}
+// Fibonacci pivot points for a day, from the previous day's high / low / close.
+const FIB = [['R3', 1], ['R2', 0.618], ['R1', 0.382], ['P', 0], ['S1', -0.382], ['S2', -0.618], ['S3', -1]]
+const fibPivots = ({ h, l, c }) => { const p = (h + l + c) / 3; return FIB.map(([k, f]) => [k, p + f * (h - l)]) }
 const EMA_DEFAULT = [{ p: 5, on: true }, { p: 9, on: true }, { p: 15, on: true }]  // three slots: blue, orange, violet
 // EMA of the close at every candle (null until n candles exist), seeded with the first n-candle mean.
 function emaSeries(cs, n) {
@@ -57,6 +80,23 @@ export function CandleChart({ candles, tf, fmt, onNeedOlder, loadingOlder, heigh
   const setEma = (k, patch) => setEmaCfg(cfg => cfg.map((e, j) => j === k ? { ...e, ...patch } : e))
   const emas = useMemo(() => emaCfg.map(e => e.on && e.p >= 2 ? emaSeries(candles, e.p) : null), [candles, emaCfg])
   const ev = emas.map(e => e && e.slice(len - o - n, len - o))
+  const [stOn, setStOn] = usePersistentState('lc.st', true)
+  const stAll = useMemo(() => stOn ? supertrendSeries(candles, 11, 2) : null, [candles, stOn])
+  const sv = stAll && stAll.slice(len - o - n, len - o)
+  // Pivots: each day's high / low / close from the loaded candles; a day's levels use the day before it.
+  const [pivOn, setPivOn] = usePersistentState('lc.pivots', true)
+  const dayPiv = useMemo(() => {
+    if (!pivOn || LONG_TF.has(tf)) return {}
+    const days = []
+    candles.forEach((c, i) => {
+      const d = istDay(c.t), cur = days[days.length - 1]
+      if (cur?.d === d) { cur.h = Math.max(cur.h, c.h); cur.l = Math.min(cur.l, c.l); cur.c = c.c }
+      else days.push({ d, h: c.h, l: c.l, c: c.c, full: i > 0 })  // the oldest loaded day may be partial
+    })
+    const m = {}
+    days.forEach((day, j) => { if (j && days[j - 1].full) m[day.d] = fibPivots(days[j - 1]) })
+    return m
+  }, [candles, tf, pivOn])
   useEffect(() => { if (len - o - n < 20 && onNeedOlder) onNeedOlder() }, [o, n, len])
   const zoom = useRef({ n, len })
   zoom.current = { n, len }
@@ -126,14 +166,21 @@ export function CandleChart({ candles, tf, fmt, onNeedOlder, loadingOlder, heigh
     setHover(i >= 0 && i < cs.length ? i : null)
   }
   return <div className="lc-wrap" ref={setBox}>
-    <div className="lc-emas small" role="group" aria-label="EMA lines"><b>EMA</b>
+    <div className="lc-emas small" role="group" aria-label="EMA lines">
+      <b>EMA</b>
       {emaCfg.map((e, k) => <label key={k} className={'lc-ema-opt s' + k + (e.on ? '' : ' off')} title="Tick to show this EMA; type any period from 2 to 200">
         <input type="checkbox" checked={e.on} onChange={ev => setEma(k, { on: ev.target.checked })} aria-label={`Show EMA ${e.p}`} />
         <input type="number" min="2" max="200" value={e.p} onChange={ev => setEma(k, { p: Math.max(2, Math.min(200, Math.round(+ev.target.value) || 2)) })} aria-label={`EMA ${k + 1} period`} /></label>)}
+      <label className={'lc-ema-opt lc-ema-all' + (emaCfg.some(e => e.on) ? '' : ' off')} title="Turn every EMA line on or off"><input type="checkbox" checked={emaCfg.some(e => e.on)} onChange={ev => setEmaCfg(cfg => cfg.map(e => ({ ...e, on: ev.target.checked })))} aria-label="All EMAs on or off" />EMA on/off</label>
+      <label className={'lc-ema-opt lc-piv-opt' + (pivOn ? '' : ' off')} title="Daily Fibonacci pivots (P, R1–R3, S1–S3) from the previous day's high, low and close; intraday timeframes">
+        <input type="checkbox" checked={pivOn} onChange={e => setPivOn(e.target.checked)} aria-label="Show Fibonacci pivots" />Pivots (Fib)</label>
+      <label className={'lc-ema-opt lc-st-opt' + (stOn ? '' : ' off')} title="Supertrend (ATR 11, multiplier 2): green below price = uptrend, red above = downtrend; Buy / Sell where it flips">
+        <input type="checkbox" checked={stOn} onChange={e => setStOn(e.target.checked)} aria-label="Show Supertrend" />Supertrend</label>
       {emaCfg.some((e, k) => e.p !== EMA_DEFAULT[k].p || !e.on) && <button className="btn sm" onClick={() => setEmaCfg(EMA_DEFAULT)} title="Back to EMA 5, 9 and 15, all on">Reset</button>}
     </div>
     <div className="lc-ohlc small">{h && <><b>{fmtT(h.t)}</b> O {fmt(h.o)} · H {fmt(h.h)} · L {fmt(h.l)} · C <b className={h.c >= h.o ? 'up' : 'down'}>{fmt(h.c)}</b> {pctEl(chg)} · Vol {h.v.toLocaleString('en-US', { maximumFractionDigits: 2 })}
       {emaCfg.map((e, k) => { const v = ev[k]?.[hover != null ? hover : cs.length - 1]; return v == null ? null : <span key={k} className={'lc-ema-k s' + k}> · EMA {e.p} {fmt(v)}</span> })}
+      {sv && sv[hover != null ? hover : cs.length - 1] && (() => { const p = sv[hover != null ? hover : cs.length - 1]; return <span className={'lc-st-k ' + (p.dir === 1 ? 'up' : 'down')}> · ST {fmt(p.v)} {p.dir === 1 ? '▲' : '▼'}</span> })()}
       {orbs.length > 0 && (() => { const r = orbs.find(r => r.i <= (hover ?? cs.length - 1) && (hover ?? cs.length - 1) <= r.last) || orbs[orbs.length - 1]; return <span className="lc-orb-k"> · ORB 15 H {fmt(r.hi)} / L {fmt(r.lo)}</span> })()}</>}
       <span className="lc-nav">{loadingOlder && <span className="muted">loading older candles…</span>}
         {(o > 0 || span) && <button className="btn sm" onClick={() => { setOff(0); setSpan(null) }} title="Back to the latest candles">Latest ⟶</button>}</span></div>
@@ -154,6 +201,26 @@ export function CandleChart({ candles, tf, fmt, onNeedOlder, loadingOlder, heigh
       {orbs.map(r => <g key={'orb' + r.t} className="lc-orb"><title>15-min opening range · H {fmt(r.hi)} · L {fmt(r.lo)}</title>
         {r.end != null && <rect x={x(r.i) - cw / 2} y={y(r.hi)} width={(r.end - r.i + 1) * cw} height={Math.max(1, y(r.lo) - y(r.hi))} className="lc-orz" />}
         <line x1={x(r.i) - cw / 2} x2={x(r.last) + cw / 2} y1={y(r.hi)} y2={y(r.hi)} /><line x1={x(r.i) - cw / 2} x2={x(r.last) + cw / 2} y1={y(r.lo)} y2={y(r.lo)} /></g>)}
+      {pivOn && (() => {  // one set of levels per visible day, labelled at the day's first visible candle
+        const segs = []
+        cs.forEach((c, i) => { const d = istDay(c.t), sg = segs[segs.length - 1]; if (sg?.d === d) sg.last = i; else if (dayPiv[d]) segs.push({ d, i, last: i }) })
+        return segs.map(sg => dayPiv[sg.d].filter(([, v]) => v <= yMax && v >= yMin).map(([k, v]) => <g key={sg.d + k} className={'lc-piv ' + (k === 'P' ? 'p' : k[0] === 'R' ? 'r' : 's')}>
+          <title>{k} {fmt(v)} · Fibonacci pivot from the previous day</title>
+          <line x1={x(sg.i) - cw / 2} x2={x(sg.last) + cw / 2} y1={y(v)} y2={y(v)} />
+          <text x={x(sg.i) - cw / 2 + 3} y={y(v) - 3}>{k} {fmt(v)}</text></g>))
+      })()}
+      {sv && (() => {  // one polyline per run of the same direction, so flips don't draw a vertical joint
+        const runs = []
+        sv.forEach((p, i) => { if (!p) return; const r = runs[runs.length - 1]; if (r && r.dir === p.dir && r.last === i - 1) { r.pts.push(`${x(i)},${y(p.v)}`); r.last = i } else runs.push({ dir: p.dir, last: i, pts: [`${x(i)},${y(p.v)}`] }) })
+        // Buy / Sell where the trend flips: Buy under the candle that turns it up, Sell above the one that turns it down
+        const flips = sv.map((p, i) => p && i && sv[i - 1] && sv[i - 1].dir !== p.dir ? i : null).filter(i => i != null)
+        return <>{runs.map((r, j) => <polyline key={'st' + j} className={'lc-st ' + (r.dir === 1 ? 'up' : 'down')} points={r.pts.join(' ')} />)}
+          {flips.map(i => { const buy = sv[i].dir === 1, c = cs[i], yy = buy ? y(c.l) + 8 : y(c.h) - 8
+            return <g key={'sig' + c.t} className={'lc-sig ' + (buy ? 'buy' : 'sell')}><title>{buy ? 'Buy' : 'Sell'} signal · Supertrend turned {buy ? 'up' : 'down'} · close {fmt(c.c)}</title>
+              <path d={buy ? `M${x(i)},${yy} l-5,8 h10 z` : `M${x(i)},${yy} l-5,-8 h10 z`} />
+              <rect x={x(i) - 15} y={buy ? yy + 10 : yy - 24} width="30" height="14" rx="3" />
+              <text x={x(i)} y={buy ? yy + 21 : yy - 13} textAnchor="middle">{buy ? 'Buy' : 'Sell'}</text></g> })}</>
+      })()}
       {ev.map((e, k) => e && <polyline key={'ema' + k} className={'lc-ema s' + k} points={e.map((v, i) => v == null ? '' : `${x(i)},${y(v)}`).filter(Boolean).join(' ')} />)}
       {hover != null && <line x1={x(hover)} x2={x(hover)} y1={T} y2={H - B} className="lc-cross" />}
       {last && last.c <= yMax && last.c >= yMin && <g><line x1={L} x2={w - R} y1={y(last.c)} y2={y(last.c)} className={'lc-last ' + (last.c >= last.o ? 'up' : 'down')} />
@@ -290,7 +357,7 @@ export function ChartView({ prefix, opts, sym, onPick, candlesUrl, indUrl, fmt, 
           return <PnlCalc id={prefix + ':' + sym} name={sym} lot={lot} buy={ap?.price ?? (isNum(last?.c) ? +last.c.toFixed(2) : '')} buyLabel={ap ? ap.label : 'last price'} /> })()}
         </div>
       </div>
-      <div className="muted small">Drag the chart left / right to move through time (older candles load as you go) · scroll to zoom · double-click or “Latest” to return · dashed lines = new session (day) · EMA lines (blue / orange / violet; tick or change them above the chart) · shaded box + dotted lines = 15-min opening range (intraday timeframes). Hover a candle for its open / high / low / close. Times in IST.{note ? ' ' + note : ''}</div>
+      <div className="muted small">Drag the chart left / right to move through time (older candles load as you go) · scroll to zoom · double-click or “Latest” to return · dashed lines = new session (day) · EMA lines (blue / orange / violet) Supertrend 11 / 2 (green up / red down, Buy / Sell where it flips) and daily Fibonacci pivots — tick or change them above the chart · blue shaded box + dashed blue lines = 15-min opening range (intraday timeframes). Hover a candle for its open / high / low / close. Times in IST.{note ? ' ' + note : ''}</div>
       <div className="lc-cards">
         <section className="lc-card"><div className="lc-card-h"><h3>Indicators</h3><span className="muted small">{sym} · 1m … 1M</span></div>
           {!fb && indUrl ? <IndTable url={indUrl(sym)} sym={sym} fmtShort={fmtShort} source={indSource} /> : <div className="muted small">No indicator data for {sym} (not on OKX).</div>}</section>
