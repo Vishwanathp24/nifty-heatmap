@@ -1199,3 +1199,12 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
 .blog-video iframe { width: 100%; aspect-ratio: 16 / 9; border: 0; border-radius: 8px; background: #000 }
 .top-tag { display: inline-block; margin-left: 6px; font-size: 10.5px; font-weight: 700; padding: 0 5px; border-radius: 3px; white-space: nowrap; vertical-align: 1px }
 .top-tag.up { color: var(--up); background: var(--up-bg) } .top-tag.down { color: var(--down); background: var(--down-bg) }
+/* Live Chart overlays: EMA 5 / 9 / 15 (categorical slots blue, orange, violet) and the 15-min opening range */
+.lc-ema { fill: none; stroke-width: 1.5; pointer-events: none } .lc-ema.s0 { stroke: #2a78d6 } .lc-ema.s1 { stroke: #eb6834 } .lc-ema.s2 { stroke: #6250d6 }
+.lc-ema-k.s0, .lc-ema-opt.s0 { color: #2a78d6 } .lc-ema-k.s1, .lc-ema-opt.s1 { color: #eb6834 } .lc-ema-k.s2, .lc-ema-opt.s2 { color: #6250d6 }
+.lc-emas { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 4px }
+.lc-ema-opt { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border: 1px solid currentColor; border-radius: 6px; font-weight: 600 }
+.lc-ema-opt.off { opacity: .45 }
+.lc-ema-opt input[type=checkbox] { accent-color: currentColor; margin: 0 }
+.lc-ema-opt input[type=number] { width: 46px; font: inherit; font-weight: 600; color: inherit; border: 0; background: transparent; padding: 0 } .lc-ema-k, .lc-orb-k { white-space: nowrap; font-weight: 600 }
+.lc-orb line { stroke: var(--amber); stroke-width: 2; stroke-dasharray: 6 4 } .lc-orb .lc-orz { fill: var(--amber); opacity: .18 } .lc-orb-k { color: var(--amber) }

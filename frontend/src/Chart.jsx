@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Empty, Seg } from './components.jsx'
-import { api, isNum, istTime, usePoll, useSessionState } from './lib.js'
+import { api, isNum, istTime, usePersistentState, usePoll, useSessionState } from './lib.js'
 import OptionTools, { BIAS_VIEW, BUYER, FIT, NONE, VIEWS, legPrice, refStrikes, setMoney } from './OptionTools.jsx'
 
 // Live chart shared by Crypto -> Live Chart (OKX, $) and Intraday Scanner -> Live Chart (NSE via
@@ -9,6 +9,17 @@ import OptionTools, { BIAS_VIEW, BUYER, FIT, NONE, VIEWS, legPrice, refStrikes, 
 
 export const CHART_TFS = ['1m', '3m', '5m', '15m', '30m', '1h', '2h', '3h', '4h', '1D', '1W', '1M']
 const LONG_TF = new Set(['1D', '1W', '1M'])
+const ORB_TF = new Set(['1m', '3m', '5m', '15m'])  // timeframes fine enough to show the 15-minute opening range
+const EMA_DEFAULT = [{ p: 5, on: true }, { p: 9, on: true }, { p: 15, on: true }]  // three slots: blue, orange, violet
+// EMA of the close at every candle (null until n candles exist), seeded with the first n-candle mean.
+function emaSeries(cs, n) {
+  const out = new Array(cs.length).fill(null)
+  if (cs.length < n) return out
+  let e = cs.slice(0, n).reduce((t, c) => t + c.c, 0) / n
+  out[n - 1] = e
+  for (let i = n; i < cs.length; i++) { e = cs[i].c * 2 / (n + 1) + e * (1 - 2 / (n + 1)); out[i] = e }
+  return out
+}
 const IST = { timeZone: 'Asia/Kolkata', hour12: false }
 const pctEl = v => isNum(v) ? <span className={v > 0 ? 'up' : v < 0 ? 'down' : ''}>{v > 0 ? '+' : ''}{v.toFixed(2)}%</span> : '—'
 const fix = s => s.replace('Sept', 'Sep')
@@ -41,6 +52,11 @@ export function CandleChart({ candles, tf, fmt, onNeedOlder, loadingOlder, heigh
   const n = Math.max(10, Math.min(len, span || Math.floor((w - L - R) / 7)))
   const o = Math.max(0, Math.min(off, len - n))
   const cs = candles.slice(len - o - n, len - o)
+  // EMAs over every loaded candle (accurate at the left edge), then the visible slice
+  const [emaCfg, setEmaCfg] = usePersistentState('lc.emas', EMA_DEFAULT)  // on / off and period per slot, remembered in this browser
+  const setEma = (k, patch) => setEmaCfg(cfg => cfg.map((e, j) => j === k ? { ...e, ...patch } : e))
+  const emas = useMemo(() => emaCfg.map(e => e.on && e.p >= 2 ? emaSeries(candles, e.p) : null), [candles, emaCfg])
+  const ev = emas.map(e => e && e.slice(len - o - n, len - o))
   useEffect(() => { if (len - o - n < 20 && onNeedOlder) onNeedOlder() }, [o, n, len])
   const zoom = useRef({ n, len })
   zoom.current = { n, len }
@@ -52,7 +68,28 @@ export function CandleChart({ candles, tf, fmt, onNeedOlder, loadingOlder, heigh
     return () => el.removeEventListener('wheel', wheel)
   }, [cs.length > 0])
   if (!cs.length) return null
-  const hi = Math.max(...cs.map(c => c.h)), lo = Math.min(...cs.map(c => c.l))
+  // 15-minute opening range per day, from every loaded candle (so it shows even when the morning is
+  // scrolled off-screen); drawn across that day's visible candles. The oldest loaded day may start
+  // mid-session, so it is skipped.
+  const dayOr = useMemo(() => {
+    const m = {}
+    if (!ORB_TF.has(tf)) return m
+    candles.forEach((c, i) => {
+      const d = istDay(c.t)
+      if (!m[d]) m[d] = { t: c.t, hi: -Infinity, lo: Infinity, ok: i > 0 }
+      if (c.t < m[d].t + 15 * 60000) { m[d].hi = Math.max(m[d].hi, c.h); m[d].lo = Math.min(m[d].lo, c.l) }
+    })
+    return m
+  }, [candles, tf])
+  const orbs = []
+  cs.forEach((c, i) => {
+    const r = dayOr[istDay(c.t)]
+    if (!r?.ok) return
+    const cur = orbs[orbs.length - 1]
+    if (cur && cur.d === istDay(c.t)) { cur.last = i; if (c.t < r.t + 15 * 60000) cur.end = i }
+    else orbs.push({ d: istDay(c.t), t: r.t, hi: r.hi, lo: r.lo, i, last: i, end: c.t < r.t + 15 * 60000 ? i : null })
+  })
+  const hi = Math.max(...cs.map(c => c.h), ...orbs.map(r => r.hi)), lo = Math.min(...cs.map(c => c.l), ...orbs.map(r => r.lo))  // keep ORB levels on the scale
   const pad = (hi - lo) * 0.05 || hi * 0.001
   const yMax = hi + pad, yMin = lo - pad
   const vMax = Math.max(...cs.map(c => c.v)) || 1
@@ -89,7 +126,15 @@ export function CandleChart({ candles, tf, fmt, onNeedOlder, loadingOlder, heigh
     setHover(i >= 0 && i < cs.length ? i : null)
   }
   return <div className="lc-wrap" ref={setBox}>
-    <div className="lc-ohlc small">{h && <><b>{fmtT(h.t)}</b> O {fmt(h.o)} · H {fmt(h.h)} · L {fmt(h.l)} · C <b className={h.c >= h.o ? 'up' : 'down'}>{fmt(h.c)}</b> {pctEl(chg)} · Vol {h.v.toLocaleString('en-US', { maximumFractionDigits: 2 })}</>}
+    <div className="lc-emas small" role="group" aria-label="EMA lines"><b>EMA</b>
+      {emaCfg.map((e, k) => <label key={k} className={'lc-ema-opt s' + k + (e.on ? '' : ' off')} title="Tick to show this EMA; type any period from 2 to 200">
+        <input type="checkbox" checked={e.on} onChange={ev => setEma(k, { on: ev.target.checked })} aria-label={`Show EMA ${e.p}`} />
+        <input type="number" min="2" max="200" value={e.p} onChange={ev => setEma(k, { p: Math.max(2, Math.min(200, Math.round(+ev.target.value) || 2)) })} aria-label={`EMA ${k + 1} period`} /></label>)}
+      {emaCfg.some((e, k) => e.p !== EMA_DEFAULT[k].p || !e.on) && <button className="btn sm" onClick={() => setEmaCfg(EMA_DEFAULT)} title="Back to EMA 5, 9 and 15, all on">Reset</button>}
+    </div>
+    <div className="lc-ohlc small">{h && <><b>{fmtT(h.t)}</b> O {fmt(h.o)} · H {fmt(h.h)} · L {fmt(h.l)} · C <b className={h.c >= h.o ? 'up' : 'down'}>{fmt(h.c)}</b> {pctEl(chg)} · Vol {h.v.toLocaleString('en-US', { maximumFractionDigits: 2 })}
+      {emaCfg.map((e, k) => { const v = ev[k]?.[hover != null ? hover : cs.length - 1]; return v == null ? null : <span key={k} className={'lc-ema-k s' + k}> · EMA {e.p} {fmt(v)}</span> })}
+      {orbs.length > 0 && (() => { const r = orbs.find(r => r.i <= (hover ?? cs.length - 1) && (hover ?? cs.length - 1) <= r.last) || orbs[orbs.length - 1]; return <span className="lc-orb-k"> · ORB 15 H {fmt(r.hi)} / L {fmt(r.lo)}</span> })()}</>}
       <span className="lc-nav">{loadingOlder && <span className="muted">loading older candles…</span>}
         {(o > 0 || span) && <button className="btn sm" onClick={() => { setOff(0); setSpan(null) }} title="Back to the latest candles">Latest ⟶</button>}</span></div>
     <svg width={w} height={H} className={'lc' + (drag.current ? ' dragging' : '')} onPointerDown={down} onPointerMove={move}
@@ -106,6 +151,10 @@ export function CandleChart({ candles, tf, fmt, onNeedOlder, loadingOlder, heigh
           <rect x={x(i) - bw / 2} y={y(Math.max(c.o, c.c))} width={bw} height={Math.max(1, Math.abs(y(c.o) - y(c.c)))} />
         </g>
       })}
+      {orbs.map(r => <g key={'orb' + r.t} className="lc-orb"><title>15-min opening range · H {fmt(r.hi)} · L {fmt(r.lo)}</title>
+        {r.end != null && <rect x={x(r.i) - cw / 2} y={y(r.hi)} width={(r.end - r.i + 1) * cw} height={Math.max(1, y(r.lo) - y(r.hi))} className="lc-orz" />}
+        <line x1={x(r.i) - cw / 2} x2={x(r.last) + cw / 2} y1={y(r.hi)} y2={y(r.hi)} /><line x1={x(r.i) - cw / 2} x2={x(r.last) + cw / 2} y1={y(r.lo)} y2={y(r.lo)} /></g>)}
+      {ev.map((e, k) => e && <polyline key={'ema' + k} className={'lc-ema s' + k} points={e.map((v, i) => v == null ? '' : `${x(i)},${y(v)}`).filter(Boolean).join(' ')} />)}
       {hover != null && <line x1={x(hover)} x2={x(hover)} y1={T} y2={H - B} className="lc-cross" />}
       {last && last.c <= yMax && last.c >= yMin && <g><line x1={L} x2={w - R} y1={y(last.c)} y2={y(last.c)} className={'lc-last ' + (last.c >= last.o ? 'up' : 'down')} />
         <rect x={w - R + 2} y={y(last.c) - 9} width={R - 4} height={18} rx="3" className={'lc-tag ' + (last.c >= last.o ? 'up' : 'down')} />
@@ -241,7 +290,7 @@ export function ChartView({ prefix, opts, sym, onPick, candlesUrl, indUrl, fmt, 
           return <PnlCalc id={prefix + ':' + sym} name={sym} lot={lot} buy={ap?.price ?? (isNum(last?.c) ? +last.c.toFixed(2) : '')} buyLabel={ap ? ap.label : 'last price'} /> })()}
         </div>
       </div>
-      <div className="muted small">Drag the chart left / right to move through time (older candles load as you go) · scroll to zoom · double-click or “Latest” to return · dashed lines = new session (day). Hover a candle for its open / high / low / close. Times in IST.{note ? ' ' + note : ''}</div>
+      <div className="muted small">Drag the chart left / right to move through time (older candles load as you go) · scroll to zoom · double-click or “Latest” to return · dashed lines = new session (day) · EMA lines (blue / orange / violet; tick or change them above the chart) · shaded box + dotted lines = 15-min opening range (intraday timeframes). Hover a candle for its open / high / low / close. Times in IST.{note ? ' ' + note : ''}</div>
       <div className="lc-cards">
         <section className="lc-card"><div className="lc-card-h"><h3>Indicators</h3><span className="muted small">{sym} · 1m … 1M</span></div>
           {!fb && indUrl ? <IndTable url={indUrl(sym)} sym={sym} fmtShort={fmtShort} source={indSource} /> : <div className="muted small">No indicator data for {sym} (not on OKX).</div>}</section>
