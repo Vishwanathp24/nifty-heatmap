@@ -345,9 +345,9 @@ th .arrow { font-size: 9px; margin-left: 4px; opacity: .6 }
 .check-label input { height: auto }
 .filters-toggle { display: none }
 .scanner-wrap { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); max-height: calc(100vh - 290px); overflow: auto }
-.scanner tbody tr { cursor: pointer }
-.scanner tbody tr:hover { background: #F7F9FC }
-.scanner tbody tr.active { background: var(--accent-bg) }
+.scanner tbody tr, .pickable tbody tr { cursor: pointer }
+.scanner tbody tr:hover, .pickable tbody tr:hover { background: #F7F9FC }
+.scanner tbody tr.active, .pickable tbody tr.active { background: var(--accent-bg) }
 .scanner tbody tr.fresh { background: #FBFAEF }
 .scanner tbody tr.fresh:hover { background: #F6F4E2 }
 .sig { font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 3px; letter-spacing: .3px }

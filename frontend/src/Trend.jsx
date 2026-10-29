@@ -81,7 +81,7 @@ export function useTrendSettings(prefix = 'trend') {
 }
 
 // crypto: link(row) renders the symbol link and hides the F&O / All switch
-export default function Trend({ trend, settings, link, prefix = 'trend', fmtLtp = fmtNum, noun = 'stock', either = false }) {
+export default function Trend({ trend, settings, link, prefix = 'trend', fmtLtp = fmtNum, noun = 'stock', either = false, onPick, picked }) {
   const { dir, setDir, tfs, setTfs, rsiMin, setRsiMin, adxMin, setAdxMin, universe, setUniverse } = settings
   const [allOnly, setAllOnly] = useSessionState(prefix + '.allOnly', true)
   const [search, setSearch] = useState('')
@@ -122,7 +122,7 @@ export default function Trend({ trend, settings, link, prefix = 'trend', fmtLtp 
       VWAP · EMA 5 · EMA 9 · Supertrend (10, 3) · RSI 14 · ADX / DI 14 on 15-min and 1-hour candles ({bull ? `price above VWAP, EMA 5 and EMA 9 · Supertrend UP · RSI > ${rsiMin} · ADX > ${adxMin} · DI+ > DI−` : `price below VWAP, EMA 5 and EMA 9 · Supertrend DOWN · RSI < ${100 - rsiMin} · ADX > ${adxMin} · DI− > DI+`}
       {union ? ', on 15-min or on 1-hour — either is enough' : use15 && use60 ? ', on both 15-min and 1-hour' : use15 ? ', on 15-min' : ', on 1-hour'}).</p>
     {<div className="tbl-wrap panel trend-wrap">
-        <table className="tbl trend-tbl">
+        <table className={'tbl trend-tbl' + (onPick ? ' pickable' : '')}>
           <thead>
             <tr className="grp"><th colSpan={6} />
               {use15 && <th colSpan={COLS.length} className="grp-h">15 Min</th>}
@@ -138,7 +138,7 @@ export default function Trend({ trend, settings, link, prefix = 'trend', fmtLtp 
               {use60 && COLS.map(([k, l]) => k === 'rsi' ? <SortTh key={'b' + k} label={l} k="rsi60" {...sp} num /> : k === 'adx' ? <SortTh key={'b' + k} label={l} k="adx60" {...sp} num /> : <th key={'b' + k} className="num">{l}</th>)}
             </tr>
           </thead>
-          <tbody>{shown.map(r => <tr key={r.symbol}>
+          <tbody>{shown.map(r => <tr key={r.symbol} onClick={onPick && (() => onPick(r))} className={picked === r.symbol ? 'active' : undefined}>
             <td>{link ? link(r) : <><StockLink symbol={r.symbol} company={r.company} className="strong" /><TopTag symbol={r.symbol} /></>}</td>
             <td className="muted">{r.sector}</td>
             <td className="num">{fmtLtp(r.ltp)}</td>

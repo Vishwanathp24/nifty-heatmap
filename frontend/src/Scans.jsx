@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { BiasPill, Empty, Seg, SortTh, StockLink, TopFilter, TopTag, useTopPass } from './components.jsx'
 import { fmtNum, hhmmTo12, isNum, istTime, setSessionValue, sortRows, useSessionState } from './lib.js'
 import Trend, { trendNeed, trendRows, useTrendSettings } from './Trend.jsx'
-import { SectorMulti } from './Scanner.jsx'
+import { SectorMulti, StockDrawer } from './Scanner.jsx'
 import { INDIA, OptionsBoard } from './CryptoOptions.jsx'
 import { ChartView } from './Chart.jsx'
 
@@ -59,7 +59,7 @@ export function scanRows(rows, id) {
   })
 }
 
-function ConditionScan({ id, data }) {
+function ConditionScan({ id, data, onPick, picked }) {
   const sc = SCANS[id]
   const [allOnly, setAllOnly] = useSessionState('scan.allOnly.' + id, true)
   const [search, setSearch] = useState('')
@@ -80,7 +80,7 @@ function ConditionScan({ id, data }) {
       <TopFilter />
     </div>
     <div className="tbl-wrap panel trend-wrap">
-      <table className="tbl trend-tbl cond-tbl">
+      <table className="tbl trend-tbl cond-tbl pickable">
         <thead><tr>
           <SortTh label="Symbol" k="symbol" {...sp} defaultDir="asc" />
           <SortTh label="Sector" k="sector" {...sp} defaultDir="asc" />
@@ -90,7 +90,7 @@ function ConditionScan({ id, data }) {
           <SortTh label="Time" k="since" {...sp} title="Time (IST) since when the stock has met every condition today (close of the first qualifying 15-min candle)" />
           {sc.conds.map(c => <SortTh key={c.k} label={c.label} k={'v_' + c.k} {...sp} num title={c.title} />)}
         </tr></thead>
-        <tbody>{shown.map(r => <tr key={r.symbol}>
+        <tbody>{shown.map(r => <tr key={r.symbol} onClick={() => onPick(r)} className={picked === r.symbol ? 'active' : undefined}>
           <td><StockLink symbol={r.symbol} company={r.company} className="strong" /><TopTag symbol={r.symbol} /></td>
           <td className="muted">{r.sector}</td>
           <td className="num">{fmtNum(r.ltp)}</td>
@@ -116,7 +116,7 @@ const inrShort = v => !isNum(v) ? '—' : v >= 1000 ? Math.round(v).toLocaleStri
 // Common Stocks: F&O stocks that appear in every scan for one direction - Trending Stocks, Bullish /
 // Bearish Intraday and the 15 / 30 / 60-minute ORB breakouts (breakdowns) - each list as its tab shows it.
 const COMMON = [['trend', 'Trending'], ['intra', 'Intraday'], ['o15', '15 Min ORB'], ['o30', '30 Min ORB'], ['o60', '1 Hour ORB']]
-function CommonStocks({ data, settings, orbLists, bias }) {
+function CommonStocks({ data, settings, orbLists, bias, onPick, picked }) {
   const [dir, setDir] = useState(bias === 'BEARISH' ? 'bear' : 'bull')
   const [allOnly, setAllOnly] = useSessionState('common.allOnly', true)
   const bull = dir === 'bull', sig = bull ? 'BREAKOUT' : 'BREAKDOWN'
@@ -143,9 +143,9 @@ function CommonStocks({ data, settings, orbLists, bias }) {
       <TopFilter />
     </div>
     <p className="muted small qualify-line"><b className={bull ? 'up' : 'down'}>{all.length}</b> stock{all.length === 1 ? '' : 's'} in all {N} {bull ? 'bullish' : 'bearish'} scans: Trending Stocks, {bull ? 'Bullish' : 'Bearish'} Intraday and the 15 Min, 30 Min and 1 Hour ORB {bull ? 'breakouts' : 'breakdowns'} (each with the filters set on its own tab).</p>
-    <div className="tbl-wrap panel"><table className="tbl">
+    <div className="tbl-wrap panel"><table className="tbl pickable">
       <thead><tr><th>Symbol</th><th>Sector</th><th className="num">LTP</th><th className="num">Chg %</th><th className="num">In</th><th className="num" title="When the stock entered the last of its scans (IST): the latest of the times below">Captured</th>{COMMON.map(([k, l]) => <th key={k} className="num">{l}</th>)}</tr></thead>
-      <tbody>{shown.map(r => <tr key={r.symbol}>
+      <tbody>{shown.map(r => <tr key={r.symbol} onClick={() => onPick(r)} className={picked === r.symbol ? 'active' : undefined}>
         <td><StockLink symbol={r.symbol} company={r.company} className="strong" /><TopTag symbol={r.symbol} /></td>
         <td className="muted">{r.sector}</td>
         <td className="num">{fmtNum(r.ltp)}</td>
@@ -213,6 +213,8 @@ export default function Scans({ trend: trendRaw, live, selected, setSelected, ch
     if (biasLabel === 'BULLISH' && base.dir !== 'bull') base.setDir('bull')
   }, [biasLabel, dirManual])
   const [resetKey, setResetKey] = useState(0)
+  const [pick, setPick] = useState(null)  // stock whose details drawer is open (row click, as on the ORB Scanner)
+  const pp = { onPick: r => setPick(r), picked: pick?.symbol }
   // Clear filters: sectors, Trending settings, search, sort and the "all conditions only" boxes.
   const clearAll = () => {
     setSelected([])
@@ -247,8 +249,9 @@ export default function Scans({ trend: trendRaw, live, selected, setSelected, ch
       : tab === 'chart' ? <StockLive key={'sl' + chartReq} stocks={live?.stocks || []} selected={selected} bias={live?.bias?.label} nifty={live?.indices?.nifty50} />
       : !data ? <Empty>{trend.error || 'Loading scan data…'}</Empty>
       : !data.rows.length ? <Empty>Calculating for the first time — this takes about 2–3 minutes…</Empty>
-        : tab === 'trend' ? <Trend key={'t' + resetKey} trend={trend} settings={settings} />
-        : tab === 'common' ? <CommonStocks key={'c' + resetKey} data={data} settings={settings} orbLists={orbLists} bias={live?.bias?.label} />
-        : <ConditionScan key={tab + resetKey} id={tab} data={data} />}
+        : tab === 'trend' ? <Trend key={'t' + resetKey} trend={trend} settings={settings} {...pp} />
+        : tab === 'common' ? <CommonStocks key={'c' + resetKey} data={data} settings={settings} orbLists={orbLists} bias={live?.bias?.label} {...pp} />
+        : <ConditionScan key={tab + resetKey} id={tab} data={data} {...pp} />}
+    {pick && <StockDrawer stock={live?.stocks?.find(s => s.symbol === pick.symbol) || pick} onClose={() => setPick(null)} />}
   </div>
 }
