@@ -52,7 +52,16 @@ const hhmm = d => d ? istTime(d).slice(0, 5) : '…'  // HH:MM for the compact h
 
 // Market Bias alert: a browser notification when the bias label (Bullish / Neutral / Bearish)
 // changes during market hours. Works while the dashboard is open, even in a background tab.
+// Phones show notifications only through a service worker (sw.js); iPhones only for the
+// site added to the Home Screen (iOS 16.4+), so there the button explains how.
 const CAN_NOTIFY = typeof window !== 'undefined' && 'Notification' in window
+const IS_IOS = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1))
+if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {})
+function showAlert(title, opts) {
+  const reg = 'serviceWorker' in navigator ? navigator.serviceWorker.getRegistration() : Promise.resolve(null)
+  reg.then(r => r ? r.showNotification(title, opts) : new Notification(title, opts))
+    .catch(() => { try { new Notification(title, opts) } catch { /* no way to notify here */ } })
+}
 function useBiasAlert(live, on) {
   const prev = useRef(null)
   const bias = live.data?.bias, open = live.data?.market_status?.label === 'Market Open'
@@ -62,17 +71,17 @@ function useBiasAlert(live, on) {
     prev.current = bias.label
     if (!on || !open || !was || was === bias.label || !CAN_NOTIFY || Notification.permission !== 'granted') return
     const score = (bias.score > 0 ? '+' : '') + bias.score
-    try {
-      new Notification(`Market Bias: ${bias.label} (${score})`, {
-        body: `Changed from ${was} to ${bias.label} at ${istTime(new Date()).slice(0, 5)} IST`,
-        tag: 'nse-bias', icon: favicon })
-    } catch { /* some mobile browsers only notify from a service worker */ }
+    showAlert(`Market Bias: ${bias.label} (${score})`, {
+      body: `Changed from ${was} to ${bias.label} at ${istTime(new Date()).slice(0, 5)} IST`,
+      tag: 'nse-bias', icon: favicon })
   }, [bias?.label, on, open])
 }
 
 function BiasAlertToggle({ on, setOn }) {
   const [perm, setPerm] = useState(CAN_NOTIFY ? Notification.permission : 'denied')
-  if (!CAN_NOTIFY) return null
+  if (!CAN_NOTIFY) return IS_IOS ? <button className="hdr-auto hdr-bell" aria-label="Market Bias alerts" onClick={() => alert(
+    'Market Bias alerts on iPhone:\n\n1. Open this site in Safari (or Chrome), tap Share, then "Add to Home Screen".\n'
+    + '2. Open the dashboard from the new Home Screen icon.\n3. Tap 🔕 Bias there and choose Allow.\n\n(Needs iOS 16.4 or newer.)')}>🔕 Bias</button> : null
   const active = on && perm === 'granted'
   const click = async () => {
     if (active) return setOn(false)

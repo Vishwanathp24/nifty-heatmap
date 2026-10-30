@@ -459,3 +459,9 @@ if DIST.exists():
     @app.get("/")
     def index():
         return FileResponse(DIST / "index.html", headers={"Cache-Control": "no-cache"})  # always pick up a new deploy
+
+    # Root files for the phone home-screen app and notifications (service worker, manifest, icons).
+    for _name in ("sw.js", "manifest.webmanifest", "icon-192.png", "icon-512.png"):
+        if (DIST / _name).exists():
+            app.add_api_route("/" + _name, (lambda f=DIST / _name: FileResponse(f, headers={"Cache-Control": "no-cache"})),
+                              methods=["GET"], include_in_schema=False)
