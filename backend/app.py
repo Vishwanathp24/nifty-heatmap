@@ -18,6 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from zoneinfo import ZoneInfo
 
 import sources
+import yearhl
 from config import CLOSE_MIN, OPEN_MIN
 from engine import Engine
 from store import Store
@@ -155,6 +156,7 @@ def sector(symbol: str):
         return hit[1]
     try:
         data = engine.sector_detail(symbol)
+        yearhl.levels(data["stocks"])
     except sources.SourceError as exc:
         if hit:
             return {**hit[1], "stale": True}

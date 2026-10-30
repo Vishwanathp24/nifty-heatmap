@@ -121,11 +121,12 @@ function Filters({ f, setF, tf, setTf, confirm3, setConfirm3, reset }) {
   </div>
 }
 
+const hrMin = m => m < 60 ? `${m} min` : `${Math.floor(m / 60)} hr` + (m % 60 ? ` ${m % 60} min` : '')  // 162 -> "2 hr 42 min"
 function Fresh({ row, live }) {
   if (!isNum(row.age_min)) return <span className="muted">N/A</span>
   const age = Math.max(0, Math.floor(row.age_min))
   if (live && age <= 15) return <span className="fresh-new"><b>NEW</b> {age} min ago</span>
-  return <span className="muted">{age} min{live ? ' ago' : ''}</span>
+  return <span className="muted">{hrMin(age)}{live ? ' ago' : ''}</span>
 }
 
 function IntradayChart({ data, extra }) {  // extra: optional 15-min range {or_high, or_low}

@@ -11,6 +11,8 @@ const pctOf = (s, basis) => s.quote?.[PCT_KEY[basis]]
 // (weekly ×2.5, monthly ×5) to keep the tiles readable.
 const SCALE = { open: 1, prev: 1, week: 2.5, month: 5 }
 const BASIS_WORD = { open: 'vs open', prev: 'vs prev', week: '1 week', month: '1 month' }
+// % from the 1-year high / low: big moves read better as whole numbers with commas.
+const PctFar = ({ v }) => <span className={'num ' + tone(v)}>{(v > 0 ? '+' : '') + (Math.abs(v) >= 100 ? Math.round(v).toLocaleString('en-IN') : v.toFixed(2)) + '%'}</span>
 
 // Live constituents straight from NSE for this index (refreshed every 10 s while open).
 function useSectorStocks(symbol) {
@@ -76,11 +78,19 @@ function SectorPanel({ sector, basis, selected, toggle }) {
         <SortTh label="Chg %" k="pct_prev" {...sp} num title="Change vs previous close" />
         <SortTh label="Open" k="open" {...sp} num title="Today's open price" />
         <SortTh label="Volume" k="volume" {...sp} num />
+        <SortTh label="1Y High" k="y_high" {...sp} num title="Highest price of the last 1 year (52 weeks, split / bonus adjusted, includes today)" />
+        <SortTh label="From 1Y High" k="pct_y_high" {...sp} num title="% below the highest price of the last 1 year (52 weeks, split / bonus adjusted; hover a value for the level)" />
+        <SortTh label="1Y Low" k="y_low" {...sp} num title="Lowest price of the last 1 year (52 weeks, split / bonus adjusted, includes today)" />
+        <SortTh label="From 1Y Low" k="pct_y_low" {...sp} num title="% above the lowest price of the last 1 year (52 weeks, split / bonus adjusted; hover a value for the level)" />
       </tr></thead>
       <tbody>{all.map(s => <tr key={s.symbol}>
         <td><StockLink symbol={s.symbol} company={s.company} className="strong" /></td>
         <td className="num">{fmtNum(s.ltp)}</td><td className="num"><Pct v={s.pct_prev} /></td>
-        <td className="num">{fmtNum(s.open)}</td><td className="num">{fmtVol(s.volume)}</td></tr>)}</tbody>
+        <td className="num">{fmtNum(s.open)}</td><td className="num">{fmtVol(s.volume)}</td>
+        <td className="num">{isNum(s.y_high) ? fmtNum(s.y_high) : <span className="muted">…</span>}</td>
+        <td className="num" title={isNum(s.y_high) ? '1-year high ' + fmtNum(s.y_high) : 'Loading history…'}>{isNum(s.pct_y_high) ? <PctFar v={s.pct_y_high} /> : <span className="muted">…</span>}</td>
+        <td className="num">{isNum(s.y_low) ? fmtNum(s.y_low) : <span className="muted">…</span>}</td>
+        <td className="num" title={isNum(s.y_low) ? '1-year low ' + fmtNum(s.y_low) : 'Loading history…'}>{isNum(s.pct_y_low) ? <PctFar v={s.pct_y_low} /> : <span className="muted">…</span>}</td></tr>)}</tbody>
     </table></div>
     <div className="sp-lists">
       {list(byChg.slice(0, 3), 'Top 3 Gainers')}
