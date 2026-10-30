@@ -57,12 +57,32 @@ const hhmm = d => d ? istTime(d).slice(0, 5) : '…'  // HH:MM for the compact h
 const CAN_NOTIFY = typeof window !== 'undefined' && 'Notification' in window
 const IS_IOS = typeof navigator !== 'undefined' && (/iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1))
 if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {})
+// Web push: the server sends the alert, so it arrives with the phone locked or the app closed.
+const b64ToBytes = b => Uint8Array.from(atob((b + '='.repeat((4 - b.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0))
+async function pushSubscribe() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return false
+  try {
+    const reg = await navigator.serviceWorker.ready
+    const { key } = await api('/api/push/key')
+    const sub = await reg.pushManager.getSubscription() || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(key) })
+    await api('/api/push/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(sub) })
+    return true
+  } catch { return false }
+}
+async function pushUnsubscribe() {
+  try {
+    const sub = await (await navigator.serviceWorker.ready).pushManager.getSubscription()
+    if (!sub) return
+    await api('/api/push/unsubscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint: sub.endpoint }) }).catch(() => {})
+    await sub.unsubscribe()
+  } catch { /* nothing to undo */ }
+}
 function showAlert(title, opts) {
   const reg = 'serviceWorker' in navigator ? navigator.serviceWorker.getRegistration() : Promise.resolve(null)
   reg.then(r => r ? r.showNotification(title, opts) : new Notification(title, opts))
     .catch(() => { try { new Notification(title, opts) } catch { /* no way to notify here */ } })
 }
-function useBiasAlert(live, on) {
+function useBiasAlert(live, on) {  // in-page alert, used only where web push isn't available
   const prev = useRef(null)
   const bias = live.data?.bias, open = live.data?.market_status?.label === 'Market Open'
   useEffect(() => {
@@ -77,20 +97,21 @@ function useBiasAlert(live, on) {
   }, [bias?.label, on, open])
 }
 
-function BiasAlertToggle({ on, setOn }) {
+function BiasAlertToggle({ on, setOn, setPushed }) {
   const [perm, setPerm] = useState(CAN_NOTIFY ? Notification.permission : 'denied')
   if (!CAN_NOTIFY) return IS_IOS ? <button className="hdr-auto hdr-bell" aria-label="Market Bias alerts" onClick={() => alert(
     'Market Bias alerts on iPhone:\n\n1. Open this site in Safari (or Chrome), tap Share, then "Add to Home Screen".\n'
     + '2. Open the dashboard from the new Home Screen icon.\n3. Tap 🔕 Bias there and choose Allow.\n\n(Needs iOS 16.4 or newer.)')}>🔕 Bias</button> : null
   const active = on && perm === 'granted'
   const click = async () => {
-    if (active) return setOn(false)
+    if (active) { setOn(false); setPushed(false); return pushUnsubscribe() }
     const p = perm === 'granted' ? 'granted' : await Notification.requestPermission()
     setPerm(p)
     setOn(p === 'granted')
+    if (p === 'granted') setPushed(await pushSubscribe())
   }
   const title = perm === 'denied' ? 'Notifications are blocked for this site: allow them in the browser’s site settings, then click again'
-    : active ? 'Market Bias alerts ON: you get a notification when the bias changes (market hours, while this page is open). Click to turn off'
+    : active ? 'Market Bias alerts ON: you get a notification when the bias changes during market hours, even with the phone locked. Click to turn off'
     : 'Get a notification when the Market Bias changes (Bullish / Neutral / Bearish)'
   return <button className={'hdr-auto hdr-bell' + (active ? ' on' : '')} onClick={click} title={title} aria-label="Market Bias alerts">
     {active ? '🔔 Bias' : '🔕 Bias'}</button>
@@ -99,7 +120,9 @@ function BiasAlertToggle({ on, setOn }) {
 function StatusBar({ live, auto, setAuto, crypto = false }) {
   const viewers = useViewers()
   const [alertOn, setAlertOn] = usePersistentState('biasAlert', false)
-  useBiasAlert(live, alertOn)
+  const [pushed, setPushed] = usePersistentState('biasPush', false)  // server push active: skip the in-page alert
+  useBiasAlert(live, alertOn && !pushed)
+  useEffect(() => { if (alertOn && CAN_NOTIFY && Notification.permission === 'granted') pushSubscribe().then(setPushed) }, [])  // keep the server's copy fresh
   const now = useClock()
   const status = live.data?.market_status?.label
   const delayed = !!live.error && !!live.data
@@ -115,7 +138,7 @@ function StatusBar({ live, auto, setAuto, crypto = false }) {
       : <span className="hdr-upd" title={`Last updated ${live.data?.as_of ? istTime(live.data.as_of) : '…'} IST`}><i className={'dot ' + (ok && auto ? 'green' : 'grey')} />Updated {live.data?.as_of ? hhmm(live.data.as_of) : '…'}</span>}
     <button className={'hdr-auto' + (auto ? ' on' : '')} onClick={() => setAuto(a => !a)} title={auto ? 'Auto refresh is ON (every 10 seconds) — click to pause' : 'Auto refresh is OFF — click to resume'}>
       {auto ? 'Auto ✓ 10s' : 'Auto off'}</button>
-    {!crypto && <BiasAlertToggle on={alertOn} setOn={setAlertOn} />}
+    {!crypto && <BiasAlertToggle on={alertOn} setOn={setAlertOn} setPushed={setPushed} />}
   </div>
 }
 

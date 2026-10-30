@@ -18,6 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from zoneinfo import ZoneInfo
 
 import sources
+import push
 import yearhl
 from config import CLOSE_MIN, OPEN_MIN
 from engine import Engine
@@ -28,7 +29,7 @@ app = FastAPI(title="NSE Sector heatmap")
 app.add_middleware(GZipMiddleware, minimum_size=2000)
 # Copies of the dashboard hosted elsewhere (own server, Netlify) read the public market data straight
 # from here: reads only, no cookies; writes (journal / sign-in) stay same-site.
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET"], allow_credentials=False)
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET", "POST"], allow_headers=["Content-Type"], allow_credentials=False)
 engine = Engine(Store())
 
 # Access key for requests arriving through a tunnel (the Netlify site). Local
@@ -54,6 +55,15 @@ async def require_key_when_tunnelled(request: Request, call_next):
 def _start():
     engine.start()
     trend_scan.ensure_started()
+    push.start(_bias_now)
+
+
+def _bias_now():
+    ms = market_status()
+    d = engine.live(ms)
+    if not d:
+        return None, 0, False
+    return d["bias"]["label"], d["bias"]["score"], ms["label"] == "Market Open"
 
 
 class Cached:
@@ -127,6 +137,25 @@ def live():
     if data is None:
         raise HTTPException(status_code=503, detail=engine.poll_err or "Loading NSE data — first snapshot in progress.")
     return data
+
+
+# ---- Market Bias web push (phones get it even when locked; see push.py)
+@app.get("/api/push/key")
+def push_key():
+    return {"key": push.PUBLIC_KEY}
+
+
+@app.post("/api/push/subscribe")
+async def push_subscribe(request: Request):
+    if not push.subscribe(await request.json()):
+        raise HTTPException(status_code=400, detail="Not a valid push subscription.")
+    return {"ok": True}
+
+
+@app.post("/api/push/unsubscribe")
+async def push_unsubscribe(request: Request):
+    push.unsubscribe((await request.json()).get("endpoint"))
+    return {"ok": True}
 
 
 @app.get("/api/context")
