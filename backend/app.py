@@ -166,29 +166,36 @@ def sector(symbol: str):
 
 
 # ---- viewer count: each open dashboard pings every 15 s with a random browser id; the
-# header shows how many different browsers were seen in the last 24 hours. Only the id
-# and a timestamp are kept (no personal data), saved next to the DB so restarts keep it.
+# header shows how many different people used it in the last 24 hours. Only the id and
+# first / last ping times are kept (no personal data), saved next to the DB so restarts
+# keep it. To count people, not bots: automated browsers (bot / headless user agents,
+# navigator.webdriver) don't send an id, and an id counts only once it has stayed on the
+# page for a minute - crawlers and scanners load the page and leave within seconds.
 import json as _json
+import re as _re
 
 from store import DB_PATH
 
 PRESENCE_WINDOW = 24 * 3600
+PRESENCE_MIN_STAY = 60
+_BOT_UA = _re.compile(r"bot|crawl|spider|slurp|headless|lighthouse|preview|scan|python|curl|wget|httpclient|phantom|puppeteer|playwright|selenium", _re.I)
 PRESENCE_FILE = DB_PATH.parent / "presence.json"
 _presence_lock = threading.Lock()
-try:
-    _presence = {k: float(v) for k, v in _json.loads(PRESENCE_FILE.read_text()).items()}
-except (OSError, ValueError, AttributeError):
+try:  # id -> [first ping, last ping]; older files stored only the last ping
+    _presence = {k: (list(map(float, v)) if isinstance(v, list) else [float(v), float(v)])
+                 for k, v in _json.loads(PRESENCE_FILE.read_text()).items()}
+except (OSError, ValueError, AttributeError, TypeError):
     _presence = {}
 _presence_saved = [0.0]
 
 
 @app.get("/api/presence")
-def presence(id: str = ""):
+def presence(request: Request, id: str = ""):
     now = time.time()
     with _presence_lock:
-        if 8 <= len(id) <= 64:
-            _presence[id] = now
-        for k in [k for k, t in _presence.items() if now - t > PRESENCE_WINDOW]:
+        if 8 <= len(id) <= 64 and not _BOT_UA.search(request.headers.get("user-agent", "")):
+            _presence.setdefault(id, [now, now])[1] = now
+        for k in [k for k, (_, last) in _presence.items() if now - last > PRESENCE_WINDOW]:
             del _presence[k]
         if now - _presence_saved[0] > 60:  # persist at most once a minute
             _presence_saved[0] = now
@@ -197,7 +204,8 @@ def presence(id: str = ""):
                 PRESENCE_FILE.write_text(_json.dumps(_presence))
             except OSError:
                 pass
-        return {"online": len(_presence), "window_hours": 24}
+        people = sum(last - first >= PRESENCE_MIN_STAY for first, last in _presence.values())
+        return {"online": people, "window_hours": 24}
 
 
 _crypto = None

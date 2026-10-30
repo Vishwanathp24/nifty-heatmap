@@ -1,6 +1,7 @@
-import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react'
+import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import './styles.css'
+import favicon from './icons/favicon-64.png'
 import { api, istDate, istTime, nseTs, setSessionValue, useClock, usePersistentState, useSessionState, usePoll } from './lib.js'
 import { BiasPill, StockChartCtx, TopMoversCtx } from './components.jsx'
 import Overview from './Overview.jsx'
@@ -27,6 +28,8 @@ const PAGES = [
 ].filter(p => !import.meta.env.VITE_PAGES || import.meta.env.VITE_PAGES.split(',').includes(p.id))  // VITE_PAGES: build with only these pages (Netlify copy)
 
 // Viewer count (last 24 h): ping every 15 s with a random per-browser id (no personal data).
+// Automated browsers only read the count, so bots and scanners aren't counted as people.
+const AUTOMATED = typeof navigator !== 'undefined' && (navigator.webdriver || /bot|crawl|spider|headless|lighthouse|preview/i.test(navigator.userAgent))
 function useViewers() {
   const [n, setN] = useState(null)
   useEffect(() => {
@@ -37,7 +40,7 @@ function useViewers() {
       try { localStorage.setItem('nseid:viewer', id) } catch { /* private mode */ }
     }
     let alive = true
-    const ping = () => api('/api/presence?id=' + encodeURIComponent(id)).then(d => alive && setN(d.online)).catch(() => {})
+    const ping = () => api('/api/presence' + (AUTOMATED ? '' : '?id=' + encodeURIComponent(id))).then(d => alive && setN(d.online)).catch(() => {})
     ping()
     const t = setInterval(ping, 15000)
     return () => { alive = false; clearInterval(t) }
@@ -47,8 +50,47 @@ function useViewers() {
 
 const hhmm = d => d ? istTime(d).slice(0, 5) : '…'  // HH:MM for the compact header
 
+// Market Bias alert: a browser notification when the bias label (Bullish / Neutral / Bearish)
+// changes during market hours. Works while the dashboard is open, even in a background tab.
+const CAN_NOTIFY = typeof window !== 'undefined' && 'Notification' in window
+function useBiasAlert(live, on) {
+  const prev = useRef(null)
+  const bias = live.data?.bias, open = live.data?.market_status?.label === 'Market Open'
+  useEffect(() => {
+    if (!bias?.label) return
+    const was = prev.current
+    prev.current = bias.label
+    if (!on || !open || !was || was === bias.label || !CAN_NOTIFY || Notification.permission !== 'granted') return
+    const score = (bias.score > 0 ? '+' : '') + bias.score
+    try {
+      new Notification(`Market Bias: ${bias.label} (${score})`, {
+        body: `Changed from ${was} to ${bias.label} at ${istTime(new Date()).slice(0, 5)} IST`,
+        tag: 'nse-bias', icon: favicon })
+    } catch { /* some mobile browsers only notify from a service worker */ }
+  }, [bias?.label, on, open])
+}
+
+function BiasAlertToggle({ on, setOn }) {
+  const [perm, setPerm] = useState(CAN_NOTIFY ? Notification.permission : 'denied')
+  if (!CAN_NOTIFY) return null
+  const active = on && perm === 'granted'
+  const click = async () => {
+    if (active) return setOn(false)
+    const p = perm === 'granted' ? 'granted' : await Notification.requestPermission()
+    setPerm(p)
+    setOn(p === 'granted')
+  }
+  const title = perm === 'denied' ? 'Notifications are blocked for this site: allow them in the browser’s site settings, then click again'
+    : active ? 'Market Bias alerts ON: you get a notification when the bias changes (market hours, while this page is open). Click to turn off'
+    : 'Get a notification when the Market Bias changes (Bullish / Neutral / Bearish)'
+  return <button className={'hdr-auto hdr-bell' + (active ? ' on' : '')} onClick={click} title={title} aria-label="Market Bias alerts">
+    {active ? '🔔 Bias' : '🔕 Bias'}</button>
+}
+
 function StatusBar({ live, auto, setAuto, crypto = false }) {
   const viewers = useViewers()
+  const [alertOn, setAlertOn] = usePersistentState('biasAlert', false)
+  useBiasAlert(live, alertOn)
   const now = useClock()
   const status = live.data?.market_status?.label
   const delayed = !!live.error && !!live.data
@@ -57,13 +99,14 @@ function StatusBar({ live, auto, setAuto, crypto = false }) {
     {crypto  // crypto trades 24x7: on the Crypto page the pill shows that market, not NSE's
       ? <span className="mkt open" title="Crypto markets trade 24 hours a day, 7 days a week">Crypto · Open 24×7</span>
       : <span className={'mkt ' + (status === 'Market Open' ? 'open' : status === 'Pre-Open' ? 'pre' : 'closed')}>{status || '—'}</span>}
-    {viewers != null && <span className="hdr-viewers" title={`${viewers} ${viewers === 1 ? 'person has' : 'people have'} used the dashboard in the last 24 hours`}><i className="live-dot" />{viewers}</span>}
+    {viewers != null && <span className="hdr-viewers" title={`${viewers} ${viewers === 1 ? 'person has' : 'people have'} used the dashboard in the last 24 hours (stayed at least a minute; bots not counted)`}><i className="live-dot" />{viewers}</span>}
     <span className="hdr-clock" title={`${istDate(now)} · Indian Standard Time`}><span className="hdr-date">{istDate(now)}</span> {istTime(now)} <small>IST</small></span>
     {delayed || live.data?.poll_error
       ? <span className="hdr-delayed" title={`Data delayed — last successful update ${istTime(live.data?.as_of || live.lastOk)} IST · ${live.error || live.data?.poll_error}`}><i className="dot amber" />Delayed · {hhmm(live.data?.as_of || live.lastOk)}</span>
       : <span className="hdr-upd" title={`Last updated ${live.data?.as_of ? istTime(live.data.as_of) : '…'} IST`}><i className={'dot ' + (ok && auto ? 'green' : 'grey')} />Updated {live.data?.as_of ? hhmm(live.data.as_of) : '…'}</span>}
     <button className={'hdr-auto' + (auto ? ' on' : '')} onClick={() => setAuto(a => !a)} title={auto ? 'Auto refresh is ON (every 10 seconds) — click to pause' : 'Auto refresh is OFF — click to resume'}>
       {auto ? 'Auto ✓ 10s' : 'Auto off'}</button>
+    {!crypto && <BiasAlertToggle on={alertOn} setOn={setAlertOn} />}
   </div>
 }
 
