@@ -242,7 +242,7 @@ function App() {
     <main className="page">
       {live.error && !live.data && <div className="alert">{live.error}</div>}
       {/* Other pages: compact strip — Market Bias, Nifty PCR, Nifty OI Change and breadth pills */}
-      {['scanner', 'trend', 'ipo', 'learning', 'journal'].includes(page) && <div className="mini-strip">
+      {page !== 'crypto' && <div className={'mini-strip' + (page === 'overview' || page === 'heatmap' ? ' m-only' : '')}>  {/* Overview / Heatmap show these as full panels on desktop */}
         <BiasPill bias={live.data?.bias} />
         <PcrMeter compact />
         <OiPill />
@@ -250,7 +250,7 @@ function App() {
         <BreadthPill label="F&O" b={live.data?.breadth?.fo} />
         {page === 'journal' && <div id="journal-account-slot" className="mini-slot" />}  {/* Journal puts its sign-in / saved status here */}
       </div>}
-      {basic && page === 'overview' && <PcrMeter />}  {/* Basic keeps the earlier Market Overview: full PCR bar on top */}
+      {basic && page === 'overview' && <div className="d-only"><PcrMeter /></div>}  {/* Basic keeps the earlier Market Overview: full PCR bar on top */}
       {page === 'overview' && <Overview live={live.data} ctx={ctx.data} classic={basic} />}
       {page === 'heatmap' && <Heatmap live={live.data} selected={selected} setSelected={setSelected} toggle={toggleSector} goto={setPage} />}
       <Suspense fallback={<div className="empty">Loading…</div>}>

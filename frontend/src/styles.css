@@ -1334,3 +1334,8 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
   .orb-switch button { flex-direction: row; flex-wrap: wrap; justify-content: center; align-items: center; gap: 1px 4px; padding: 6px 2px; font-size: 12px; white-space: nowrap }
   .orb-switch button small { order: 3; flex-basis: 100%; text-align: center; font-size: 9.5px }  /* 2 lines: name + count, then the time */
 }
+/* status pills on every page on phones; Overview / Heatmap keep their full panels on desktop */
+@media (min-width: 601px) { .m-only { display: none !important } }
+@media (max-width: 600px) { .d-only { display: none !important } }
+/* Phones, Sector Heatmap: the top cards repeat the status pills shown above the page, so hide them */
+@media (max-width: 600px) { .hm-cards { display: none !important } }
