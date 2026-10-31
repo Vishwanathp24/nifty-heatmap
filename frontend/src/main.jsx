@@ -44,8 +44,6 @@ const TAB_PATHS = {
 const TabIcon = ({ id }) => <svg className="tab-ic" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor"
   strokeWidth={id === 'more' ? 3.2 : 1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={TAB_PATHS[id]} /></svg>
 const TAB_SHORT = { overview: 'Overview', heatmap: 'Heatmap', scanner: 'ORB', trend: 'Intraday', crypto: 'Crypto', ipo: 'IPO', learning: 'Learning', journal: 'Journal' }
-const IST_DAY = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', weekday: 'long' })
-const IST_DM = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'long' })
 
 function TabBar({ pages, page, setPage, badges }) {
   const [more, setMore] = useState(false)
@@ -274,7 +272,6 @@ function App() {
       <StatusBar live={live} auto={auto} setAuto={setAuto} crypto={page === 'crypto'} />
     </header>
     <main className="page">
-      <div className="m-hello m-only-block"><span>{IST_DAY.format(new Date())}</span><b>{IST_DM.format(new Date())}</b></div>
       {live.error && !live.data && <div className="alert">{live.error}</div>}
       {/* Other pages: compact strip — Market Bias, Nifty PCR, Nifty OI Change and breadth pills */}
       {page !== 'crypto' && <div className={'mini-strip' + (page === 'overview' || page === 'heatmap' ? ' m-only' : '')}>  {/* Overview / Heatmap show these as full panels on desktop */}
