@@ -122,7 +122,7 @@ export function PcrMeter({ compact = false }) {
 export function PcrCard() {
   const pcr = usePcr()
   return <>
-    <div className={'card hm-card ' + (pcr?.zone.tone || '')}>
+    <div className={'card hm-card pcr-card ' + (pcr?.zone.tone || '')}>
       <div className="card-k">Nifty PCR (OI)</div>
       <div className="card-v">{pcr ? pcr.v.toFixed(2) : '—'} {pcr && <span className={'pcr-pill ' + pcr.zone.tone}>{pcr.zone.label}</span>}</div>
       <div className="card-n">{pcr ? <>{pcr.zone.text} <span className="muted">Expiry {pcr.expiry} · all expiries {pcr.all ?? '—'}</span></> : 'Loading…'}</div>

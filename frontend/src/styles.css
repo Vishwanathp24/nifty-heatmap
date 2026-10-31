@@ -1339,3 +1339,5 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
 @media (max-width: 600px) { .d-only { display: none !important } }
 /* Phones, Sector Heatmap: the top cards repeat the status pills shown above the page, so hide them */
 @media (max-width: 600px) { .hm-cards { display: none !important } }
+/* Phones and tablets (incl. a phone held sideways): Nifty PCR card without the long explanation */
+@media (max-width: 1024px) { .pcr-card .card-n { display: none } }
