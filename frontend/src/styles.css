@@ -1324,9 +1324,9 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
   .mini-strip > * { min-width: 0 }
   .mini-strip .pcr-mini, .mini-strip .mini-slot { grid-column: 1 / -1 }
   .mini-strip .bias-pill { white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
-  .orb-switch { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; width: 100% }
-  .orb-switch button { flex-direction: row; flex-wrap: wrap; justify-content: center; align-items: center; gap: 1px 4px; padding: 6px 2px; font-size: 12px; white-space: nowrap }
-  .orb-switch button small { order: 3; flex-basis: 100%; text-align: center; font-size: 9.5px }  /* 2 lines: name + count, then the time */
+  .orb-switch:not(.learn-cats) { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; width: 100% }
+  .orb-switch:not(.learn-cats) button { flex-direction: row; flex-wrap: wrap; justify-content: center; align-items: center; gap: 1px 4px; padding: 6px 2px; font-size: 12px; white-space: nowrap }
+  .orb-switch:not(.learn-cats) button small { order: 3; flex-basis: 100%; text-align: center; font-size: 9.5px }  /* 2 lines: name + count, then the time */
 }
 /* status pills on every page on phones; Overview / Heatmap keep their full panels on desktop */
 @media (min-width: 601px) { .m-only { display: none !important } }
@@ -1351,3 +1351,9 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
 .ov .cards.six, .ov .idx-section > .cards.four { gap: 10px }
 .ov > .page-title { margin-bottom: -6px }
 .ov > .section.howto { margin-top: 12px }  /* 16 + 12 = the same 28px gap the guide has on other pages */
+.m-show { display: none }
+@media (max-width: 600px) {
+  .m-show { display: inline-flex }
+  .howto.collapsed .howto-grid, .howto.collapsed .howto-steps, .howto.collapsed #page-note-slot { display: none }
+  .howto.collapsed .section-head { margin-bottom: 0 }
+}

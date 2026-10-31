@@ -21,8 +21,12 @@ export function Disclaimer({ crypto = false }) {
   </div>
 }
 
+// Phones: the guide starts closed (just the heading and a Show button; the disclaimer always shows).
+// Desktop always shows it open.
 export function PageGuide({ items, steps, stepsTitle = 'How to use this page, step by step', note, crypto, children }) {
-  return <Section title="How to read this page" subtitle="A simple guide: what each part means and how to use it" className="howto">
+  const [open, setOpen] = useState(false)
+  return <Section title="How to read this page" subtitle="A simple guide: what each part means and how to use it" className={'howto' + (open ? '' : ' collapsed')}
+    right={<button className="btn sm m-show" onClick={() => setOpen(o => !o)}>{open ? 'Hide' : 'Show'}</button>}>
     <div className="howto-grid">{items.map(([icon, title, text]) => <div key={title} className="howto-card">
       <div className="howto-t"><span aria-hidden="true">{icon}</span> {title}</div><p>{text}</p></div>)}</div>
     {children || (steps && <div className="howto-steps">
