@@ -3,6 +3,7 @@
 Run:  uvicorn app:app --host 127.0.0.1 --port 8100
 The built frontend (frontend/dist) is served from / when present.
 """
+import mimetypes
 import os
 import secrets
 import threading
@@ -492,11 +493,22 @@ def trend():
 DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 if DIST.exists():
     class _CachedStatic(StaticFiles):
-        """Hashed build files never change under the same name: let browsers keep them a year."""
+        """Hashed build files never change under the same name: let browsers keep them a year.
+        Sends the build's pre-compressed .br / .gz copy when the browser accepts it (smaller than
+        compressing on the fly); Caddy leaves responses that are already encoded alone."""
         async def get_response(self, path, scope):
+            accept = dict(scope["headers"]).get(b"accept-encoding", b"").decode("latin-1")
+            if path and ".." not in path:
+                for enc, ext in (("br", ".br"), ("gzip", ".gz")):
+                    f = DIST / "assets" / (path + ext)
+                    if enc in accept and f.is_file():
+                        return FileResponse(f, media_type=mimetypes.guess_type(path)[0] or "application/octet-stream",
+                                            headers={"Content-Encoding": enc, "Vary": "Accept-Encoding",
+                                                     "Cache-Control": "public, max-age=31536000, immutable"})
             resp = await super().get_response(path, scope)
             if resp.status_code == 200:
                 resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+                resp.headers["Vary"] = "Accept-Encoding"
             return resp
 
     app.mount("/assets", _CachedStatic(directory=DIST / "assets"), name="assets")
