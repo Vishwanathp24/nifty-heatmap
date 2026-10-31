@@ -28,6 +28,28 @@ const PAGES = [
   { id: 'journal', label: 'Journal', key: '9' },
 ].filter(p => !import.meta.env.VITE_PAGES || import.meta.env.VITE_PAGES.split(',').includes(p.id))  // VITE_PAGES: build with only these pages (Netlify copy)
 
+// Phones: app layout with a bottom tab bar (more than 5 pages, as in Advanced: the rest go under "More").
+const TAB_ICONS = { overview: '🏠', heatmap: '🟩', scanner: '⏱️', trend: '📈', crypto: '🪙', ipo: '🆕', learning: '📚', journal: '📝' }
+const TAB_SHORT = { overview: 'Overview', heatmap: 'Heatmap', scanner: 'ORB', trend: 'Intraday', crypto: 'Crypto', ipo: 'IPO', learning: 'Learning', journal: 'Journal' }
+const IST_DAY = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', weekday: 'long' })
+const IST_DM = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'long' })
+
+function TabBar({ pages, page, setPage, badges }) {
+  const [more, setMore] = useState(false)
+  const main = pages.length > 5 ? pages.slice(0, 4) : pages, rest = pages.length > 5 ? pages.slice(4) : []
+  const go = id => { setMore(false); setPage(id); window.scrollTo({ top: 0 }) }
+  const tab = p => <button key={p.id} className={'tab' + (page === p.id ? ' on' : '')} onClick={() => go(p.id)}>
+    <span className="tab-ic" aria-hidden="true">{TAB_ICONS[p.id]}</span>{TAB_SHORT[p.id]}
+    {badges[p.id] ? <span className="tab-badge">{badges[p.id]}</span> : null}</button>
+  return <>
+    {more && <div className="tab-sheet-bg" onClick={() => setMore(false)}><div className="tab-sheet" onClick={e => e.stopPropagation()}>
+      <div className="tab-sheet-k">More pages</div>{rest.map(tab)}</div></div>}
+    <nav className="tabbar" aria-label="Pages">{main.map(tab)}
+      {rest.length > 0 && <button className={'tab' + (rest.some(p => p.id === page) || more ? ' on' : '')} onClick={() => setMore(m => !m)}>
+        <span className="tab-ic" aria-hidden="true">⋯</span>More</button>}</nav>
+  </>
+}
+
 // Basic site (header switch): only these pages, exactly as in Advanced.
 const BASIC_PAGES = ['overview', 'heatmap', 'scanner']
 
@@ -222,7 +244,7 @@ function App() {
     setChartReq(n => n + 1); setMode('advanced'); setPage('trend'); window.scrollTo({ top: 0 })  // the Live Chart is an Advanced page
   }, [])
 
-  return <StockChartCtx.Provider value={openStockChart}><TopMoversCtx.Provider value={topMovers}><div className="app">
+  return <StockChartCtx.Provider value={openStockChart}><TopMoversCtx.Provider value={topMovers}><div className="app tab-app">
     <header className="hdr">
       <button className="hdr-brand" onClick={() => { setPage('overview'); window.scrollTo({ top: 0 }) }} title="Go to homepage (Market Overview)">
         <span>NSE Sector Heatmap</span></button>
@@ -240,6 +262,7 @@ function App() {
       <StatusBar live={live} auto={auto} setAuto={setAuto} crypto={page === 'crypto'} />
     </header>
     <main className="page">
+      <div className="m-hello m-only-block"><span>{IST_DAY.format(new Date())}</span><b>{IST_DM.format(new Date())}</b></div>
       {live.error && !live.data && <div className="alert">{live.error}</div>}
       {/* Other pages: compact strip — Market Bias, Nifty PCR, Nifty OI Change and breadth pills */}
       {page !== 'crypto' && <div className={'mini-strip' + (page === 'overview' || page === 'heatmap' ? ' m-only' : '')}>  {/* Overview / Heatmap show these as full panels on desktop */}
@@ -276,6 +299,7 @@ function App() {
       </>}
       <PageHowTo page={page} />  {/* Market Overview has its own (with the live 3-step check) */}
     </main>
+    <TabBar pages={navPages} page={page} setPage={setPage} badges={{ heatmap: selected.length || null, scanner: orbNow[0] }} />
     <footer className="foot">
       Decision-support scanner — no buy/sell, target or stop-loss recommendations. Data: NSE (indices, quotes, per-minute prices, bhavcopy volumes, FII/DII, GIFT Nifty, market status), BSE (Sensex), Yahoo Finance (overseas indices, Scanner candles, opening-range fallback).
       {live.data?.source_ts && <> Latest NSE quote: {istDate(nseTs(live.data.source_ts))} {istTime(nseTs(live.data.source_ts))} IST.</>}
