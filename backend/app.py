@@ -13,12 +13,14 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.staticfiles import StaticFiles
 from zoneinfo import ZoneInfo
 
 import sources
 import push
+import seo
 import yearhl
 from config import CLOSE_MIN, OPEN_MIN
 from engine import Engine
@@ -40,6 +42,20 @@ if not os.environ.get("DASHBOARD_ACCESS_KEY") and not KEY_FILE.exists():
     KEY_FILE.write_text(secrets.token_urlsafe(24))
     KEY_FILE.chmod(0o600)
 ACCESS_KEY = os.environ.get("DASHBOARD_ACCESS_KEY") or KEY_FILE.read_text().strip()
+
+
+@app.middleware("http")
+async def site_hygiene(request: Request, call_next):
+    host = request.headers.get("host", "")
+    if host.startswith("www."):  # one canonical host
+        return RedirectResponse(f"https://{host[4:]}{request.url.path}" + (f"?{request.url.query}" if request.url.query else ""), status_code=301)
+    resp = await call_next(request)
+    resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+    resp.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+    resp.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    if request.headers.get("x-forwarded-proto") == "https" or request.url.scheme == "https":
+        resp.headers.setdefault("Strict-Transport-Security", "max-age=31536000")
+    return resp
 
 
 @app.middleware("http")
@@ -485,9 +501,27 @@ if DIST.exists():
 
     app.mount("/assets", _CachedStatic(directory=DIST / "assets"), name="assets")
 
-    @app.get("/")
-    def index():
-        return FileResponse(DIST / "index.html", headers={"Cache-Control": "no-cache"})  # always pick up a new deploy
+    def _page(path):
+        html = seo.render((DIST / "index.html").read_text(encoding="utf-8"), path)
+        return HTMLResponse(html, headers={"Cache-Control": "no-cache"})  # always pick up a new deploy
+
+    for _path in seo.PAGES:  # one real URL per app page (same app, own title/description/canonical)
+        app.add_api_route(_path, (lambda p=_path: _page(p)), methods=["GET"], include_in_schema=False)
+
+    @app.get("/robots.txt", include_in_schema=False)
+    def robots_txt():
+        return PlainTextResponse(seo.robots())
+
+    @app.get("/sitemap.xml", include_in_schema=False)
+    def sitemap_xml():
+        return Response(seo.sitemap(datetime.fromtimestamp((DIST / "index.html").stat().st_mtime).strftime("%Y-%m-%d")),
+                        media_type="application/xml")
+
+    @app.exception_handler(StarletteHTTPException)
+    async def not_found(request: Request, exc: StarletteHTTPException):
+        if exc.status_code == 404 and not request.url.path.startswith("/api/"):
+            return HTMLResponse(seo.NOT_FOUND, status_code=404)
+        return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
 
     # Root files for the phone home-screen app and notifications (service worker, manifest, icons).
     for _name in ("sw.js", "manifest.webmanifest", "icon-192.png", "icon-512.png"):

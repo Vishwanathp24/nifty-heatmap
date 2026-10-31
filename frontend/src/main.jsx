@@ -27,6 +27,10 @@ const PAGES = [
   { id: 'journal', label: 'Journal', key: '9' },
 ].filter(p => !import.meta.env.VITE_PAGES || import.meta.env.VITE_PAGES.split(',').includes(p.id))  // VITE_PAGES: build with only these pages (Netlify copy)
 
+// One real URL per page, so each can be linked, indexed and shared. The server serves the same app for these paths.
+const PATHS = { overview: '/', heatmap: '/heatmap', scanner: '/orb-scanner', trend: '/intraday-scanner', crypto: '/crypto', ipo: '/ipo', learning: '/learning', journal: '/journal' }
+const pageFromPath = path => Object.keys(PATHS).find(id => PATHS[id] === path.replace(/(.)\/$/, '$1')) || 'overview'
+
 // Viewer count (last 24 h): ping every 15 s with a random per-browser id (no personal data).
 // Automated browsers only read the count, so bots and scanners aren't counted as people.
 const AUTOMATED = typeof navigator !== 'undefined' && (navigator.webdriver || /bot|crawl|spider|headless|lighthouse|preview/i.test(navigator.userAgent))
@@ -143,7 +147,16 @@ function StatusBar({ live, auto, setAuto, crypto = false }) {
 }
 
 function App() {
-  const [page, setPage] = useState('overview')  // every load/refresh starts on the homepage
+  const [page, setPageState] = useState(() => pageFromPath(window.location.pathname))  // the homepage URL starts on Market Overview
+  const setPage = useCallback(id => {
+    setPageState(id)
+    if (window.location.pathname !== PATHS[id]) window.history.pushState(null, '', PATHS[id])
+  }, [])
+  useEffect(() => {  // browser back/forward
+    const onPop = () => setPageState(pageFromPath(window.location.pathname))
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
   const [selected, setSelected] = useSessionState('sectors', [])
   const [auto, setAuto] = usePersistentState('auto', true)
   const [tf, setTf] = useSessionState('orb.tf.v4', 15)  // break candle: 5 or 15 min
@@ -205,11 +218,11 @@ function App() {
       <button className="hdr-brand" onClick={() => { setPage('overview'); window.scrollTo({ top: 0 }) }} title="Go to homepage (Market Overview)">
         <span>NSE Sector Heatmap</span></button>
       <nav className="hdr-nav">
-        {PAGES.map(p => <button key={p.id} className={page === p.id ? 'active' : ''} onClick={() => setPage(p.id)}>
+        {PAGES.map(p => <a key={p.id} href={PATHS[p.id]} className={page === p.id ? 'active' : ''} onClick={e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); setPage(p.id) }}>
           {p.label}
           {p.id === 'heatmap' && selected.length ? <span className="badge">{selected.length}</span> : null}
           {p.id === 'scanner' && orbNow[0] != null ? <span className="badge" title={`Signals passing the current ${orbNow[1]} ORB filters`}>{orbNow[0]}</span> : null}
-        </button>)}
+        </a>)}
       </nav>
       <StatusBar live={live} auto={auto} setAuto={setAuto} crypto={page === 'crypto'} />
     </header>
