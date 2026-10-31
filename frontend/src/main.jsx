@@ -250,8 +250,8 @@ function App() {
         <BreadthPill label="F&O" b={live.data?.breadth?.fo} />
         {page === 'journal' && <div id="journal-account-slot" className="mini-slot" />}  {/* Journal puts its sign-in / saved status here */}
       </div>}
-      {basic && page === 'overview' && <div className="d-only"><PcrMeter /></div>}  {/* Basic keeps the earlier Market Overview: full PCR bar on top */}
-      {page === 'overview' && <Overview live={live.data} ctx={ctx.data} classic={basic} />}
+      {page === 'overview' && <div className="d-only"><PcrMeter /></div>}  {/* full PCR bar on Market Overview (phones use the pills) */}
+      {page === 'overview' && <Overview live={live.data} ctx={ctx.data} />}
       {page === 'heatmap' && <Heatmap live={live.data} selected={selected} setSelected={setSelected} toggle={toggleSector} goto={setPage} />}
       <Suspense fallback={<div className="empty">Loading…</div>}>
         {page === 'trend' && <Scans trend={trend} live={live.data} selected={selected} setSelected={setSelected} chartReq={chartReq} orbLists={orbLists} />}

@@ -1,12 +1,12 @@
 import React, { useMemo, useState } from 'react'
 import { BreadthBar, Empty, IndexLink, Pct, Section, StockLink } from './components.jsx'
-import { OiChange, PcrMeter, useOiChange } from './Pcr.jsx'
+import { OiChange, useOiChange } from './Pcr.jsx'
 import { PageGuide } from './guides.jsx'
 import { fmtCr, fmtNum, fmtPct, fmtRatio, fmtSigned, fmtVol, istDate, istTime, isNum, nseTs, tone, tvStock, tvSymbol, useClock } from './lib.js'
 
 const biasClass = l => l === 'BULLISH' ? 'bull' : l === 'BEARISH' ? 'bear' : 'neutral'
 
-function MarketBias({ bias, pcr = true }) {
+function MarketBias({ bias }) {
   return <Section title="Market Bias" subtitle="Breadth-based read of the current session" className="bias-section">
     <div className="bias-grid">
       <div className={'bias-main ' + biasClass(bias.label)}>
@@ -22,7 +22,6 @@ function MarketBias({ bias, pcr = true }) {
         </tr>)}</tbody>
       </table>
     </div>
-    {pcr && <div className="bias-pcr"><PcrMeter compact /></div>}
   </Section>
 }
 
@@ -34,7 +33,8 @@ function vixRead(p) {
 
 export function IndexCard({ name, label, q, vix }) {
   const read = vix ? vixRead(q?.pct_prev) : null
-  return <div className="card">
+  const tint = vix ? { bull: 'up', bear: 'down' }[read?.[1]] : tone(q?.change)  // VIX: rising = red
+  return <div className={'card tinted ' + (tint || '')}>
     <div className="card-k"><IndexLink name={name} label={label} />
       {read && <span className={'vix-tag ' + read[1]} title={`India VIX ${q.pct_prev < 0 ? 'falling' : q.pct_prev > 0 ? 'rising' : 'flat'} vs previous close`}>{read[0]}</span>}</div>
     <div className="card-v">{fmtNum(q?.ltp)}</div>
@@ -43,9 +43,9 @@ export function IndexCard({ name, label, q, vix }) {
   </div>
 }
 
-function SummaryCards({ live, className = 'in-cues' }) {
+function SummaryCards({ live }) {
   const { indices } = live
-  return <div className={'cards four ' + className}>
+  return <div className="cards four">
     <IndexCard name="INDIA VIX" label="India VIX" q={indices.indiavix} vix />
     <IndexCard name="NIFTY 50" label="NIFTY 50" q={indices.nifty50} />
     <IndexCard name="NIFTY BANK" label="NIFTY BANK" q={indices.niftybank} />
@@ -110,18 +110,17 @@ function TopMovers({ stocks, baseline }) {
   </Section>
 }
 
-function GlobalCues({ ctx, children }) {
+function GlobalCues({ ctx }) {
   const g = ctx?.global
-  return <Section title="Global Cues" subtitle="Context only, not a trading signal"
+  return <Section title="Global Cues" subtitle="Context only, not a trading signal" className="cues"
     right={g?.fetched_at && <span className="muted small">Fetched {istTime(g.fetched_at)}{g.error ? ' · refresh failed, showing last data' : ''}</span>}>
     <div className="cards six">{(g?.data || ['GIFT Nifty', 'Dow Jones', 'S&P 500', 'Nasdaq', 'Nikkei 225', 'Hang Seng'].map(label => ({ label }))).map(r =>
-      <div className="card" key={r.label}>
+      <div className={'card tinted ' + tone(r.change)} key={r.label}>
         <div className="card-k">{r.label}<span className={'status-tag ' + (r.status || '').toLowerCase().replace(/\s/g, '-')}>{r.status || 'N/A'}</span></div>
         <div className="card-v">{fmtNum(r.last)}</div>
         <div className={'card-d ' + tone(r.change)}>{fmtSigned(r.change)} <span>{fmtPct(r.pct)}</span></div>
         <div className="card-n">{r.as_of ? `as of ${istDate(r.as_of)} ${istTime(r.as_of).slice(0, 5)} IST` : 'N/A'}{r.note ? ' · ' + r.note.replace(/-\d{4}$/, '') : ''}</div>
       </div>)}</div>
-    {children}
   </Section>
 }
 
@@ -197,16 +196,16 @@ function HowToRead({ live }) {
   </PageGuide>
 }
 
-// classic: the earlier layout, used by the Basic site (PCR bar above the page, set in main.jsx): Global Cues |
-// FII/DII (with the breadth cards), then Market Bias beside Nifty OI Change, the index cards and Top Movers. No guide.
-export default function Overview({ live, ctx, classic = false }) {
+// Same layout in Basic and Advanced (the PCR bar above the page is set in main.jsx): Global Cues | FII/DII
+// (with the breadth cards), Indian Markets (index cards), Market Bias beside Nifty OI Change, Top Movers,
+// then "How to read this page" with the live 3-step check and the disclaimer.
+export default function Overview({ live, ctx }) {
   if (!live) return <Empty>Loading live market data…</Empty>
   const n50 = live.stocks.filter(s => s.n50)
   const fo = live.stocks.filter(s => s.fo)
-  const title = <div className="page-title"><h1>Market Overview</h1>
-    <span className="muted small">Quotes as of {live.source_ts ? istTime(nseTs(live.source_ts)) : 'N/A'} IST (latest exchange tick)</span></div>
-  if (classic) return <>
-    {title}
+  return <div className="ov">
+    <div className="page-title"><h1>Market Overview</h1>
+      <span className="muted small">Quotes as of {live.source_ts ? istTime(nseTs(live.source_ts)) : 'N/A'} IST (latest exchange tick)</span></div>
     <div className="two-col wide-left">
       <GlobalCues ctx={ctx} />
       <FiiDii ctx={ctx}><div className="breadth-cards">
@@ -214,27 +213,12 @@ export default function Overview({ live, ctx, classic = false }) {
         <BreadthPanel card noStocks title="F&O Universe Breadth" subtitle="NSE stocks with F&O contracts · vs previous close" b={live.breadth.fo} rows={fo} showTotal />
       </div></FiiDii>
     </div>
-    <div className="bias-row oi">
-      <MarketBias bias={live.bias} pcr={false} />
-      <OiChange nifty={live.indices.nifty50} />
-    </div>
-    <SummaryCards live={live} className="" />
-    <TopMovers stocks={live.stocks} baseline={live.volume_baseline} />
-  </>
-  return <>
-    {title}
-    <div className="two-col wide-left">
-      <GlobalCues ctx={ctx}><SummaryCards live={live} /></GlobalCues>
-      <FiiDii ctx={ctx}><div className="breadth-cards">
-        <BreadthPanel card title="Nifty 50 Breadth" subtitle="Advance / decline vs previous close (NSE convention)" b={live.breadth.nifty50} alt={live.breadth.nifty50_open} rows={n50} />
-        <BreadthPanel card title="F&O Universe Breadth" subtitle="NSE stocks with F&O contracts · vs previous close" b={live.breadth.fo} alt={live.breadth.fo_open} rows={fo} showTotal />
-      </div></FiiDii>
-    </div>
+    <Section title="Indian Markets" subtitle="Indices and India VIX · change vs previous close" className="idx-section"><SummaryCards live={live} /></Section>
     <div className="bias-row oi">
       <MarketBias bias={live.bias} />
       <OiChange nifty={live.indices.nifty50} />
     </div>
     <TopMovers stocks={live.stocks} baseline={live.volume_baseline} />
     <HowToRead live={live} />
-  </>
+  </div>
 }

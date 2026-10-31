@@ -1261,8 +1261,6 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
   .oi-bar-col { width: 44px }
   .oi-section .section-head { flex-wrap: wrap }
 }
-/* Index cards (VIX, Nifty, Bank Nifty, Sensex) under the Global Cues cards */
-.cards.four.in-cues { margin: 8px 0 0; gap: 8px }
 /* Sector Heatmap: Nifty OI Change card (beside Market Bias) */
 .cards.four.hm-cards.five-up { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.35fr) minmax(0, 1.35fr) }
 .oi-hbar { display: grid; grid-template-columns: 30px 1fr auto; align-items: center; gap: 6px; font-size: 11.5px }
@@ -1277,10 +1275,6 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
   .mini-strip .bias-pill, .mini-strip .pcr-mini { font-size: 11px; padding: 4px 8px }
   .mini-strip .pcr-mini .pcr-k, .mini-strip .pcr-mini .pcr-v, .mini-strip .pcr-mini .pcr-pill { font-size: 11px }
 }
-/* Nifty PCR pill (same as the page ribbon) inside the Market Overview's Market Bias panel */
-.bias-pcr { margin-top: 10px }
-.bias-pcr .pcr-mini { border-left-width: 4px; padding: 6px 12px }
-.bias-pcr .pcr-mini.up { border-left-color: var(--up) } .bias-pcr .pcr-mini.down { border-left-color: var(--down) } .bias-pcr .pcr-mini.amber { border-left-color: var(--amber) }
 /* "How to read this page" guide at the bottom of Market Overview */
 .howto-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px }
 .howto-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px }
@@ -1341,3 +1335,19 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
 @media (max-width: 600px) { .hm-cards { display: none !important } }
 /* Phones and tablets (incl. a phone held sideways): Nifty PCR card without the long explanation */
 @media (max-width: 1024px) { .pcr-card .card-n, .pcr-meter .pcr-text { display: none } }
+/* Global Cues and index cards tinted by direction, like Market Bias / Nifty OI Change */
+.card.tinted { border-left: 4px solid var(--border-strong) }
+.card.tinted.up { background: var(--up-bg); border-color: #bfe3cd; border-left-color: var(--up) }
+.card.tinted.down { background: var(--down-bg); border-color: #efc6c6; border-left-color: var(--down) }
+/* Global Cues cards stretch to the height of the FII / DII box beside it */
+.two-col > .section.cues { display: flex; flex-direction: column }
+.two-col > .section.cues > .cards.six { flex: 1; grid-auto-rows: 1fr }
+.idx-section > .cards.four { margin-bottom: 0 }
+/* Market Overview: one even 16px gap between boxes, 10px between cards inside a box */
+.ov { display: flex; flex-direction: column; gap: 16px }
+.ov > *, .ov > .two-col > .section, .ov > .bias-row > .section { margin: 0 }
+.ov > .two-col { gap: 16px }
+.ov > .bias-row { gap: 16px }
+.ov .cards.six, .ov .idx-section > .cards.four { gap: 10px }
+.ov > .page-title { margin-bottom: -6px }
+.ov > .section.howto { margin-top: 12px }  /* 16 + 12 = the same 28px gap the guide has on other pages */
