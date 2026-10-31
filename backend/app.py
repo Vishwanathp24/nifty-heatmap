@@ -72,6 +72,7 @@ async def require_key_when_tunnelled(request: Request, call_next):
 def _start():
     engine.start()
     trend_scan.ensure_started()
+    vol_scan.ensure_started()
     push.start(_bias_now)
 
 
@@ -480,14 +481,22 @@ def ipo():
 
 
 from trend import TrendScan
+from volscan import VolumeScan
 
 trend_scan = TrendScan(engine)
+vol_scan = VolumeScan()
 
 
 @app.get("/api/trend")
 def trend():
     """Trend Scan tab: VWAP, EMA 5/9, Supertrend, RSI, ADX/DI on 15-min and 1-hour candles."""
     return trend_scan.snapshot()
+
+
+@app.get("/api/volscan")
+def volscan():
+    """Intraday Scanner > Volume Spike: today's volume vs SMA(volume, 20) for F&O / Nifty 50 / 500 / Midcap / Smallcap."""
+    return vol_scan.snapshot()
 
 
 DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"

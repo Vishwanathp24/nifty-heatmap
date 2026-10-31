@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { BiasPill, Empty, Seg, SortTh, StockLink, TopFilter, TopTag, useTopPass } from './components.jsx'
-import { fmtNum, hhmmTo12, isNum, istTime, setSessionValue, sortRows, useSessionState } from './lib.js'
+import { api, fmtNum, fmtVol, hhmmTo12, isNum, istTime, setSessionValue, sortRows, usePoll, useSessionState } from './lib.js'
 import Trend, { trendNeed, trendRows, useTrendSettings } from './Trend.jsx'
 import { SectorMulti, StockDrawer } from './Scanner.jsx'
 import { INDIA, OptionsBoard } from './CryptoOptions.jsx'
@@ -106,7 +106,69 @@ function ConditionScan({ id, data, onPick, picked }) {
   </>
 }
 
-const TABS = [['iopt', 'Index Options'], ['trend', 'Trending Stocks'], ['bull', 'Bullish Intraday'], ['bear', 'Bearish Intraday'], ['btst', 'BTST Stocks'], ['common', 'Common Stocks'], ['chart', 'Live Chart']]
+// Volume Spike: Daily Volume > Daily SMA(volume, 20) × 3 (the average includes today, as on Chartink),
+// for the chosen list. Data from /api/volscan (NSE index lists for today + Yahoo daily history).
+// Bullish = price up on the day with the volume, Bearish = price down, All = both.
+const VOL_LISTS = [{ value: 'fo', label: 'F&O' }, { value: 'n50', label: 'Nifty 50' }, { value: 'n500', label: 'Nifty 500' },
+  { value: 'mid', label: 'Midcap 150' }, { value: 'small', label: 'Smallcap 250' }]
+const VOL_X = 3
+const volDir = (r, dir) => dir === 'all' || (dir === 'bull' ? r.pct_prev > 0 : r.pct_prev < 0)
+const volHits = (data, list, dir = 'all') => data ? data.rows.filter(r => r.lists.includes(list) && r.ratio > VOL_X && volDir(r, dir)) : null
+
+function VolumeSpike({ vol, stocks, list, setList, onPick, picked }) {
+  const [dir, setDir] = useSessionState('vol.dir', 'all')
+  const [allRows, setAllRows] = useSessionState('vol.all', false)
+  const [search, setSearch] = useState('')
+  const [sort, setSort] = useState({ key: 'ratio', dir: 'desc' })
+  const d = vol.data
+  const sector = useMemo(() => Object.fromEntries((stocks || []).map(s => [s.symbol, s.sector])), [stocks])
+  const q = search.trim().toUpperCase()
+  const base = (d?.rows || []).filter(r => r.lists.includes(list) && volDir(r, dir) && (!q || r.symbol.includes(q) || (r.company || '').toUpperCase().includes(q)))
+    .map(r => ({ ...r, sector: sector[r.symbol] || '—' }))
+  const hits = base.filter(r => r.ratio > VOL_X)
+  const shown = sortRows(allRows ? base : hits, sort.key, sort.dir)
+  const sp = { sort, setSort }
+  const p = d?.progress
+  const listName = VOL_LISTS.find(l => l.value === list)?.label
+  const n = k => d ? volHits(d, list, k).length : ''
+  return <>
+    <div className="toolbar">
+      <Seg value={dir} onChange={setDir} options={[{ value: 'all', label: <>All <span className="count">{n('all')}</span></> },
+        { value: 'bull', label: <>Bullish <span className="count">{n('bull')}</span></>, tone: 'up' },
+        { value: 'bear', label: <>Bearish <span className="count">{n('bear')}</span></>, tone: 'down' }]} className="vol-dir" />
+      <Seg options={VOL_LISTS} value={list} onChange={setList} />
+      <input className="search" placeholder="Search symbol" value={search} onChange={e => setSearch(e.target.value)} />
+      <label className="check-label"><input type="checkbox" checked={allRows} onChange={e => setAllRows(e.target.checked)} />Show all stocks (sorted by × average)</label>
+    </div>
+    <p className="muted small qualify-line"><b className={dir === 'bear' ? 'down' : 'up'}>{hits.length}</b> of {base.length} {listName} stocks{dir === 'bull' ? ' trading up' : dir === 'bear' ? ' trading down' : ''} with <b>Daily Volume &gt; Daily SMA(volume, 20) × {VOL_X}</b> (today's volume more than 3 times its 20-day average, today included){dir === 'all' ? '' : dir === 'bull' ? '; bullish = price up on the day' : '; bearish = price down on the day'}.</p>
+    {!d ? <Empty>{vol.error || 'Loading volume data…'}</Empty> : <div className="tbl-wrap panel trend-wrap">
+      <table className="tbl trend-tbl pickable">
+        <thead><tr>
+          <SortTh label="Symbol" k="symbol" {...sp} defaultDir="asc" />
+          <SortTh label="Sector" k="sector" {...sp} defaultDir="asc" />
+          <SortTh label="LTP" k="ltp" {...sp} num />
+          <SortTh label="Chg %" k="pct_prev" {...sp} num />
+          <SortTh label="Volume" k="vol" {...sp} num title="Today's traded volume (NSE)" />
+          <SortTh label="SMA 20 Vol" k="sma20" {...sp} num title="Average daily volume of the last 20 sessions, today included" />
+          <SortTh label="× Avg" k="ratio" {...sp} num title="Today's volume ÷ SMA(volume, 20); above 3 = signal" />
+        </tr></thead>
+        <tbody>{shown.map(r => <tr key={r.symbol} onClick={() => onPick(r)} className={picked === r.symbol ? 'active' : undefined}>
+          <td><StockLink symbol={r.symbol} company={r.company} className="strong" /><TopTag symbol={r.symbol} /></td>
+          <td className="muted">{r.sector}</td>
+          <td className="num">{fmtNum(r.ltp)}</td>
+          <td className={'num ' + (r.pct_prev > 0 ? 'up' : r.pct_prev < 0 ? 'down' : '')}>{isNum(r.pct_prev) ? (r.pct_prev > 0 ? '+' : '') + r.pct_prev.toFixed(2) + '%' : '—'}</td>
+          <td className="num">{fmtVol(r.vol)}</td>
+          <td className="num muted">{fmtVol(r.sma20)}</td>
+          <td className={'num strong ind ' + (r.ratio > VOL_X ? 'pass' : 'fail')}>{isNum(r.ratio) ? r.ratio.toFixed(2) + '×' : '—'}</td>
+        </tr>)}</tbody>
+      </table>
+      {!shown.length && <Empty>{p && p.done < p.total ? `Loading 20-day volume history… ${p.done} of ${p.total} stocks` : `No ${listName} stock has more than ${VOL_X}× its average volume right now.`}</Empty>}
+    </div>}
+    <p className="muted small">Volume and price: NSE index lists (session {d?.session || '…'}{d?.quotes_at ? `, updated ${istTime(d.quotes_at)} IST` : ''}; every 2 minutes in market hours). Earlier daily volumes: Yahoo Finance, refreshed once a day{p && p.done < p.total ? ` (loading ${p.done}/${p.total})` : ''}. During the session today's volume is still growing, so early in the day only very heavy volume shows up. Condition screen, not a buy/sell signal.</p>
+  </>
+}
+
+const TABS = [['iopt', 'Index Options'], ['trend', 'Trending Stocks'], ['bull', 'Bullish Intraday'], ['bear', 'Bearish Intraday'], ['btst', 'BTST Stocks'], ['vol', 'Volume Spike'], ['common', 'Common Stocks'], ['chart', 'Live Chart']]
 
 // Live Chart: NSE stock candles (Yahoo) on 1m ... 1M with the indicator table; the stock list
 // follows the sector filter.
@@ -233,6 +295,9 @@ export default function Scans({ trend: trendRaw, live, selected, setSelected, ch
     for (const id of ['bull', 'bear', 'btst']) c[id] = data ? scanRows(data.rows, id).filter(r => r.met === SCANS[id].conds.length).length : null
     return c
   }, [data, dir, tfs, rsiMin, adxMin, universe])
+  const [volList, setVolList] = useSessionState('vol.list', 'fo')
+  const vol = usePoll(() => api('/api/volscan'), tab === 'vol' ? 60000 : 300000, [tab === 'vol'])
+  const tabCounts = { ...counts, vol: vol.data ? volHits(vol.data, volList).length : null }
   const cyc = data?.cycle
   return <div className="trend-page">
     <div className="page-title"><h1>Intraday Scanner</h1>
@@ -243,9 +308,10 @@ export default function Scans({ trend: trendRaw, live, selected, setSelected, ch
       <button className="btn sm" onClick={clearAll} title="Reset every Intraday Scanner filter to its default (Bullish · 15 Min + 1 Hour · RSI 60 · ADX 25 · F&O · all sectors)">Clear filters</button></div>
     <div className="orb-switch learn-cats scan-tabs" role="tablist" aria-label="Scan">
       {TABS.map(([v, label]) => <button key={v} role="tab" aria-selected={tab === v} className={tab === v ? 'on' : ''} onClick={() => setTab(v)}>
-        {label}{counts[v] != null && <span className="count">{counts[v]}</span>}</button>)}
+        {label}{tabCounts[v] != null && <span className="count">{tabCounts[v]}</span>}</button>)}
     </div>
     {tab === 'iopt' ? <OptionsBoard market={INDIA} bias={live?.bias} />
+      : tab === 'vol' ? <VolumeSpike key={'v' + resetKey} vol={vol} stocks={live?.stocks} list={volList} setList={setVolList} {...pp} />
       : tab === 'chart' ? <StockLive key={'sl' + chartReq} stocks={live?.stocks || []} selected={selected} bias={live?.bias?.label} nifty={live?.indices?.nifty50} />
       : !data ? <Empty>{trend.error || 'Loading scan data…'}</Empty>
       : !data.rows.length ? <Empty>Calculating for the first time — this takes about 2–3 minutes…</Empty>

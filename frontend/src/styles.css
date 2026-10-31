@@ -1389,3 +1389,12 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
   .tab-app .tab-sheet-k { grid-column: 1 / -1; color: #9AA3B2; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; padding: 2px 4px 4px }
   .tab-app .tab-sheet .tab { padding: 10px 2px }
 }
+/* Indian Markets: 5 cards (index cards + Expected Move) */
+.cards.four.idx-five { grid-template-columns: repeat(5, minmax(0, 1fr)) }
+@media (max-width: 1100px) { .cards.four.idx-five { grid-template-columns: repeat(3, minmax(0, 1fr)) } }
+@media (max-width: 480px) { .cards.four.idx-five { grid-template-columns: repeat(2, minmax(0, 1fr)) !important } }
+/* Small notes right under a table / panel get breathing room (every page) */
+.panel + .muted.small, .tbl-wrap + .muted.small, .panel + p.muted, .tbl-wrap + p.muted,
+.cards + .muted.small, .heatmap + .muted.small, .section + .muted.small { margin-top: 10px; margin-bottom: 12px }
+.vol-dir .count { font-family: var(--mono); font-size: 11px; background: var(--panel-2); border-radius: 3px; padding: 0 5px; margin-left: 4px; color: var(--ink-2) }
+.vol-dir button.on .count { background: rgba(255,255,255,.18); color: #fff }

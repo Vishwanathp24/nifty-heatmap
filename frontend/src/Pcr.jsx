@@ -38,6 +38,21 @@ export function usePcr() {
   return d && isNum(v) ? { v, zone: pcrZone(v), expiry: e.expiry_ist.split(',')[0], all: d.pcr_oi, at: d.fetched_at, ...levels(d, e) } : null
 }
 
+// Expected move to the nearest Nifty expiry, from the at-the-money implied volatility (±1 standard
+// deviation: roughly a 2-in-3 chance Nifty ends inside the range). Card in Market Overview > Indian Markets.
+export function ExpectedMoveCard() {
+  const res = usePoll(() => api('/api/index-options?symbol=NIFTY'), 60000, [])
+  const d = res.data, e = d?.expiries?.[0]
+  const k = v => Math.round(v).toLocaleString('en-IN')
+  const ok = e && isNum(e.move) && isNum(d.spot)
+  return <div className="card" title="From option prices (at-the-money implied volatility): about a 2-in-3 chance Nifty ends this expiry inside the range. Not a prediction.">
+    <div className="card-k">Expected Move{e ? ' · ' + e.expiry_ist.split(',')[0] : ''}</div>
+    <div className="card-v">{ok ? '±' + k(e.move) : '—'}</div>
+    <div className="card-d muted">{ok ? `±${e.move_pct.toFixed(2)}% · ${k(d.spot - e.move)} – ${k(d.spot + e.move)}` : res.error ? 'Option data unavailable' : 'Loading…'}</div>
+    <div className="card-n">Nifty range to expiry (options)</div>
+  </div>
+}
+
 // Support / resistance from the option chain: strike with the highest put OI (support) and call OI
 // (resistance) for the nearest expiry.
 function levels(d, e) {

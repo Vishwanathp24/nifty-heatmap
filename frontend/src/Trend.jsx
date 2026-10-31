@@ -118,7 +118,7 @@ export default function Trend({ trend, settings, link, prefix = 'trend', fmtLtp 
       <input className="search" placeholder="Search symbol" value={search} onChange={e => setSearch(e.target.value)} />
       <label className="check-label"><input type="checkbox" checked={allOnly} onChange={e => setAllOnly(e.target.checked)} />Only {noun}s meeting all {need} conditions{tfWord}</label>
     </div>
-    <p className="muted small qualify-line"><b className={bull ? 'up' : 'down'}>{full.length}</b> of {base.length} {noun}s meet all {need} {bull ? 'bullish' : 'bearish'} conditions{tfWord}
+    <p className="muted small qualify-line"><b className={bull ? 'up' : 'down'}>{full.length}</b> of {base.length} {noun}s meet all {need} {bull ? 'bullish' : 'bearish'} conditions{tfWord}.{' '}
       VWAP · EMA 5 · EMA 9 · Supertrend (10, 3) · RSI 14 · ADX / DI 14 on 15-min and 1-hour candles ({bull ? `price above VWAP, EMA 5 and EMA 9 · Supertrend UP · RSI > ${rsiMin} · ADX > ${adxMin} · DI+ > DI−` : `price below VWAP, EMA 5 and EMA 9 · Supertrend DOWN · RSI < ${100 - rsiMin} · ADX > ${adxMin} · DI− > DI+`}
       {union ? ', on 15-min or on 1-hour — either is enough' : use15 && use60 ? ', on both 15-min and 1-hour' : use15 ? ', on 15-min' : ', on 1-hour'}).</p>
     {<div className="tbl-wrap panel trend-wrap">

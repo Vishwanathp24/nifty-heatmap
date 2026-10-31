@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import { BreadthBar, Empty, IndexLink, Pct, Section, StockLink } from './components.jsx'
-import { OiChange, useOiChange } from './Pcr.jsx'
+import { ExpectedMoveCard, OiChange, useOiChange } from './Pcr.jsx'
 import { PageGuide } from './guides.jsx'
 import { fmtCr, fmtNum, fmtPct, fmtRatio, fmtSigned, fmtVol, istDate, istTime, isNum, nseTs, tone, tvStock, tvSymbol, useClock } from './lib.js'
 
@@ -45,11 +45,12 @@ export function IndexCard({ name, label, q, vix }) {
 
 function SummaryCards({ live }) {
   const { indices } = live
-  return <div className="cards four">
+  return <div className="cards four idx-five">
     <IndexCard name="INDIA VIX" label="India VIX" q={indices.indiavix} vix />
     <IndexCard name="NIFTY 50" label="NIFTY 50" q={indices.nifty50} />
     <IndexCard name="NIFTY BANK" label="NIFTY BANK" q={indices.niftybank} />
     <IndexCard name="SENSEX" label="SENSEX" q={indices.sensex} />
+    <ExpectedMoveCard />
   </div>
 }
 
@@ -145,6 +146,7 @@ const HOW_TO = [
   ['🌍', 'Global Cues', 'How markets in other countries did. Like checking the weather in nearby towns before you go out. It is a hint, not a rule.'],
   ['📊', 'Nifty 50, Nifty Bank, Sensex', 'Each one is a "score" for a group of big Indian companies. Green and + means the score went up today. Red and − means it went down.'],
   ['😨', 'India VIX', 'The "fear meter". When it goes up, people are more worried. When it goes down, people are calmer.'],
+  ['📏', 'Expected Move', 'How far option traders expect Nifty to move by this expiry. ±234 means Nifty will probably stay between the two numbers shown, about 2 times out of 3. Higher fear (VIX) = a wider range. It shrinks as expiry gets closer.'],
   ['🏦', 'FII / DII', 'What the big money did yesterday. FII = big foreign investors, DII = big Indian investors. + means they bought more than they sold. − means they sold more.'],
   ['🧮', 'Breadth (Nifty 50 and F&O)', 'Counts how many stocks went up and how many went down. Like a class test: if most students scored better, the class did well. If only the toppers did well, it was not a good day for everyone.'],
   ['🧭', 'Market Bias', 'A vote of 5 simple checks (Nifty, fear meter, and three up/down counts). Each check gives +1 or −1. Bullish = most checks are happy. Bearish = most checks are sad. Neutral = mixed.'],
@@ -213,7 +215,7 @@ export default function Overview({ live, ctx }) {
         <BreadthPanel card noStocks title="F&O Universe Breadth" subtitle="NSE stocks with F&O contracts · vs previous close" b={live.breadth.fo} rows={fo} showTotal />
       </div></FiiDii>
     </div>
-    <Section title="Indian Markets" subtitle="Indices and India VIX · change vs previous close" className="idx-section"><SummaryCards live={live} /></Section>
+    <Section title="Indian Markets" subtitle="Indices, India VIX and Nifty's expected move · change vs previous close" className="idx-section"><SummaryCards live={live} /></Section>
     <div className="bias-row oi">
       <MarketBias bias={live.bias} />
       <OiChange nifty={live.indices.nifty50} />
