@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Drawer, Empty, Pct, Seg, SortTh, StockLink, TopFilter, TopTag, useTopPass } from './components.jsx'
+import { PageNote } from './guides.jsx'
 import { api, fmtNum, fmtPct, fmtPrice, fmtRatio, fmtVol, hhmmTo12, isNum, sessionLabel, sortRows, tone, tvStock, useSessionState } from './lib.js'
 
 // Defaults = the qualification rule: volume-confirmed (> 1.0x) and still
@@ -329,7 +330,7 @@ export default function Scanner({ orb, live, selected, setSelected, tf, setTf, c
       </table>
       {!rows.length && <Empty>{!data ? (orb.error || 'Loading scanner…') : !data.or_complete ? 'Waiting for the opening range to complete.' : 'No stocks match the current tab and filters.'}</Empty>}
     </div>
-    <p className="muted small">Scanner surfaces stocks meeting defined conditions only — no buy/sell, target or stop-loss recommendations. At-break volume baseline: {eng?.recorded_sessions?.length ? eng.recorded_sessions.map(sessionLabel).join(', ') : 'no sessions recorded yet'}. ≈ = opening range from NSE 1-minute prices (app not running before {orEndTxt}).</p>
+    <PageNote>Scanner surfaces stocks meeting defined conditions only — no buy/sell, target or stop-loss recommendations. At-break volume baseline: {eng?.recorded_sessions?.length ? eng.recorded_sessions.map(sessionLabel).join(', ') : 'no sessions recorded yet'}. ≈ = opening range from NSE 1-minute prices (app not running before {orEndTxt}).</PageNote>
     {drawer && <SignalDrawer row={rows.find(r => r.symbol === drawer.symbol) || drawer} tf={tf} confirm3={confirm3} orm={orm} onClose={() => setDrawer(null)} />}
   </>
 }

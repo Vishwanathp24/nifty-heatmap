@@ -1222,3 +1222,94 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
 .lc-sig.buy path, .lc-sig.buy rect { fill: var(--up) } .lc-sig.sell path, .lc-sig.sell rect { fill: var(--down) }
 .lc-ema-opt.lc-ema-all { color: var(--ink-2); cursor: pointer }
 .lc-yaxis { fill: transparent; cursor: ns-resize }
+
+/* Nifty OI Change (Market Overview) */
+.oi-grid { display: grid; grid-template-columns: 200px 1fr 1fr 1.4fr; gap: 12px; align-items: stretch }
+.oi-sent .oi-pcr { margin-top: 8px; font-size: 12.5px; line-height: 1.6 }
+.oi-bars { border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; display: flex; flex-direction: column }
+.oi-bars-k { font-weight: 600; font-size: 13px; margin-bottom: 6px }
+.oi-bars-plot { flex: 1; min-height: 150px; display: flex; justify-content: space-around; align-items: stretch; gap: 16px }
+.oi-bar-col { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; width: 56px }
+.oi-bar { display: block; width: 100%; border-radius: 3px 3px 0 0 }
+.oi-bar.call { background: #4caf63 } .oi-bar.put { background: #e5675c }
+.oi-bar.neg { opacity: .45; background-image: repeating-linear-gradient(45deg, transparent 0 4px, rgba(255,255,255,.6) 4px 7px) }
+.oi-bar-v { font-size: 12px; font-weight: 600; margin-bottom: 4px }
+.oi-bar-l { font-size: 11.5px; color: var(--muted); margin-top: 4px; font-weight: 600 }
+.oi-read { border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; font-size: 12.5px }
+.oi-read p { margin: 6px 0 }
+@media (max-width: 1000px) { .oi-grid { grid-template-columns: 1fr 1fr } }
+@media (max-width: 600px) { .oi-grid { grid-template-columns: 1fr } }
+/* Breadth cards inside the FII / DII box; Market Bias + Nifty OI Change share a row */
+.breadth-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px }
+.breadth-card { padding: 8px 10px; min-width: 0 }
+.breadth-card .panel-head { display: flex; justify-content: space-between; align-items: center; gap: 6px; margin-bottom: 6px }
+.breadth-card .panel-head h3 { font-size: 12px }
+.breadth-card .breadth-stats { gap: 10px; margin-bottom: 6px }
+.breadth-card .k { font-size: 10.5px }
+.breadth-card .big { font-size: 16px }
+.breadth-card .chip-grid { max-height: 220px; overflow: auto }
+.bias-row.oi { grid-template-columns: minmax(0, 1fr) minmax(0, 1.7fr) }
+.bias-row.oi .oi-grid { grid-template-columns: 160px 1fr 1fr 1.3fr }
+@media (max-width: 1300px) { .bias-row.oi { grid-template-columns: 1fr } }
+@media (max-width: 1000px) { .bias-row.oi .oi-grid { grid-template-columns: 1fr 1fr } }
+@media (max-width: 600px) { .breadth-cards, .bias-row.oi .oi-grid { grid-template-columns: 1fr } }
+@media (max-width: 600px) {
+  .oi-grid, .bias-row.oi .oi-grid { grid-template-columns: 1fr 1fr; gap: 8px }
+  .oi-grid > .oi-sent, .oi-grid > .oi-read { grid-column: 1 / -1 }
+  .oi-bars { padding: 8px }
+  .oi-bars-plot { min-height: 110px; gap: 8px }
+  .oi-bar-col { width: 44px }
+  .oi-section .section-head { flex-wrap: wrap }
+}
+/* Index cards (VIX, Nifty, Bank Nifty, Sensex) under the Global Cues cards */
+.cards.four.in-cues { margin: 8px 0 0; gap: 8px }
+/* Sector Heatmap: Nifty OI Change card (beside Market Bias) */
+.cards.four.hm-cards.five-up { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.35fr) minmax(0, 1.35fr) }
+.oi-hbar { display: grid; grid-template-columns: 30px 1fr auto; align-items: center; gap: 6px; font-size: 11.5px }
+.oi-hbar > span { color: var(--muted); font-weight: 600 }
+.oi-hbar .oi-bar { height: 10px; border-radius: 2px }
+.oi-hbar b { font-size: 12px; min-width: 52px; text-align: right }
+@media (max-width: 1400px) { .cards.four.hm-cards.five-up { grid-template-columns: repeat(3, minmax(0, 1fr)) } .hm-cards.five-up > .section { grid-column: span 1 } }
+@media (max-width: 1000px) { .cards.four.hm-cards.five-up { grid-template-columns: repeat(2, minmax(0, 1fr)) } }
+@media (max-width: 760px) { .cards.four.hm-cards.five-up { grid-template-columns: 1fr !important } }
+@media (max-width: 600px) {
+  .mini-strip { gap: 6px }
+  .mini-strip .bias-pill, .mini-strip .pcr-mini { font-size: 11px; padding: 4px 8px }
+  .mini-strip .pcr-mini .pcr-k, .mini-strip .pcr-mini .pcr-v, .mini-strip .pcr-mini .pcr-pill { font-size: 11px }
+  .orb-switch { max-width: 100%; overflow-x: auto }
+}
+/* Nifty PCR pill (same as the page ribbon) inside the Market Overview's Market Bias panel */
+.bias-pcr { margin-top: 10px }
+.bias-pcr .pcr-mini { border-left-width: 4px; padding: 6px 12px }
+.bias-pcr .pcr-mini.up { border-left-color: var(--up) } .bias-pcr .pcr-mini.down { border-left-color: var(--down) } .bias-pcr .pcr-mini.amber { border-left-color: var(--amber) }
+/* "How to read this page" guide at the bottom of Market Overview */
+.howto-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px }
+.howto-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px }
+.howto-t { font-weight: 700; font-size: 13.5px; margin-bottom: 4px }
+.howto-card p { margin: 0; font-size: 13px; line-height: 1.5 }
+.howto-steps { margin-top: 12px; border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 14px; font-size: 13.5px; line-height: 1.6 }
+.howto-steps ol { margin: 6px 0 8px 20px; padding: 0 }
+.howto-read { margin-bottom: 6px } .howto-read .up { color: var(--up); font-weight: 600 } .howto-read .amber { color: var(--amber); font-weight: 600 }
+@media (max-width: 1000px) { .howto-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) } }
+@media (max-width: 600px) { .howto-grid { grid-template-columns: 1fr } }
+.howto-disclaimer { margin-top: 12px; border: 1px solid #f0dcb3; border-left: 4px solid var(--amber); background: var(--amber-bg); border-radius: var(--radius); padding: 10px 14px; font-size: 13px; line-height: 1.6; color: #5b4310 }
+.howto-disclaimer ul { margin: 6px 0 0 18px; padding: 0 }
+/* Live 3-step check: green = all agree up, red = all agree down, amber = mixed */
+.howto-now { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px }
+.howto-dot { display: inline-block; width: 16px; height: 16px; border-radius: 50%; background: var(--border-strong); flex: none }
+.howto-dot.sm { width: 10px; height: 10px; margin-right: 6px; vertical-align: middle }
+.howto-dot.up { background: var(--up); box-shadow: 0 0 0 4px var(--up-bg) }
+.howto-dot.down { background: var(--down); box-shadow: 0 0 0 4px var(--down-bg) }
+.howto-dot.amber { background: var(--amber); box-shadow: 0 0 0 4px var(--amber-bg) }
+.howto-dot.sm.up, .howto-dot.sm.down, .howto-dot.sm.amber { box-shadow: none }
+.howto-verdict { font-weight: 700; padding: 2px 10px; border-radius: 999px; font-size: 13px }
+.howto-verdict.up { color: var(--up); background: var(--up-bg) } .howto-verdict.down { color: var(--down); background: var(--down-bg) } .howto-verdict.amber { color: var(--amber); background: var(--amber-bg) }
+.howto-checks { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 8px 0 2px; font-size: 13px }
+/* the 3 live checks sit on the heading line (wrap below it on narrow screens) */
+.howto-now .howto-checks { margin: 0 0 0 auto }
+.howto-steps ol { margin-top: 8px }
+/* "How to read this page": clear gap from the page content above; data notes at the end */
+.section.howto { margin-top: 28px }
+.page-note { margin-top: 12px; border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 14px; font-size: 12.5px; line-height: 1.6; color: var(--muted) }
+.page-note b { color: var(--text, inherit) }
+.page-note p { margin: 4px 0 0 }

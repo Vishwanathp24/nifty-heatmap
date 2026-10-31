@@ -10,14 +10,18 @@ Recent-listing prices are refreshed by a background thread (one quote call per
 stock) so the endpoint itself stays fast.
 """
 import csv
+import html
 import io
 import json
+import re
 import threading
 import time
 import zipfile
 from datetime import date, datetime, timedelta
 
 from zoneinfo import ZoneInfo
+
+import requests
 
 import sources
 from store import DB_PATH
@@ -232,7 +236,8 @@ class IpoData:
 
     def snapshot(self):
         self.ensure_started()
-        upcoming = self._get_upcoming()
+        gmp = _gmp()
+        upcoming = [r | {"gmp": _gmp_for(gmp, r.get("company"))} for r in self._get_upcoming()]
         recent = []
         with self.lock:
             for r in self._get_past():
@@ -249,7 +254,69 @@ class IpoData:
                 })
             priced = sum(1 for r in recent if r["ltp"] is not None)
         return {"upcoming": upcoming, "recent": recent, "recent_days": RECENT_DAYS,
-                "prices_loaded": priced, "fetched_at": datetime.now(IST).isoformat()}
+                "prices_loaded": priced, "fetched_at": datetime.now(IST).isoformat(),
+                "gmp_source": GMP_URL, "gmp_at": _gmp_cache[1] and datetime.fromtimestamp(_gmp_cache[1], IST).isoformat()}
+
+
+# ---- GMP (grey market premium) ------------------------------------------------------------
+# Unofficial: no exchange publishes it. Read from ipowatch.in's public GMP table (mainboard + SME,
+# robots.txt allows the page) at most every 30 minutes; matched to NSE issues by company name.
+GMP_URL = "https://ipowatch.in/ipo-grey-market-premium-latest-ipo-gmp/"
+GMP_MAX_AGE = 1800
+_gmp_cache = ({}, 0.0)
+_gmp_lock = threading.Lock()
+
+
+def _name_key(name):
+    n = re.sub(r"\b(open|closed|upcoming|limited|ltd|the)\b", " ", (name or "").lower())
+    return re.sub(r"[^a-z0-9]", "", n)
+
+
+def _rupees(v):
+    m = re.search(r"-?\s*₹?\s*(-?[\d,]+(?:\.\d+)?)", v or "")
+    if not m:
+        return None
+    x = float(m.group(1).replace(",", ""))
+    return -abs(x) if "-" in (v or "").split("₹")[0] + m.group(0)[:2] else x
+
+
+def _gmp():
+    global _gmp_cache
+    with _gmp_lock:
+        data, at = _gmp_cache
+        if time.time() - at < GMP_MAX_AGE:
+            return data
+        try:
+            r = requests.get(GMP_URL, timeout=12, headers={"User-Agent": "Mozilla/5.0 (compatible; NSE-dashboard)"})
+            r.raise_for_status()
+            out = {}
+            for row in re.findall(r"<tr.*?</tr>", r.text, re.S):
+                cells = [html.unescape(re.sub(r"<[^>]+>", "", c)).strip() for c in re.findall(r"<td[^>]*>(.*?)</td>", row, re.S)]
+                if len(cells) < 5 or not cells[0]:
+                    continue
+                gmp, band = _rupees(cells[1]), _rupees(cells[3])
+                pct = re.search(r"\((-?[\d.]+)%\)", cells[4])
+                if gmp is None:
+                    continue
+                out[_name_key(cells[0])] = {"gmp": gmp, "est": band + gmp if band else None,
+                                           "pct": float(pct.group(1)) if pct else None}
+            if out:
+                _gmp_cache = (out, time.time())
+            else:
+                _gmp_cache = (data, time.time() - GMP_MAX_AGE + 300)  # page changed: retry in 5 min
+        except Exception:
+            _gmp_cache = (data, time.time() - GMP_MAX_AGE + 300)
+        return _gmp_cache[0]
+
+
+def _gmp_for(table, company):
+    k = _name_key(company)
+    if not k:
+        return None
+    if k in table:
+        return table[k]
+    hits = [v for g, v in table.items() if len(g) >= 8 and (g.startswith(k) or k.startswith(g))]
+    return hits[0] if len(hits) == 1 else None
 
 
 # ---- IPO detail (Upcoming IPOs -> click a company) -----------------------------------------

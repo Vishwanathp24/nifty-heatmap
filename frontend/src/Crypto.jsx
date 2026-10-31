@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import { Empty, Section, Seg, SortTh } from './components.jsx'
+import { PageNote } from './guides.jsx'
 import { heatClass, isNum, istTime, setSessionValue, sortRows, tvCrypto, useSessionState } from './lib.js'
 import Trend, { useTrendSettings } from './Trend.jsx'
 import CryptoOptions from './CryptoOptions.jsx'
@@ -232,7 +233,7 @@ export default function Crypto({ crypto }) {
       {tab === 'chart' && <LiveChart coins={coins} allCoins={data.coins} bias={biasLabel} />}
       {tab === 'cgtrend' && <CgTrending coins={data.coins} />}
       {tab === 'pools' && <Pools />}
-      <p className="muted small">Crypto trades 24×7; “today” runs from 12:00 AM IST. Prices: OKX (USDT ≈ USD), or CoinGecko for coins OKX doesn’t list (those have no Trending / ORB data). Market cap, ATH / ATL, dominance: CoinGecko · Fear &amp; Greed: alternative.me. Market data only, not a buy/sell recommendation.</p>
+      <PageNote>Crypto trades 24×7; “today” runs from 12:00 AM IST. Prices: OKX (USDT ≈ USD), or CoinGecko for coins OKX doesn’t list (those have no Trending / ORB data). Market cap, ATH / ATL, dominance: CoinGecko · Fear &amp; Greed: alternative.me. Market data only, not a buy/sell recommendation.</PageNote>
     </>}
   </div></ChartCtx.Provider>
 }

@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import { BreadthBar, Empty, IndexLink, Pct, Section, StockLink } from './components.jsx'
+import { OiChange, PcrMeter, useOiChange } from './Pcr.jsx'
+import { PageGuide } from './guides.jsx'
 import { fmtCr, fmtNum, fmtPct, fmtRatio, fmtSigned, fmtVol, istDate, istTime, isNum, nseTs, tone, tvStock, tvSymbol, useClock } from './lib.js'
 
 const biasClass = l => l === 'BULLISH' ? 'bull' : l === 'BEARISH' ? 'bear' : 'neutral'
@@ -20,6 +22,7 @@ function MarketBias({ bias }) {
         </tr>)}</tbody>
       </table>
     </div>
+    <div className="bias-pcr"><PcrMeter compact /></div>
   </Section>
 }
 
@@ -42,7 +45,7 @@ export function IndexCard({ name, label, q, vix }) {
 
 function SummaryCards({ live }) {
   const { indices } = live
-  return <div className="cards four">
+  return <div className="cards four in-cues">
     <IndexCard name="INDIA VIX" label="India VIX" q={indices.indiavix} vix />
     <IndexCard name="NIFTY 50" label="NIFTY 50" q={indices.nifty50} />
     <IndexCard name="NIFTY BANK" label="NIFTY BANK" q={indices.niftybank} />
@@ -50,13 +53,16 @@ function SummaryCards({ live }) {
   </div>
 }
 
-export function BreadthPanel({ title, subtitle, b, alt, rows, showTotal, noStocks = false }) {
+// card: compact version shown inside the FII / DII box (title + stats + bar; stocks list under the button).
+export function BreadthPanel({ title, subtitle, b, alt, rows, showTotal, noStocks = false, card = false }) {
   const [open, setOpen] = useState(false)
   const pctUp = b.total ? Math.round(b.up / b.total * 100) : 0
   const pctDn = b.total ? Math.round(b.down / b.total * 100) : 0
   const sorted = useMemo(() => [...rows].sort((a, c) => (c.pct_prev ?? -1e9) - (a.pct_prev ?? -1e9)), [rows])
-  return <Section title={title} subtitle={subtitle} className="half"
-    right={!noStocks && <button className="btn ghost sm" onClick={() => setOpen(o => !o)}>{open ? 'Hide stocks' : 'Show stocks'}</button>}>
+  const toggle = !noStocks && <button className="btn ghost sm" onClick={() => setOpen(o => !o)}>{open ? 'Hide stocks' : 'Show stocks'}</button>
+  const wrap = card ? children => <div className="panel breadth-card" title={subtitle}><div className="panel-head"><h3>{title}</h3>{toggle}</div>{children}</div>
+    : children => <Section title={title} subtitle={subtitle} className="half" right={toggle}>{children}</Section>
+  return wrap(<>
     <div className="breadth-stats">
       <div><div className="k">Advancing</div><div className="big up">{b.up}</div></div>
       <div><div className="k">Declining</div><div className="big down">{b.down}</div></div>
@@ -71,7 +77,7 @@ export function BreadthPanel({ title, subtitle, b, alt, rows, showTotal, noStock
       href={tvStock(s.symbol)} target="_blank" rel="noopener noreferrer"
       title={`${s.company} · ${fmtPct(s.pct_prev)} vs prev close · open ${tvSymbol(s.symbol)} on TradingView`}>
       {s.symbol}<b>{fmtPct(s.pct_prev)}</b></a>)}</div>}
-  </Section>
+  </>)
 }
 
 function MoversTable({ title, rows, note }) {
@@ -106,7 +112,7 @@ function TopMovers({ stocks, baseline }) {
   </Section>
 }
 
-function GlobalCues({ ctx }) {
+function GlobalCues({ ctx, children }) {
   const g = ctx?.global
   return <Section title="Global Cues" subtitle="Context only, not a trading signal"
     right={g?.fetched_at && <span className="muted small">Fetched {istTime(g.fetched_at)}{g.error ? ' · refresh failed, showing last data' : ''}</span>}>
@@ -117,10 +123,11 @@ function GlobalCues({ ctx }) {
         <div className={'card-d ' + tone(r.change)}>{fmtSigned(r.change)} <span>{fmtPct(r.pct)}</span></div>
         <div className="card-n">{r.as_of ? `as of ${istDate(r.as_of)} ${istTime(r.as_of).slice(0, 5)} IST` : 'N/A'}{r.note ? ' · ' + r.note.replace(/-\d{4}$/, '') : ''}</div>
       </div>)}</div>
+    {children}
   </Section>
 }
 
-function FiiDii({ ctx }) {
+function FiiDii({ ctx, children }) {
   const f = ctx?.fii_dii
   const d = f?.data
   const date = d?.fii?.date || d?.dii?.date || 'N/A'
@@ -132,7 +139,64 @@ function FiiDii({ ctx }) {
       <thead><tr><th>₹ Cr</th><th className="num">Buy</th><th className="num">Sell</th><th className="num">Net</th></tr></thead>
       <tbody>{row('FII / FPI', d?.fii)}{row('DII', d?.dii)}</tbody>
     </table></div>
+    {children}
   </Section>
+}
+
+// Plain-language guide at the bottom of Market Overview (written for a first-time reader).
+const HOW_TO = [
+  ['🌍', 'Global Cues', 'How markets in other countries did. Like checking the weather in nearby towns before you go out. It is a hint, not a rule.'],
+  ['📊', 'Nifty 50, Nifty Bank, Sensex', 'Each one is a "score" for a group of big Indian companies. Green and + means the score went up today. Red and − means it went down.'],
+  ['😨', 'India VIX', 'The "fear meter". When it goes up, people are more worried. When it goes down, people are calmer.'],
+  ['🏦', 'FII / DII', 'What the big money did yesterday. FII = big foreign investors, DII = big Indian investors. + means they bought more than they sold. − means they sold more.'],
+  ['🧮', 'Breadth (Nifty 50 and F&O)', 'Counts how many stocks went up and how many went down. Like a class test: if most students scored better, the class did well. If only the toppers did well, it was not a good day for everyone.'],
+  ['🧭', 'Market Bias', 'A vote of 5 simple checks (Nifty, fear meter, and three up/down counts). Each check gives +1 or −1. Bullish = most checks are happy. Bearish = most checks are sad. Neutral = mixed.'],
+  ['⚖️', 'Nifty PCR (OI)', 'Compares two kinds of option bets on Nifty. Around 1 = balanced. Very high (above 1.5) = everyone is too sure the market will go up, so it may cool down. Very low (below 0.7) = everyone is too scared, so it may bounce back.'],
+  ['🧱', 'Nifty OI Change', 'Where big option traders put new money today. More new puts = they are building a "floor" under Nifty (Bullish). More new calls = they are building a "ceiling" over Nifty (Bearish).'],
+  ['🚀', 'Top Movers', 'The stocks that went up the most, went down the most, and were traded the most today.'],
+]
+
+// Live check for the 3 steps: Market Bias, Nifty OI Change and F&O breadth (most stocks) each read
+// as up / down / mixed. Green = all 3 up, red = all 3 down, amber = they disagree.
+function useAgreement(live) {
+  const { s } = useOiChange()
+  const bias = live.bias?.label, fo = live.breadth?.fo
+  const steps = [
+    ['Market Bias', bias === 'BULLISH' ? 'up' : bias === 'BEARISH' ? 'down' : 'mixed', bias ? bias[0] + bias.slice(1).toLowerCase() : 'N/A'],
+    ['Nifty OI Change', !s ? null : s.sent.key === 'bull' ? 'up' : s.sent.key === 'bear' ? 'down' : 'mixed', s ? s.sent.label : 'Loading…'],
+    ['Breadth (F&O stocks)', !fo ? null : fo.up > fo.down ? 'up' : fo.down > fo.up ? 'down' : 'mixed', fo ? `${fo.up} up / ${fo.down} down` : 'N/A'],
+  ]
+  if (steps.some(x => !x[1])) return { steps, key: 'wait', label: 'Checking…', text: 'Waiting for data.' }
+  const dirs = steps.map(x => x[1])
+  if (dirs.every(d => d === 'up')) return { steps, key: 'up', label: 'Clear: all 3 Bullish', text: 'Mood, big traders and most stocks all point up.' }
+  if (dirs.every(d => d === 'down')) return { steps, key: 'down', label: 'Clear: all 3 Bearish', text: 'Mood, big traders and most stocks all point down.' }
+  return { steps, key: 'amber', label: 'Mixed: they disagree', text: 'The 3 checks do not agree. Slow down and wait for the market to show its way.' }
+}
+
+function HowToRead({ live }) {
+  const a = useAgreement(live)
+  return <PageGuide items={HOW_TO}>
+    <div className="howto-steps">
+      <div className="howto-now">
+        <span className={'howto-dot ' + a.key} aria-hidden="true" />
+        <b>Putting it together, in 3 steps</b>
+        <span className={'howto-verdict ' + a.key}>Right now: {a.label}</span>
+        <span className="muted small">{a.text}</span>
+        <span className="howto-checks">{a.steps.map(([k, d, v], i) => <span key={k} className={'howto-chk ' + (d || 'wait')}>
+          <i className={'howto-dot sm ' + (d === 'mixed' ? 'amber' : d || 'wait')} />{i + 1}. {k}: <b>{v}</b></span>)}</span>
+      </div>
+      <ol>
+        <li><b>What is the mood?</b> Look at <b>Market Bias</b>: Bullish, Bearish or Neutral.</li>
+        <li><b>Do the big traders agree?</b> Look at <b>Nifty OI Change</b>. Is it the same as Market Bias?</li>
+        <li><b>Are most stocks joining in?</b> Look at the <b>Breadth</b> boxes. Are more stocks going up or going down?</li>
+      </ol>
+      <div className="howto-read">
+        <span className="up">All 3 say the same thing</span> → the picture is clear. ·
+        <span className="amber"> They disagree</span> → the picture is mixed: slow down and wait for the market to show its way. (Example: Nifty up, but most stocks down = only a few big stocks are pulling Nifty up.)
+      </div>
+      <p className="muted small">Remember: these boxes are clues, like a weather report. They do not tell you to buy or sell, and they can be wrong. Always check the price chart, and never risk money you cannot afford to lose.</p>
+    </div>
+  </PageGuide>
 }
 
 export default function Overview({ live, ctx }) {
@@ -143,15 +207,17 @@ export default function Overview({ live, ctx }) {
     <div className="page-title"><h1>Market Overview</h1>
       <span className="muted small">Quotes as of {live.source_ts ? istTime(nseTs(live.source_ts)) : 'N/A'} IST (latest exchange tick)</span></div>
     <div className="two-col wide-left">
-      <GlobalCues ctx={ctx} />
-      <FiiDii ctx={ctx} />
+      <GlobalCues ctx={ctx}><SummaryCards live={live} /></GlobalCues>
+      <FiiDii ctx={ctx}><div className="breadth-cards">
+        <BreadthPanel card title="Nifty 50 Breadth" subtitle="Advance / decline vs previous close (NSE convention)" b={live.breadth.nifty50} alt={live.breadth.nifty50_open} rows={n50} />
+        <BreadthPanel card title="F&O Universe Breadth" subtitle="NSE stocks with F&O contracts · vs previous close" b={live.breadth.fo} alt={live.breadth.fo_open} rows={fo} showTotal />
+      </div></FiiDii>
     </div>
-    <div className="bias-row">
+    <div className="bias-row oi">
       <MarketBias bias={live.bias} />
-      <BreadthPanel title="Nifty 50 Breadth" subtitle="Advance / decline vs previous close (NSE convention)" b={live.breadth.nifty50} alt={live.breadth.nifty50_open} rows={n50} />
-      <BreadthPanel title="F&O Universe Breadth" subtitle="NSE stocks with F&O contracts · vs previous close" b={live.breadth.fo} alt={live.breadth.fo_open} rows={fo} showTotal />
+      <OiChange nifty={live.indices.nifty50} />
     </div>
-    <SummaryCards live={live} />
     <TopMovers stocks={live.stocks} baseline={live.volume_baseline} />
+    <HowToRead live={live} />
   </>
 }

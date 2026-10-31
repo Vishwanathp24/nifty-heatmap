@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import { Drawer, Empty, Seg, SortTh, StockLink } from './components.jsx'
+import { PageNote } from './guides.jsx'
 import { api, fmtNum, fmtVol, isNum, istTime, sortRows, usePoll, useSessionState } from './lib.js'
 
 // GMP is unofficial (no exchange publishes it), so link out instead of showing a number.
@@ -125,7 +126,7 @@ const RETAIL_CAP = 200000
 const rupees = v => '₹' + Math.round(v).toLocaleString('en-IN')
 
 // One IPO row: rating dot before the name; the name opens the details panel (rating, checklist, subscription).
-function IpoRow({ r, onDetails }) {
+function IpoRow({ r, onDetails, gmpSrc, gmpAt }) {
   const series = r.board === 'NSE SME' ? 'SME' : 'EQ'
   const res = usePoll(() => r.symbol ? api(`/api/ipo/detail?symbol=${encodeURIComponent(r.symbol)}&series=${series}`) : Promise.resolve(null), 300000, [r.symbol])
   const d = res.data && res.data.symbol === r.symbol ? res.data : null
@@ -151,15 +152,19 @@ function IpoRow({ r, onDetails }) {
       })()}</td>
       <td className="num">{fmtVol(r.issue_shares)}</td>
       <td className="num strong">{isNum(d?.total_times) ? d.total_times.toFixed(2) + 'x' : isNum(r.subscription) ? r.subscription.toFixed(2) + 'x' : '—'}</td>
-      <td><a className="tv-link" href={gmpUrl(r.company)} target="_blank" rel="noopener noreferrer" title={`Search “${r.company} IPO GMP today” — GMP is unofficial`}>GMP<span className="ext">↗</span></a></td>
+      <td className="num">{isNum(d?.subscription?.qib?.times) ? <span className={d.subscription.qib.times >= 1 ? 'strong up' : 'strong'}>{d.subscription.qib.times.toFixed(2)}x</span> : <span className="muted">—</span>}</td>
+      <td className="num">{r.gmp ? <a className="tv-link gmp" href={gmpSrc || gmpUrl(r.company)} target="_blank" rel="noopener noreferrer" title={`Unofficial grey market premium (ipowatch.in)${gmpAt ? ', read ' + istTime(gmpAt) + ' IST' : ''}. Est. listing ₹${fmtNum(r.gmp.est, 0)}. Not from the exchange — often wrong.`}>
+          <b className={r.gmp.gmp > 0 ? 'up' : r.gmp.gmp < 0 ? 'down' : 'muted'}>{r.gmp.gmp > 0 ? '+' : r.gmp.gmp < 0 ? '−' : ''}₹{fmtNum(Math.abs(r.gmp.gmp), 0)}</b>
+          {isNum(r.gmp.pct) && <div className="muted small">{r.gmp.pct > 0 ? '+' : ''}{r.gmp.pct.toFixed(1)}%</div>}</a>
+        : <a className="tv-link" href={gmpUrl(r.company)} target="_blank" rel="noopener noreferrer" title={`Search “${r.company} IPO GMP today” — GMP is unofficial`}>GMP<span className="ext">↗</span></a>}</td>
     </tr>
   </>
 }
 
-function Upcoming({ rows, board }) {
+function Upcoming({ rows, board, gmpSrc, gmpAt }) {
   const [sort, setSort] = useState({ key: 'open', dir: 'asc' })
   const [open, setOpen] = useState(null)       // detail drawer
-  const shown = sortRows(rows.filter(r => board === 'all' || (board === 'sme') === (r.board === 'NSE SME')).map(r => ({ ...r, amount: lotAmount(r) })), sort.key, sort.dir)
+  const shown = sortRows(rows.filter(r => board === 'all' || (board === 'sme') === (r.board === 'NSE SME')).map(r => ({ ...r, amount: lotAmount(r), gmp_v: r.gmp?.gmp ?? null })), sort.key, sort.dir)
   const sp = { sort, setSort }
   return <div className="tbl-wrap panel">
     <table className="tbl">
@@ -175,9 +180,10 @@ function Upcoming({ rows, board }) {
         <SortTh label="Amount / Lot" k="amount" {...sp} num title="Price-band upper end × lot size: money blocked for one lot at the cut-off price. Below it: the smallest HNI (small NII) application, the fewest whole lots above ₹2 lakh (SME: at least 3 lots)." />
         <SortTh label="Issue Size (shares)" k="issue_shares" {...sp} num />
         <SortTh label="Subscription" k="subscription" {...sp} num title="Times subscribed so far (NSE, all categories)" />
-        <th title="Grey market premium is unofficial and unregulated; opens a web search for this IPO's GMP in a new tab">GMP</th>
+        <th className="num" title="Qualified Institutional Buyers (banks, mutual funds, insurers): times their quota is subscribed (NSE). They often bid on the last day.">QIB</th>
+        <SortTh label="GMP" k="gmp_v" {...sp} num title="Grey market premium: unofficial, read from ipowatch.in every 30 min; not from the exchange and often wrong. % = estimated gain over the top of the price band." />
       </tr></thead>
-      <tbody>{shown.map(r => <IpoRow key={r.symbol} r={r} onDetails={() => setOpen(r)} />)}</tbody>
+      <tbody>{shown.map(r => <IpoRow key={r.symbol} r={r} gmpSrc={gmpSrc} gmpAt={gmpAt} onDetails={() => setOpen(r)} />)}</tbody>
     </table>
     {!shown.length && <Empty>No upcoming or open IPOs on NSE{board !== 'all' ? ' for this board' : ''}.</Empty>}
     {open && <IpoDetail row={open} onClose={() => setOpen(null)} />}
@@ -308,7 +314,7 @@ export default function Ipo({ ipo }) {
       </>}
     </div>
     {!data ? <Empty>{ipo.error || 'Loading IPO data from NSE…'}</Empty>
-      : view === 'upcoming' ? <Upcoming rows={data.upcoming} board={board} /> : view === 'blog' ? <Blog data={data} board={board} /> : <Recent rows={data.recent} board={board} below={below} search={search} />}
-    <p className="muted small">BSE-only SME issues are not included (NSE data only). Subscription is NSE's live “times subscribed” across all categories. Listing price = opening price on the listing day (NSE bhavcopy). GMP links open a web search for “[company] IPO GMP today” (GMP is unofficial; no exchange publishes it). % vs Issue Price uses NSE's official close after market hours and the live price during the session. The checklist rates individual factors from NSE data — it is not a buy / sell verdict. Not investment advice.</p>
+      : view === 'upcoming' ? <Upcoming rows={data.upcoming} board={board} gmpSrc={data.gmp_source} gmpAt={data.gmp_at} /> : view === 'blog' ? <Blog data={data} board={board} /> : <Recent rows={data.recent} board={board} below={below} search={search} />}
+    <PageNote>BSE-only SME issues are not included (NSE data only). Subscription is NSE's live “times subscribed” across all categories. Listing price = opening price on the listing day (NSE bhavcopy). GMP is unofficial (no exchange publishes it): read from ipowatch.in every 30 minutes, % = estimated gain over the top of the price band; it is often wrong. QIB = how many times the institutional quota is subscribed (NSE). % vs Issue Price uses NSE's official close after market hours and the live price during the session. The checklist rates individual factors from NSE data — it is not a buy / sell verdict. Not investment advice.</PageNote>
   </div>
 }

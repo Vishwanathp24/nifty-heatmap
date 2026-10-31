@@ -128,6 +128,14 @@ export function Empty({ children }) {
   return <div className="empty">{children}</div>
 }
 
+// Ribbon pill: advancing / declining and A/D ratio for a breadth bucket (tone by A/D vs 1).
+export function BreadthPill({ label, b }) {
+  if (!b) return null
+  const tone = !isNum(b.ad_ratio) ? 'neutral' : b.ad_ratio > 1 ? 'bull' : b.ad_ratio < 1 ? 'bear' : 'neutral'
+  return <span className={'bias-pill ' + tone} title={`${label} vs previous close: ${b.up} advancing, ${b.down} declining, ${b.unchanged} unchanged`}>
+    {label}: {b.up}↑ {b.down}↓ · A/D {isNum(b.ad_ratio) ? b.ad_ratio.toFixed(2) : 'N/A'}</span>
+}
+
 export function BiasPill({ bias }) {
   const label = bias?.label
   const tone = label === 'BULLISH' ? 'bull' : label === 'BEARISH' ? 'bear' : 'neutral'

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { BreadthBar, ChartIcon, Drawer, Empty, IndexLink, Pct, Seg, SortTh, StockLink } from './components.jsx'
 import { StockDrawer } from './Scanner.jsx'
-import { PcrCard } from './Pcr.jsx'
+import { OiCard, PcrCard } from './Pcr.jsx'
 import { BreadthPanel } from './Overview.jsx'
 import { api, fmtNum, fmtPct, fmtRatio, fmtSigned, fmtVol, heatClass, isNum, istTime, sortRows, tone, useSessionState } from './lib.js'
 
@@ -136,17 +136,18 @@ function FoMovers({ stocks, selected, labels, onOpen, openSym }) {
   </div>
 }
 
-// Top of the Sector Heatmap: Market Bias and Nifty PCR cards, then the Nifty 50 and F&O universe
+// Top of the Sector Heatmap: Market Bias, Nifty OI Change and Nifty PCR cards, then the Nifty 50 and F&O universe
 // breadth panels exactly as on Market Overview (vs previous close, with Show stocks).
 function TopCards({ live }) {
   const bias = live?.bias, b = live?.breadth || {}
   const bTone = bias?.label === 'BULLISH' ? 'up' : bias?.label === 'BEARISH' ? 'down' : 'amber'
-  return <div className="cards four hm-cards">
+  return <div className="cards four hm-cards five-up">
     <div className={'card hm-card ' + bTone}>
       <div className="card-k">Market Bias</div>
       <div className={'card-v ' + bTone}>{bias?.label || '—'} {isNum(bias?.score) && <small>({bias.score > 0 ? '+' : ''}{bias.score})</small>}</div>
       <div className="hm-chips">{(bias?.components || []).map(c => <span key={c.key || c.label} className={c.points > 0 ? 'up' : c.points < 0 ? 'down' : 'muted'} title={c.detail}>{c.label} {c.points > 0 ? '+1' : c.points < 0 ? '−1' : '0'}</span>)}</div>
     </div>
+    <OiCard />
     <PcrCard />
     {b.nifty50 && <BreadthPanel title="Nifty 50 Breadth" subtitle="Advance / decline vs previous close (NSE convention)" b={b.nifty50} alt={b.nifty50_open} rows={(live.stocks || []).filter(s => s.n50)} noStocks />}
     {b.fo && <BreadthPanel title="F&O Universe Breadth" subtitle="NSE stocks with F&O contracts · vs previous close" b={b.fo} alt={b.fo_open} rows={(live.stocks || []).filter(s => s.fo)} showTotal noStocks />}

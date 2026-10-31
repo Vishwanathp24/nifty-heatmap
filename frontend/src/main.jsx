@@ -3,11 +3,12 @@ import { createRoot } from 'react-dom/client'
 import './styles.css'
 import favicon from './icons/favicon-64.png'
 import { api, istDate, istTime, nseTs, setSessionValue, useClock, usePersistentState, useSessionState, usePoll } from './lib.js'
-import { BiasPill, StockChartCtx, TopMoversCtx } from './components.jsx'
+import { BiasPill, BreadthPill, StockChartCtx, TopMoversCtx } from './components.jsx'
 import Overview from './Overview.jsx'
 import Heatmap from './Heatmap.jsx'
 import Scanner, { DEFAULT_FILTERS, filterRows } from './Scanner.jsx'
-import { PcrMeter } from './Pcr.jsx'
+import { OiPill, PcrMeter } from './Pcr.jsx'
+import { PageHowTo } from './guides.jsx'
 // Pages loaded only when opened (smaller first download)
 const Crypto = lazy(() => import('./Crypto.jsx'))
 const Ipo = lazy(() => import('./Ipo.jsx'))
@@ -228,11 +229,13 @@ function App() {
     </header>
     <main className="page">
       {live.error && !live.data && <div className="alert">{live.error}</div>}
-      {page === 'overview' && <PcrMeter />}  {/* full PCR meter on Market Overview (heatmap has its own card) */}
-      {/* Other pages: compact strip — Market Bias pill + Nifty PCR pill */}
+      {/* Other pages: compact strip — Market Bias, Nifty PCR, Nifty OI Change and breadth pills */}
       {['scanner', 'trend', 'ipo', 'learning', 'journal'].includes(page) && <div className="mini-strip">
         <BiasPill bias={live.data?.bias} />
         <PcrMeter compact />
+        <OiPill />
+        <BreadthPill label="Nifty 50 Breadth" b={live.data?.breadth?.nifty50} />
+        <BreadthPill label="F&O Breadth" b={live.data?.breadth?.fo} />
         {page === 'journal' && <div id="journal-account-slot" className="mini-slot" />}  {/* Journal puts its sign-in / saved status here */}
       </div>}
       {page === 'overview' && <Overview live={live.data} ctx={ctx.data} />}
@@ -258,6 +261,7 @@ function App() {
           ? <Scanner key="orb30" orm={30} orb={orb30} live={live.data} selected={selected} setSelected={setSelected} tf={tf30} setTf={setTf30} confirm3={confirm30} setConfirm3={setConfirm30} f={orbFilters30} setF={setOrbFilters30} />
           : <Scanner key="orb15" orm={15} orb={orb15} live={live.data} selected={selected} setSelected={setSelected} tf={tf15} setTf={setTf15} confirm3={confirm15} setConfirm3={setConfirm15} f={orbFilters15} setF={setOrbFilters15} />}
       </>}
+      <PageHowTo page={page} />  {/* Market Overview has its own (with the live 3-step check) */}
     </main>
     <footer className="foot">
       Decision-support scanner — no buy/sell, target or stop-loss recommendations. Data: NSE (indices, quotes, per-minute prices, bhavcopy volumes, FII/DII, GIFT Nifty, market status), BSE (Sensex), Yahoo Finance (overseas indices, Scanner candles, opening-range fallback).
