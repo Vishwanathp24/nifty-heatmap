@@ -117,6 +117,13 @@ const RATING_ICON = { strong: '🟢', mixed: '🟡', weak: '🔴', early: '🔵'
 
 const d_ = d  // date formatter (inside IpoRow `d` is the detail data)
 
+// Money for one lot at the top of the price band (what a cut-off bid blocks), and the smallest HNI
+// (small NII) bid: the fewest whole lots above SEBI's ₹2 lakh retail limit; on SME at least 3 lots.
+const upperPrice = band => { const n = (band || '').replace(/,/g, '').match(/\d+(\.\d+)?/g); return n ? Number(n[n.length - 1]) : null }
+const lotAmount = (r, lot) => { const p = upperPrice(r.price_band), l = lot || r.lot_size; return p && l ? p * l : null }
+const RETAIL_CAP = 200000
+const rupees = v => '₹' + Math.round(v).toLocaleString('en-IN')
+
 // One IPO row: rating dot before the name; the name opens the details panel (rating, checklist, subscription).
 function IpoRow({ r, onDetails }) {
   const series = r.board === 'NSE SME' ? 'SME' : 'EQ'
@@ -136,6 +143,12 @@ function IpoRow({ r, onDetails }) {
       <td>{r.close ? d_(tPlus3(r.close)) : 'N/A'}</td>
       <td className="num">{r.price_band || 'N/A'}</td>
       <td className="num">{d?.lot ? fmtNum(d.lot, 0) : r.lot_size ? fmtNum(r.lot_size, 0) : 'N/A'}</td>
+      <td className="num">{(() => {
+        const a = lotAmount(r, d?.lot)
+        if (!a) return 'N/A'
+        const n = Math.max(Math.floor(RETAIL_CAP / a) + 1, r.board === 'NSE SME' ? 3 : 1)
+        return <>{rupees(a)}<div className="muted small" title={`Smallest HNI (small NII) application: ${n} lots, above the ₹2 lakh retail limit`}>HNI {rupees(n * a)} ({n} lots)</div></>
+      })()}</td>
       <td className="num">{fmtVol(r.issue_shares)}</td>
       <td className="num strong">{isNum(d?.total_times) ? d.total_times.toFixed(2) + 'x' : isNum(r.subscription) ? r.subscription.toFixed(2) + 'x' : '—'}</td>
       <td><a className="tv-link" href={gmpUrl(r.company)} target="_blank" rel="noopener noreferrer" title={`Search “${r.company} IPO GMP today” — GMP is unofficial`}>GMP<span className="ext">↗</span></a></td>
@@ -146,7 +159,7 @@ function IpoRow({ r, onDetails }) {
 function Upcoming({ rows, board }) {
   const [sort, setSort] = useState({ key: 'open', dir: 'asc' })
   const [open, setOpen] = useState(null)       // detail drawer
-  const shown = sortRows(rows.filter(r => board === 'all' || (board === 'sme') === (r.board === 'NSE SME')), sort.key, sort.dir)
+  const shown = sortRows(rows.filter(r => board === 'all' || (board === 'sme') === (r.board === 'NSE SME')).map(r => ({ ...r, amount: lotAmount(r) })), sort.key, sort.dir)
   const sp = { sort, setSort }
   return <div className="tbl-wrap panel">
     <table className="tbl">
@@ -159,6 +172,7 @@ function Upcoming({ rows, board }) {
         <SortTh label="Listing Date" k="close" {...sp} defaultDir="asc" title="3rd trading day after bidding closes (SEBI T+3). Weekends skipped; an exchange holiday in between moves it a day later." />
         <th className="num">Price Band</th>
         <SortTh label="Lot Size" k="lot_size" {...sp} num />
+        <SortTh label="Amount / Lot" k="amount" {...sp} num title="Price-band upper end × lot size: money blocked for one lot at the cut-off price. Below it: the smallest HNI (small NII) application, the fewest whole lots above ₹2 lakh (SME: at least 3 lots)." />
         <SortTh label="Issue Size (shares)" k="issue_shares" {...sp} num />
         <SortTh label="Subscription" k="subscription" {...sp} num title="Times subscribed so far (NSE, all categories)" />
         <th title="Grey market premium is unofficial and unregulated; opens a web search for this IPO's GMP in a new tab">GMP</th>
