@@ -29,7 +29,20 @@ const PAGES = [
 ].filter(p => !import.meta.env.VITE_PAGES || import.meta.env.VITE_PAGES.split(',').includes(p.id))  // VITE_PAGES: build with only these pages (Netlify copy)
 
 // Phones: app layout with a bottom tab bar (more than 5 pages, as in Advanced: the rest go under "More").
-const TAB_ICONS = { overview: '🏠', heatmap: '🟩', scanner: '⏱️', trend: '📈', crypto: '🪙', ipo: '🆕', learning: '📚', journal: '📝' }
+// One line-icon set (24px grid, drawn in the text colour) so every tab looks the same.
+const TAB_PATHS = {
+  overview: 'M3 11l9-7 9 7M5 10v10h5v-6h4v6h5V10',
+  heatmap: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
+  scanner: 'M12 8v5l3 2M9 2h6M12 4a9 9 0 1 0 0 18 9 9 0 0 0 0-18z',
+  trend: 'M3 17l6-6 4 4 8-8M15 7h6v6',
+  crypto: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM9.5 8h4a2 2 0 0 1 0 4h-4zm0 4h4.5a2 2 0 0 1 0 4H9.5zM9.5 8v8M11 6v2M11 16v2',
+  ipo: 'M5 21V4M5 4h11l-2 4 2 4H5',
+  learning: 'M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM4 21V5M8 7h7',
+  journal: 'M5 3h11l3 3v15H5zM8 9h8M8 13h8M8 17h5',
+  more: 'M5 12h.01M12 12h.01M19 12h.01',
+}
+const TabIcon = ({ id }) => <svg className="tab-ic" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor"
+  strokeWidth={id === 'more' ? 3.2 : 1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={TAB_PATHS[id]} /></svg>
 const TAB_SHORT = { overview: 'Overview', heatmap: 'Heatmap', scanner: 'ORB', trend: 'Intraday', crypto: 'Crypto', ipo: 'IPO', learning: 'Learning', journal: 'Journal' }
 const IST_DAY = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', weekday: 'long' })
 const IST_DM = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'long' })
@@ -39,14 +52,13 @@ function TabBar({ pages, page, setPage, badges }) {
   const main = pages.length > 5 ? pages.slice(0, 4) : pages, rest = pages.length > 5 ? pages.slice(4) : []
   const go = id => { setMore(false); setPage(id); window.scrollTo({ top: 0 }) }
   const tab = p => <button key={p.id} className={'tab' + (page === p.id ? ' on' : '')} onClick={() => go(p.id)}>
-    <span className="tab-ic" aria-hidden="true">{TAB_ICONS[p.id]}</span>{TAB_SHORT[p.id]}
-    {badges[p.id] ? <span className="tab-badge">{badges[p.id]}</span> : null}</button>
+    <span className="tab-icw"><TabIcon id={p.id} />{badges[p.id] ? <span className="tab-badge">{badges[p.id]}</span> : null}</span>{TAB_SHORT[p.id]}</button>
   return <>
     {more && <div className="tab-sheet-bg" onClick={() => setMore(false)}><div className="tab-sheet" onClick={e => e.stopPropagation()}>
       <div className="tab-sheet-k">More pages</div>{rest.map(tab)}</div></div>}
     <nav className="tabbar" aria-label="Pages">{main.map(tab)}
-      {rest.length > 0 && <button className={'tab' + (rest.some(p => p.id === page) || more ? ' on' : '')} onClick={() => setMore(m => !m)}>
-        <span className="tab-ic" aria-hidden="true">⋯</span>More</button>}</nav>
+      {rest.length > 0 && <button className={'tab' + (rest.some(p => p.id === page) ? ' on' : more ? ' open' : '')} onClick={() => setMore(m => !m)}>
+        <span className="tab-icw"><TabIcon id="more" /></span>More</button>}</nav>
   </>
 }
 
