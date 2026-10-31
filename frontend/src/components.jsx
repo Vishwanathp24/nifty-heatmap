@@ -135,8 +135,8 @@ export function Empty({ children }) {
 export function BreadthPill({ label, b }) {
   if (!b) return null
   const tone = !isNum(b.ad_ratio) ? 'neutral' : b.ad_ratio > 1 ? 'bull' : b.ad_ratio < 1 ? 'bear' : 'neutral'
-  return <span className={'bias-pill ' + tone} title={`${label} vs previous close: ${b.up} advancing, ${b.down} declining, ${b.unchanged} unchanged`}>
-    {label}: {b.up}↑ {b.down}↓ · A/D {isNum(b.ad_ratio) ? b.ad_ratio.toFixed(2) : 'N/A'}</span>
+  return <span className={'bias-pill ' + tone} title={`${label} breadth vs previous close: ${b.up} advancing, ${b.down} declining, ${b.unchanged} unchanged`}>
+    {label}<span className="hide-m"> Breadth</span>: {b.up}↑ {b.down}↓ · A/D {isNum(b.ad_ratio) ? b.ad_ratio.toFixed(2) : 'N/A'}</span>
 }
 
 export function BiasPill({ bias }) {

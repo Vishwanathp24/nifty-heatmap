@@ -246,8 +246,8 @@ function App() {
         <BiasPill bias={live.data?.bias} />
         <PcrMeter compact />
         <OiPill />
-        <BreadthPill label="Nifty 50 Breadth" b={live.data?.breadth?.nifty50} />
-        <BreadthPill label="F&O Breadth" b={live.data?.breadth?.fo} />
+        <BreadthPill label="Nifty 50" b={live.data?.breadth?.nifty50} />
+        <BreadthPill label="F&O" b={live.data?.breadth?.fo} />
         {page === 'journal' && <div id="journal-account-slot" className="mini-slot" />}  {/* Journal puts its sign-in / saved status here */}
       </div>}
       {basic && page === 'overview' && <PcrMeter />}  {/* Basic keeps the earlier Market Overview: full PCR bar on top */}
@@ -264,7 +264,7 @@ function App() {
         <div className="orb-switch" role="tablist" aria-label="Opening range">
           {[[5, '5 Min ORB', '09:15–09:20', orb5Count], [15, '15 Min ORB', '09:15–09:30', orb15Count], [30, '30 Min ORB', '09:15–09:45', orb30Count], [60, '1 Hour ORB', '09:15–10:15', orbCount]].map(([v, label, range, n]) =>
             <button key={v} role="tab" aria-selected={orbView === v} className={orbView === v ? 'on' : ''} onClick={() => setOrbView(v)}>
-              {label} <small>{range}</small>{n != null && <span className="count">{n}</span>}</button>)}
+              {label.replace(' ORB', '')}<span className="hide-m"> ORB</span> <small>{range}</small>{n != null && <span className="count">{n}</span>}</button>)}
         </div>
         {orbView === 60
           ? <Scanner key="orb60" orm={60} orb={orb} live={live.data} selected={selected} setSelected={setSelected} tf={tf} setTf={setTf} confirm3={confirm3} setConfirm3={setConfirm3} f={orbFilters} setF={setOrbFilters} />

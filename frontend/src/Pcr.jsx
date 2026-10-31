@@ -187,7 +187,8 @@ export function OiPill() {
   if (!s) return null
   const tone = { bull: 'bull', bear: 'bear', neutral: 'neutral' }[s.sent.key]
   return <span className={'bias-pill ' + tone} title={s.sent.why}>
-    Nifty OI Change: {s.sent.label}{isNum(s.sent.pct) ? ` (${s.sent.key === 'bear' ? 'calls' : 'puts'} ${s.sent.pct}%)` : ''} · C {s.cc > 0 ? '+' : ''}{shares(s.cc)} / P {s.pc > 0 ? '+' : ''}{shares(s.pc)}</span>
+    <span className="hide-m">Nifty </span>OI Change: {s.sent.label}
+    <span className="hide-m">{isNum(s.sent.pct) ? ` (${s.sent.key === 'bear' ? 'calls' : 'puts'} ${s.sent.pct}%)` : ''} · C {s.cc > 0 ? '+' : ''}{shares(s.cc)} / P {s.pc > 0 ? '+' : ''}{shares(s.pc)}</span></span>
 }
 
 // Compact card for the Sector Heatmap top row (beside Market Bias).
