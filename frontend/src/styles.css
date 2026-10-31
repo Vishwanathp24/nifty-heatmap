@@ -1313,3 +1313,15 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
 .page-note { margin-top: 12px; border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 14px; font-size: 12.5px; line-height: 1.6; color: var(--muted) }
 .page-note b { color: var(--text, inherit) }
 .page-note p { margin: 4px 0 0 }
+
+/* ---- Basic / Advanced switch (header) --------------------------------------------------------- */
+.mode-switch { margin: 0 10px 0 4px; flex: none; background: transparent; border: 1px solid rgba(255,255,255,.35) }
+.mode-switch button { padding: 4px 12px; font-size: 12px; font-weight: 600; color: #c9ced8; background: transparent; border-color: rgba(255,255,255,.2) }
+.mode-switch button.on { background: #fff; color: #16191f }
+@media (max-width: 600px) { .mode-switch { margin: 6px 0 } }
+.top-locked { font-size: 12px; font-weight: 600; padding: 5px 10px; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--panel) }
+/* breadth cards: all numbers on one row (spread across the card instead of wrapping) */
+.breadth-card .breadth-stats { flex-wrap: nowrap; justify-content: space-between; gap: 6px }
+.breadth-card .breadth-stats > div { min-width: 0 }
+.breadth-card .breadth-stats .k { font-size: 10px; white-space: nowrap }
+.breadth-card .breadth-stats .big { font-size: 15px }

@@ -6,7 +6,7 @@ import { fmtCr, fmtNum, fmtPct, fmtRatio, fmtSigned, fmtVol, istDate, istTime, i
 
 const biasClass = l => l === 'BULLISH' ? 'bull' : l === 'BEARISH' ? 'bear' : 'neutral'
 
-function MarketBias({ bias }) {
+function MarketBias({ bias, pcr = true }) {
   return <Section title="Market Bias" subtitle="Breadth-based read of the current session" className="bias-section">
     <div className="bias-grid">
       <div className={'bias-main ' + biasClass(bias.label)}>
@@ -22,7 +22,7 @@ function MarketBias({ bias }) {
         </tr>)}</tbody>
       </table>
     </div>
-    <div className="bias-pcr"><PcrMeter compact /></div>
+    {pcr && <div className="bias-pcr"><PcrMeter compact /></div>}
   </Section>
 }
 
@@ -43,9 +43,9 @@ export function IndexCard({ name, label, q, vix }) {
   </div>
 }
 
-function SummaryCards({ live }) {
+function SummaryCards({ live, className = 'in-cues' }) {
   const { indices } = live
-  return <div className="cards four in-cues">
+  return <div className={'cards four ' + className}>
     <IndexCard name="INDIA VIX" label="India VIX" q={indices.indiavix} vix />
     <IndexCard name="NIFTY 50" label="NIFTY 50" q={indices.nifty50} />
     <IndexCard name="NIFTY BANK" label="NIFTY BANK" q={indices.niftybank} />
@@ -63,12 +63,10 @@ export function BreadthPanel({ title, subtitle, b, alt, rows, showTotal, noStock
   const wrap = card ? children => <div className="panel breadth-card" title={subtitle}><div className="panel-head"><h3>{title}</h3>{toggle}</div>{children}</div>
     : children => <Section title={title} subtitle={subtitle} className="half" right={toggle}>{children}</Section>
   return wrap(<>
-    <div className="breadth-stats">
-      <div><div className="k">Advancing</div><div className="big up">{b.up}</div></div>
-      <div><div className="k">Declining</div><div className="big down">{b.down}</div></div>
-      <div><div className="k">Unchanged</div><div className="big flat">{b.unchanged}</div></div>
-      {showTotal && <div><div className="k">Total</div><div className="big">{b.total}</div></div>}
-      <div><div className="k">A/D Ratio</div><div className="big">{isNum(b.ad_ratio) ? b.ad_ratio.toFixed(2) : 'N/A'}</div></div>
+    <div className="breadth-stats">{[  // short labels in the small cards so the numbers fit one row
+      ['Advancing', 'Adv', b.up, 'up'], ['Declining', 'Dec', b.down, 'down'], ['Unchanged', 'Unch', b.unchanged, 'flat'],
+      ...(showTotal ? [['Total', 'Total', b.total, '']] : []), ['A/D Ratio', 'A/D', isNum(b.ad_ratio) ? b.ad_ratio.toFixed(2) : 'N/A', '']]
+      .map(([full, short, v, cls]) => <div key={full} title={full}><div className="k">{card ? short : full}</div><div className={'big ' + cls}>{v}</div></div>)}
     </div>
     <BreadthBar up={b.up} down={b.down} unchanged={b.unchanged} />
     <div className="bbar-legend"><span className="up">{pctUp}% Advancing</span><span className="down">{pctDn}% Declining</span></div>
@@ -158,9 +156,9 @@ const HOW_TO = [
 
 // Live check for the 3 steps: Market Bias, Nifty OI Change and F&O breadth (most stocks) each read
 // as up / down / mixed. Green = all 3 up, red = all 3 down, amber = they disagree.
-function useAgreement(live) {
+export function useAgreement(live) {
   const { s } = useOiChange()
-  const bias = live.bias?.label, fo = live.breadth?.fo
+  const bias = live?.bias?.label, fo = live?.breadth?.fo  // live is null until the first snapshot
   const steps = [
     ['Market Bias', bias === 'BULLISH' ? 'up' : bias === 'BEARISH' ? 'down' : 'mixed', bias ? bias[0] + bias.slice(1).toLowerCase() : 'N/A'],
     ['Nifty OI Change', !s ? null : s.sent.key === 'bull' ? 'up' : s.sent.key === 'bear' ? 'down' : 'mixed', s ? s.sent.label : 'Loading…'],
@@ -199,13 +197,32 @@ function HowToRead({ live }) {
   </PageGuide>
 }
 
-export default function Overview({ live, ctx }) {
+// classic: the earlier layout, used by the Basic site (PCR bar above the page, set in main.jsx): Global Cues |
+// FII/DII (with the breadth cards), then Market Bias beside Nifty OI Change, the index cards and Top Movers. No guide.
+export default function Overview({ live, ctx, classic = false }) {
   if (!live) return <Empty>Loading live market data…</Empty>
   const n50 = live.stocks.filter(s => s.n50)
   const fo = live.stocks.filter(s => s.fo)
+  const title = <div className="page-title"><h1>Market Overview</h1>
+    <span className="muted small">Quotes as of {live.source_ts ? istTime(nseTs(live.source_ts)) : 'N/A'} IST (latest exchange tick)</span></div>
+  if (classic) return <>
+    {title}
+    <div className="two-col wide-left">
+      <GlobalCues ctx={ctx} />
+      <FiiDii ctx={ctx}><div className="breadth-cards">
+        <BreadthPanel card noStocks title="Nifty 50 Breadth" subtitle="Advance / decline vs previous close (NSE convention)" b={live.breadth.nifty50} rows={n50} />
+        <BreadthPanel card noStocks title="F&O Universe Breadth" subtitle="NSE stocks with F&O contracts · vs previous close" b={live.breadth.fo} rows={fo} showTotal />
+      </div></FiiDii>
+    </div>
+    <div className="bias-row oi">
+      <MarketBias bias={live.bias} pcr={false} />
+      <OiChange nifty={live.indices.nifty50} />
+    </div>
+    <SummaryCards live={live} className="" />
+    <TopMovers stocks={live.stocks} baseline={live.volume_baseline} />
+  </>
   return <>
-    <div className="page-title"><h1>Market Overview</h1>
-      <span className="muted small">Quotes as of {live.source_ts ? istTime(nseTs(live.source_ts)) : 'N/A'} IST (latest exchange tick)</span></div>
+    {title}
     <div className="two-col wide-left">
       <GlobalCues ctx={ctx}><SummaryCards live={live} /></GlobalCues>
       <FiiDii ctx={ctx}><div className="breadth-cards">

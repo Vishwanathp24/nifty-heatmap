@@ -28,6 +28,9 @@ const PAGES = [
   { id: 'journal', label: 'Journal', key: '9' },
 ].filter(p => !import.meta.env.VITE_PAGES || import.meta.env.VITE_PAGES.split(',').includes(p.id))  // VITE_PAGES: build with only these pages (Netlify copy)
 
+// Basic site (header switch): only these pages, exactly as in Advanced.
+const BASIC_PAGES = ['overview', 'heatmap', 'scanner']
+
 // One real URL per page, so each can be linked, indexed and shared. The server serves the same app for these paths.
 const PATHS = { overview: '/', heatmap: '/heatmap', scanner: '/orb-scanner', trend: '/intraday-scanner', crypto: '/crypto', ipo: '/ipo', learning: '/learning', journal: '/journal' }
 const pageFromPath = path => Object.keys(PATHS).find(id => PATHS[id] === path.replace(/(.)\/$/, '$1')) || 'overview'
@@ -158,6 +161,10 @@ function App() {
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
   }, [])
+  const [mode, setMode] = usePersistentState('siteMode', 'advanced')
+  const basic = mode === 'basic'
+  useEffect(() => { if (basic && !BASIC_PAGES.includes(page)) setPage('overview') }, [basic, page])
+  const navPages = basic ? PAGES.filter(p => BASIC_PAGES.includes(p.id)) : PAGES
   const [selected, setSelected] = useSessionState('sectors', [])
   const [auto, setAuto] = usePersistentState('auto', true)
   const [tf, setTf] = useSessionState('orb.tf.v4', 15)  // break candle: 5 or 15 min
@@ -190,21 +197,6 @@ function App() {
   const crypto = usePoll(() => api('/api/crypto'), page === 'crypto' ? 10000 : 3.6e6, [page === 'crypto'])
   const ipo = usePoll(() => api('/api/ipo'), page === 'ipo' ? 30000 : 300000, [page === 'ipo'])
 
-  const toggleSector = useCallback(sym => setSelected(s => s.includes(sym) ? s.filter(x => x !== sym) : [...s, sym]), [setSelected])
-  const orbCount = orb.data?.rows ? filterRows(orb.data.rows, orbFilters, selected, orb.data).length : null
-  const orb15Count = orb15.data?.rows ? filterRows(orb15.data.rows, orbFilters15, selected, orb15.data).length : null
-  const orb5Count = orb5.data?.rows ? filterRows(orb5.data.rows, orbFilters5, selected, orb5.data).length : null
-  const orb30Count = orb30.data?.rows ? filterRows(orb30.data.rows, orbFilters30, selected, orb30.data).length : null
-  const orbLists = { 15: orb15.data?.rows && filterRows(orb15.data.rows, orbFilters15, selected, orb15.data), 30: orb30.data?.rows && filterRows(orb30.data.rows, orbFilters30, selected, orb30.data), 60: orb.data?.rows && filterRows(orb.data.rows, orbFilters, selected, orb.data) }
-  const orbNow = { 5: [orb5Count, '5 Min'], 15: [orb15Count, '15 Min'], 30: [orb30Count, '30 Min'], 60: [orbCount, '1 Hour'] }[orbView] || [orb15Count, '15 Min']
-
-  // Chart icon next to any stock symbol -> Intraday Scanner, Live Chart tab, that stock.
-  const [chartReq, setChartReq] = useState(0)
-  const openStockChart = useCallback(sym => {
-    setSessionValue('slive.sym', sym); setSessionValue('scans.tab', 'chart')
-    setChartReq(n => n + 1); setPage('trend'); window.scrollTo({ top: 0 })
-  }, [])
-
   // Today's Top 20 F&O gainers / losers (same ranking as the Sector Heatmap list), tagged in every scanner.
   const [topOnly, setTopOnly] = useSessionState('top20.only', '')  // scanners: '' all, 'up' Top 20 gainers, 'down' losers
   const topMovers = useMemo(() => {
@@ -212,14 +204,34 @@ function App() {
     const n = Math.min(20, Math.floor(fo.length / 2)), out = {}
     fo.slice(0, n).forEach((s, i) => { if (s.pct_prev > 0) out[s.symbol] = ['up', i + 1] })
     fo.slice(-n).reverse().forEach((s, i) => { if (s.pct_prev < 0) out[s.symbol] = ['down', i + 1] })
-    return { map: out, only: topOnly, setOnly: setTopOnly }
-  }, [live.data?.stocks, topOnly])
+    return { map: out, only: basic ? 'both' : topOnly, setOnly: setTopOnly, locked: basic }  // Basic: scanners show Top 20 gainers + losers only
+  }, [live.data?.stocks, topOnly, basic])
+  const topCut = rows => basic ? rows.filter(r => topMovers.map[r.symbol]) : rows  // Basic: counts match the Top 20 gainers + losers list
+  const toggleSector = useCallback(sym => setSelected(s => s.includes(sym) ? s.filter(x => x !== sym) : [...s, sym]), [setSelected])
+  const orbCount = orb.data?.rows ? topCut(filterRows(orb.data.rows, orbFilters, selected, orb.data)).length : null
+  const orb15Count = orb15.data?.rows ? topCut(filterRows(orb15.data.rows, orbFilters15, selected, orb15.data)).length : null
+  const orb5Count = orb5.data?.rows ? topCut(filterRows(orb5.data.rows, orbFilters5, selected, orb5.data)).length : null
+  const orb30Count = orb30.data?.rows ? topCut(filterRows(orb30.data.rows, orbFilters30, selected, orb30.data)).length : null
+  const orbLists = { 15: orb15.data?.rows && filterRows(orb15.data.rows, orbFilters15, selected, orb15.data), 30: orb30.data?.rows && filterRows(orb30.data.rows, orbFilters30, selected, orb30.data), 60: orb.data?.rows && filterRows(orb.data.rows, orbFilters, selected, orb.data) }
+  const orbNow = { 5: [orb5Count, '5 Min'], 15: [orb15Count, '15 Min'], 30: [orb30Count, '30 Min'], 60: [orbCount, '1 Hour'] }[orbView] || [orb15Count, '15 Min']
+
+  // Chart icon next to any stock symbol -> Intraday Scanner, Live Chart tab, that stock.
+  const [chartReq, setChartReq] = useState(0)
+  const openStockChart = useCallback(sym => {
+    setSessionValue('slive.sym', sym); setSessionValue('scans.tab', 'chart')
+    setChartReq(n => n + 1); setMode('advanced'); setPage('trend'); window.scrollTo({ top: 0 })  // the Live Chart is an Advanced page
+  }, [])
+
   return <StockChartCtx.Provider value={openStockChart}><TopMoversCtx.Provider value={topMovers}><div className="app">
     <header className="hdr">
       <button className="hdr-brand" onClick={() => { setPage('overview'); window.scrollTo({ top: 0 }) }} title="Go to homepage (Market Overview)">
         <span>NSE Sector Heatmap</span></button>
+      <div className="seg mode-switch" role="group" aria-label="Site version">
+        {[['basic', 'Basic'], ['advanced', 'Advanced']].map(([v, l]) => <button key={v} className={mode === v ? 'on' : ''} onClick={() => setMode(v)}
+          title={v === 'basic' ? 'Simple view: Market Overview, Sector Heatmap and ORB Scanner only' : 'Full view: every scanner, chart and tool'}>{l}</button>)}
+      </div>
       <nav className="hdr-nav">
-        {PAGES.map(p => <a key={p.id} href={PATHS[p.id]} className={page === p.id ? 'active' : ''} onClick={e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); setPage(p.id) }}>
+        {navPages.map(p => <a key={p.id} href={PATHS[p.id]} className={page === p.id ? 'active' : ''} onClick={e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); setPage(p.id) }}>
           {p.label}
           {p.id === 'heatmap' && selected.length ? <span className="badge">{selected.length}</span> : null}
           {p.id === 'scanner' && orbNow[0] != null ? <span className="badge" title={`Signals passing the current ${orbNow[1]} ORB filters`}>{orbNow[0]}</span> : null}
@@ -238,7 +250,8 @@ function App() {
         <BreadthPill label="F&O Breadth" b={live.data?.breadth?.fo} />
         {page === 'journal' && <div id="journal-account-slot" className="mini-slot" />}  {/* Journal puts its sign-in / saved status here */}
       </div>}
-      {page === 'overview' && <Overview live={live.data} ctx={ctx.data} />}
+      {basic && page === 'overview' && <PcrMeter />}  {/* Basic keeps the earlier Market Overview: full PCR bar on top */}
+      {page === 'overview' && <Overview live={live.data} ctx={ctx.data} classic={basic} />}
       {page === 'heatmap' && <Heatmap live={live.data} selected={selected} setSelected={setSelected} toggle={toggleSector} goto={setPage} />}
       <Suspense fallback={<div className="empty">Loading…</div>}>
         {page === 'trend' && <Scans trend={trend} live={live.data} selected={selected} setSelected={setSelected} chartReq={chartReq} orbLists={orbLists} />}

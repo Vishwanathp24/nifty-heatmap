@@ -15,12 +15,15 @@ export const TopMoversCtx = createContext({ map: {}, only: '', setOnly: () => {}
 // Scanner rows with the Top 20 filter applied; when it is on, ordered by rank (#1 first).
 export function useTopPass() {
   const { map, only } = useContext(TopMoversCtx)
+  if (only === 'both') return rows => rows.filter(r => map[r.symbol])  // either list, scan order kept
   return rows => only ? rows.filter(r => map[r.symbol]?.[0] === only).sort((a, b) => map[a.symbol][1] - map[b.symbol][1]) : rows
 }
 
 export function TopFilter() {
-  const { only, setOnly } = useContext(TopMoversCtx)
+  const { only, setOnly, locked } = useContext(TopMoversCtx)
+  if (locked) return <span className="top-locked" title="Basic view: only stocks in today's Top 20 F&O gainers or losers. Switch to Advanced for every stock.">Top 20 gainers + losers only</span>
   return <Seg value={only} onChange={setOnly} options={[{ value: '', label: 'All stocks', title: 'Show every stock in this scan' },
+    { value: 'both', label: 'Top 20 gainers + losers', title: 'Only stocks in today’s Top 20 F&O gainers or Top 20 losers' },
     { value: 'up', label: 'Top 20 gainers', tone: 'up', title: 'Only stocks in today’s Top 20 F&O gainers' },
     { value: 'down', label: 'Top 20 losers', tone: 'down', title: 'Only stocks in today’s Top 20 F&O losers' }]} />
 }

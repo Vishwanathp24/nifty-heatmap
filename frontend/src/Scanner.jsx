@@ -247,8 +247,9 @@ export default function Scanner({ orb, live, selected, setSelected, tf, setTf, c
 
   const base = useMemo(() => filterRows(data?.rows || [], filters, selected), [data, selected, f]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const counts = { all: base.length, breakout: base.filter(r => r.signal === 'BREAKOUT').length, breakdown: base.filter(r => r.signal === 'BREAKDOWN').length }
   const topPass = useTopPass()
+  const shown = topPass(base)  // counts follow the Top 20 choice, like the list
+  const counts = { all: shown.length, breakout: shown.filter(r => r.signal === 'BREAKOUT').length, breakdown: shown.filter(r => r.signal === 'BREAKDOWN').length }
   const rows = topPass(sortRows(tab === 'all' ? base : base.filter(r => r.signal === tab.toUpperCase()), sort.key, sort.dir))
   const sp = { sort, setSort }
   const eng = data?.engine
