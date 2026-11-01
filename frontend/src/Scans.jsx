@@ -291,15 +291,17 @@ export default function Scans({ trend: trendRaw, live, selected, setSelected, ch
     : { ...trendRaw, data: { ...trendRaw.data, rows: trendRaw.data.rows.filter(r => r.sectors.some(s => selected.includes(s))) } }, [trendRaw, selected])
   const data = trend.data
   const { dir, tfs, rsiMin, adxMin, universe } = settings
+  // Tab counts = what each list shows by default, after the sector and Top 20 filters (same as the tables)
+  const topPass = useTopPass()
   const counts = useMemo(() => {
     const need = trendNeed(tfs)
-    const c = { trend: data ? trendRows(data.rows, settings).filter(r => (universe === 'all' || r.fo) && r.score === need).length : null }
-    for (const id of ['bull', 'bear', 'btst']) c[id] = data ? scanRows(data.rows, id).filter(r => r.met === SCANS[id].conds.length).length : null
+    const c = { trend: data ? topPass(trendRows(data.rows, settings).filter(r => (universe === 'all' || r.fo) && r.score === need)).length : null }
+    for (const id of ['bull', 'bear', 'btst']) c[id] = data ? topPass(scanRows(data.rows, id).filter(r => r.met === SCANS[id].conds.length)).length : null
     return c
-  }, [data, dir, tfs, rsiMin, adxMin, universe])
+  }, [data, dir, tfs, rsiMin, adxMin, universe, topPass])
   const [volList, setVolList] = useSessionState('vol.list', 'fo')
   const vol = usePoll(() => api('/api/volscan'), tab === 'vol' ? 60000 : 300000, [tab === 'vol'])
-  const tabCounts = { ...counts, vol: vol.data ? volHits(vol.data, volList).length : null }
+  const tabCounts = { ...counts, vol: vol.data ? topPass(volHits(vol.data, volList)).length : null }
   const cyc = data?.cycle
   return <div className="trend-page">
     <div className="page-title"><h1>Intraday Scanner</h1>
