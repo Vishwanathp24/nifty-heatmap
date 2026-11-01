@@ -193,7 +193,7 @@ function App() {
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
   }, [])
-  const [fullData, setFullData] = usePersistentState('fullData', false)  // phones: original full panels instead of small cards
+  const [fullData, setFullData] = usePersistentState('fullData', false)  // phones / tablets: original full panels instead of small cards
   const [mode, setMode] = useState('advanced')  // every visit opens Advanced; Basic lasts until the page is reloaded
   const basic = mode === 'basic'
   useEffect(() => { if (basic && !BASIC_PAGES.includes(page)) setPage('overview') }, [basic, page])
@@ -263,8 +263,8 @@ function App() {
         {[['basic', 'Basic'], ['advanced', 'Advanced']].map(([v, l]) => <button key={v} className={mode === v ? 'on' : ''} onClick={() => setMode(v)}
           title={v === 'basic' ? 'Simple view: Market Overview, Sector Heatmap and ORB Scanner only' : 'Full view: every scanner, chart and tool'}>{l}</button>)}
       </div>
-      <button className={'full-toggle m-only' + (fullData ? ' on' : '')} role="switch" aria-checked={fullData} onClick={() => setFullData(f => !f)}
-        title="Phones: show the full data panels (as in the first version) instead of the small cards"><i />Full data</button>
+      <button className={'full-toggle' + (fullData ? ' on' : '')} role="switch" aria-checked={fullData} onClick={() => setFullData(f => !f)}
+        title="Phones and tablets: show the full data panels (as in the first version) instead of the small cards"><i />Full data</button>
       <nav className="hdr-nav">
         {navPages.map(p => <a key={p.id} href={PATHS[p.id]} className={page === p.id ? 'active' : ''} onClick={e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); setPage(p.id) }}>
           {p.label}
@@ -287,7 +287,7 @@ function App() {
         <BreadthPill label="F&O" b={live.data?.breadth?.fo} />
         {page === 'journal' && <div id="journal-account-slot" className="mini-slot" />}  {/* Journal puts its sign-in / saved status here */}
       </div>}
-      {page === 'overview' && <div className="d-only"><PcrMeter /></div>}  {/* full PCR bar on Market Overview (phones use the pills) */}
+      {page === 'overview' && <div className="c-hide"><PcrMeter /></div>}  {/* full PCR + Expected Move cards on Market Overview (compact view uses the small cards) */}
       {page === 'overview' && <Overview live={live.data} ctx={ctx.data} />}
       {page === 'heatmap' && <Heatmap live={live.data} selected={selected} setSelected={setSelected} toggle={toggleSector} goto={setPage} />}
       <Suspense fallback={<div className="empty">Loading…</div>}>
