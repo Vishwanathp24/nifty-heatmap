@@ -38,17 +38,6 @@ export function usePcr() {
   return d && isNum(v) ? { v, zone: pcrZone(v), expiry: e.expiry_ist.split(',')[0], all: d.pcr_oi, at: d.fetched_at, ...levels(d, e) } : null
 }
 
-// Expected move to the nearest Nifty expiry, from the at-the-money implied volatility (±1 standard
-// deviation: roughly a 2-in-3 chance Nifty ends inside the range). Card in Market Overview > Indian Markets.
-// Pill beside Nifty PCR (OI): Nifty's expected move to the nearest expiry from ATM implied volatility.
-export function ExpectedMovePill({ d }) {
-  const e = d?.expiries?.[0]
-  if (!e || !isNum(e.move) || !isNum(d.spot)) return null
-  const k = v => Math.round(v).toLocaleString('en-IN')
-  return <span className="pcr-pill em-pill" title="From option prices (at-the-money implied volatility): about a 2-in-3 chance Nifty ends this expiry inside the range. Not a prediction.">
-    Expected Move ±{k(e.move)} (±{e.move_pct.toFixed(2)}%) · {k(d.spot - e.move)} – {k(d.spot + e.move)} · to {e.expiry_ist.split(',')[0].split(' ').slice(0, 2).join(' ')}</span>
-}
-
 // Support / resistance from the option chain: strike with the highest put OI (support) and call OI
 // (resistance) for the nearest expiry.
 function levels(d, e) {
@@ -101,7 +90,7 @@ export function PcrDecision({ p }) {
 }
 
 // Meter shown on every page except Crypto: Nifty PCR for the nearest expiry, zone bar and meaning.
-export function PcrMeter({ compact = false, em = false }) {
+export function PcrMeter({ compact = false }) {
   const res = usePoll(() => api('/api/index-options?symbol=NIFTY'), 60000, [])
   const [open, setOpen] = useState(false)
   const d = res.data
@@ -112,7 +101,7 @@ export function PcrMeter({ compact = false, em = false }) {
   const pos = Math.max(0, Math.min(100, (v - 0.4) / (1.9 - 0.4) * 100))  // scale 0.4 … 1.9
   if (compact) return <span className={'pcr-mini ' + z.tone} title={z.text}>
     <span className="pcr-k">Nifty PCR (OI)</span> <b className="pcr-v">{v.toFixed(2)}</b> <span className={'pcr-pill ' + z.tone}>{z.label}</span>
-    <span className="pcr-bar">{[0.7, 1.0, 1.3, 1.5].map(t => <i key={t} className="pcr-tick" style={{ left: (t - 0.4) / 1.5 * 100 + '%' }} />)}<i className="pcr-mark" style={{ left: pos + '%' }} /></span>{em && <ExpectedMovePill d={d} />}</span>
+    <span className="pcr-bar">{[0.7, 1.0, 1.3, 1.5].map(t => <i key={t} className="pcr-tick" style={{ left: (t - 0.4) / 1.5 * 100 + '%' }} />)}<i className="pcr-mark" style={{ left: pos + '%' }} /></span></span>
   const k = n => Math.round(n).toLocaleString('en-IN')
   const ok = isNum(e.move) && isNum(d.spot)
   return <div className="pcr-row">
@@ -139,6 +128,39 @@ export function PcrMeter({ compact = false, em = false }) {
       </div>
     </div>
     {open && <div className={'pcr-meter ' + z.tone}><PcrGuide /><PcrDecision p={{ v, ...levels(d, e), expiry: e.expiry_ist.split(',')[0] }} /></div>}
+  </div>
+}
+
+// Phones: the top strip as small 2-line cards (name, then value), 2 per row: Market Bias, Nifty OI
+// Change, Nifty PCR (OI), Expected Move, Nifty 50 and F&O breadth, FII and DII net (last data date).
+export function MiniCards({ bias, breadth, fiiDii }) {
+  const res = usePoll(() => api('/api/index-options?symbol=NIFTY'), 60000, [])
+  const { s } = useOiChange()
+  const d = res.data, e = d?.expiries?.[0], v = e?.pcr_oi, z = pcrZone(v)
+  const k = n => Math.round(n).toLocaleString('en-IN')
+  const em = e && isNum(e.move) && isNum(d.spot)
+  const b = bias?.label
+  const sign = n => n > 0 ? 'up' : n < 0 ? 'down' : 'amber'
+  const card = (key, tone, label, value, title) => <div key={key} className={'mcard ' + (tone || '')} title={title}>
+    <div className="mk">{label}</div><div className="mv">{value}</div></div>
+  const breadthCard = (label, x) => x && card(label, !isNum(x.ad_ratio) ? 'amber' : sign(x.ad_ratio - 1), label + ' Breadth',
+    <>{x.up}↑ {x.down}↓ <small>A/D {isNum(x.ad_ratio) ? x.ad_ratio.toFixed(2) : 'N/A'}</small></>,
+    `${label} breadth vs previous close: ${x.up} advancing, ${x.down} declining, ${x.unchanged} unchanged`)
+  const flowCard = (label, x) => x && isNum(x.net) && card(label, sign(x.net), `${label} · ${x.date.split('-').slice(0, 2).join(' ')}`,
+    <>{x.net > 0 ? '+' : x.net < 0 ? '−' : ''}{Math.abs(x.net).toLocaleString('en-IN', { maximumFractionDigits: 0 })} <small>Cr net</small></>,
+    `${label} cash market, provisional (NSE), data date ${x.date}: bought ₹${k(x.buy)} Cr, sold ₹${k(x.sell)} Cr`)
+  return <div className="mini-cards c-only">
+    {card('bias', b === 'BULLISH' ? 'up' : b === 'BEARISH' ? 'down' : 'amber', 'Market Bias',
+      <>{b || 'N/A'} {isNum(bias?.score) && <small>{bias.score > 0 ? '+' : ''}{bias.score} / 5</small>}</>)}
+    {card('oi', s && { bull: 'up', bear: 'down' }[s.sent.key] || (s ? 'amber' : ''), 'Nifty OI Change',
+      <>{s ? s.sent.label : '—'} {s && isNum(s.sent.pct) && <small>{s.sent.key === 'bear' ? 'calls' : 'puts'} {s.sent.pct}%</small>}</>, s?.sent.why)}
+    {card('pcr', z?.tone, 'Nifty PCR (OI)', <>{z ? v.toFixed(2) : '—'} {z && <small>{z.label.split(' / ')[0]}</small>}</>, z ? `${z.label}: ${z.text}` : undefined)}
+    {card('em', 'em', 'Expected Move', em ? <>±{k(e.move)} <small>{k(d.spot - e.move)}–{k(d.spot + e.move)}</small></> : '—',
+      'From option prices (at-the-money implied volatility): about a 2-in-3 chance Nifty ends this expiry inside the range. Not a prediction.')}
+    {breadthCard('Nifty 50', breadth?.nifty50)}
+    {breadthCard('F&O', breadth?.fo)}
+    {flowCard('FII', fiiDii?.fii)}
+    {flowCard('DII', fiiDii?.dii)}
   </div>
 }
 

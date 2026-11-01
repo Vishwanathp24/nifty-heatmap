@@ -1402,8 +1402,6 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
 @media (max-width: 1100px) { .cards.four.idx-five.idx-six { grid-template-columns: repeat(3, minmax(0, 1fr)) } }
 @media (max-width: 480px) { .cards.four.idx-five.idx-six { grid-template-columns: repeat(2, minmax(0, 1fr)) !important } }
 .pcr-pill.em-pill { background: var(--chip, rgba(120,120,140,.12)); color: var(--text); font-weight: 600; white-space: nowrap }
-.pcr-mini .pcr-pill.em-pill { padding: 1px 7px; font-size: 11px; margin-left: 6px }
-.pcr-mini .pcr-pill.em-pill::before { content: none }
 /* Market Overview top: Nifty PCR card + Expected Move card side by side */
 .pcr-row { margin: 0 0 10px }
 .pcr-row .pcr-meter { margin: 0 }
@@ -1413,3 +1411,53 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
 .pcr-meter.em { border-left-color: var(--accent); background: rgba(37, 99, 235, .07) }
 .pcr-meter.em .pcr-pill.em-pill { background: rgba(37, 99, 235, .14); color: var(--accent) }
 .pcr-sub { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 12px; margin-top: 4px }
+/* Phones: top strip as small cards (MiniCards in Pcr.jsx); the desktop pill strip keeps only the Journal slot */
+@media (max-width: 600px) { .app:not(.full-data) .mini-strip > :not(.mini-slot) { display: none !important } .app:not(.full-data) .mini-strip:not(:has(.mini-slot)) { display: none } }
+/* Full data toggle (phones): c-only = compact view only, c-hide = hidden in the compact view */
+@media (min-width: 601px) { .c-only { display: none !important } }
+.full-data .c-only { display: none !important }
+@media (max-width: 600px) { .app:not(.full-data) .c-hide { display: none !important } .full-data .hm-cards { display: grid !important } }
+.full-toggle { display: inline-flex; align-items: center; gap: 6px; margin: 6px 0 6px 8px; padding: 4px 10px 4px 6px; font-size: 12px; font-weight: 600; color: #c9ced8;
+  background: transparent; border: 1px solid rgba(255,255,255,.35); border-radius: 999px; cursor: pointer }
+.full-toggle i { position: relative; width: 26px; height: 15px; border-radius: 999px; background: rgba(255,255,255,.25); transition: background .15s }
+.full-toggle i::after { content: ''; position: absolute; top: 2px; left: 2px; width: 11px; height: 11px; border-radius: 50%; background: #fff; transition: left .15s }
+.full-toggle.on { color: #fff } .full-toggle.on i { background: var(--up) } .full-toggle.on i::after { left: 13px }
+.mini-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 0 0 10px }
+.mcard { min-width: 0; padding: 6px 10px; border: 1px solid var(--border); border-left: 4px solid var(--border-strong); border-radius: 12px; background: var(--panel); line-height: 1.3 }
+.mcard .mk { font-size: 10.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.mcard .mv { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.mcard .mv small { font-size: 11px; font-weight: 600; opacity: .75; margin-left: 2px }
+.mcard .mn { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.mcard.up { background: var(--up-bg); border-color: #bfe3cd; border-left-color: var(--up) } .mcard.up .mv { color: var(--up) }
+.mcard.down { background: var(--down-bg); border-color: #efc6c6; border-left-color: var(--down) } .mcard.down .mv { color: var(--down) }
+.mcard.amber { background: var(--amber-bg); border-color: #f0dcb3; border-left-color: var(--amber) } .mcard.amber .mv { color: var(--amber) }
+.mcard.em { background: rgba(37, 99, 235, .07); border-color: rgba(37, 99, 235, .25); border-left-color: var(--accent) } .mcard.em .mv { color: var(--accent) }
+/* Phones: Global Cues and Indian Markets as small 2-line cards like the top ones (name, then value + % change) */
+@media (max-width: 600px) {
+  .app:not(.full-data) .ov .cues .cards.six, .app:not(.full-data) .ov .idx-section > .cards { grid-template-columns: 1fr 1fr !important; gap: 6px !important; grid-auto-rows: auto !important }
+  .app:not(.full-data) .ov .cues .card, .app:not(.full-data) .ov .idx-section .card { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: baseline; column-gap: 6px;
+    padding: 6px 10px; border-radius: 12px; line-height: 1.3 }
+  .app:not(.full-data) .ov .cues .card-k, .app:not(.full-data) .ov .idx-section .card-k { grid-column: 1 / -1; font-size: 10.5px; text-transform: uppercase; letter-spacing: .02em; color: var(--muted); align-items: center }
+  .app:not(.full-data) .ov .cues .card-k .status-tag, .app:not(.full-data) .ov .idx-section .card-k .vix-tag { font-size: 9.5px; padding: 0 5px; text-transform: none; letter-spacing: 0 }
+  .app:not(.full-data) .ov .cues .card-v, .app:not(.full-data) .ov .idx-section .card-v { font-size: 15px; font-weight: 700; margin: 0 }
+  .app:not(.full-data) .ov .cues .card-d, .app:not(.full-data) .ov .idx-section .card-d { font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+  .app:not(.full-data) .ov .cues .card-d:not(.muted), .app:not(.full-data) .ov .idx-section .card-d:not(.muted) { font-size: 0 }  /* keep only the % change */
+  .app:not(.full-data) .ov .cues .card-d:not(.muted) span, .app:not(.full-data) .ov .idx-section .card-d:not(.muted) span { font-size: 11px; margin: 0 }
+  .app:not(.full-data) .ov .cues .card-n, .app:not(.full-data) .ov .idx-section .card-n { display: none }
+}
+.card-k .ck-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+@media (max-width: 600px) { .app:not(.full-data) .ov .idx-section .card-k { letter-spacing: 0 } .app:not(.full-data) .ov .idx-section .card-k .vix-tag { flex: none } }
+/* Phones: Sector Heatmap tiles as small 2-line cards: [select] name [chart] / % change · value · up↓down */
+@media (max-width: 600px) {
+  .app:not(.full-data) .heatmap { gap: 6px !important }
+  .app:not(.full-data) .heatmap .tile { min-height: 0; padding: 6px 8px; border-radius: 12px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: baseline; column-gap: 6px; row-gap: 2px }
+  .app:not(.full-data) .heatmap .tile-head { grid-column: 1 / -1; align-items: center; gap: 5px }
+  .app:not(.full-data) .heatmap .tile-name { font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+  .app:not(.full-data) .heatmap .sel-box { width: 18px; height: 18px; margin: 0; font-size: 11px }
+  .app:not(.full-data) .heatmap .chart-icon { width: 18px; height: 18px; font-size: 10px }
+  .app:not(.full-data) .heatmap .tile-pct { order: 1; font-size: 15px }
+  .app:not(.full-data) .heatmap .tile-pct small { display: none }
+  .app:not(.full-data) .heatmap .tile-val { order: 2; font-size: 11px; font-weight: 600; margin: 0; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+  .app:not(.full-data) .heatmap .tile-foot { order: 3; margin: 0; font-size: 10.5px }
+  .app:not(.full-data) .heatmap .tile-foot > span:first-child { display: none }
+}

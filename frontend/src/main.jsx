@@ -7,7 +7,7 @@ import { BiasPill, BreadthPill, StockChartCtx, TopMoversCtx } from './components
 import Overview from './Overview.jsx'
 import Heatmap from './Heatmap.jsx'
 import Scanner, { DEFAULT_FILTERS, filterRows } from './Scanner.jsx'
-import { OiPill, PcrMeter } from './Pcr.jsx'
+import { MiniCards, OiPill, PcrMeter } from './Pcr.jsx'
 import { PageHowTo } from './guides.jsx'
 // Pages loaded only when opened (smaller first download)
 const Crypto = lazy(() => import('./Crypto.jsx'))
@@ -193,6 +193,7 @@ function App() {
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
   }, [])
+  const [fullData, setFullData] = usePersistentState('fullData', false)  // phones: original full panels instead of small cards
   const [mode, setMode] = useState('advanced')  // every visit opens Advanced; Basic lasts until the page is reloaded
   const basic = mode === 'basic'
   useEffect(() => { if (basic && !BASIC_PAGES.includes(page)) setPage('overview') }, [basic, page])
@@ -254,7 +255,7 @@ function App() {
     setChartReq(n => n + 1); setMode('advanced'); setPage('trend'); window.scrollTo({ top: 0 })  // the Live Chart is an Advanced page
   }, [])
 
-  return <StockChartCtx.Provider value={openStockChart}><TopMoversCtx.Provider value={topMovers}><div className="app tab-app">
+  return <StockChartCtx.Provider value={openStockChart}><TopMoversCtx.Provider value={topMovers}><div className={'app tab-app' + (fullData ? ' full-data' : '')}>
     <header className="hdr">
       <button className="hdr-brand" onClick={() => { setPage('overview'); window.scrollTo({ top: 0 }) }} title="Go to homepage (Market Overview)">
         <span>NSE Sector Heatmap</span></button>
@@ -262,6 +263,8 @@ function App() {
         {[['basic', 'Basic'], ['advanced', 'Advanced']].map(([v, l]) => <button key={v} className={mode === v ? 'on' : ''} onClick={() => setMode(v)}
           title={v === 'basic' ? 'Simple view: Market Overview, Sector Heatmap and ORB Scanner only' : 'Full view: every scanner, chart and tool'}>{l}</button>)}
       </div>
+      <button className={'full-toggle m-only' + (fullData ? ' on' : '')} role="switch" aria-checked={fullData} onClick={() => setFullData(f => !f)}
+        title="Phones: show the full data panels (as in the first version) instead of the small cards"><i />Full data</button>
       <nav className="hdr-nav">
         {navPages.map(p => <a key={p.id} href={PATHS[p.id]} className={page === p.id ? 'active' : ''} onClick={e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); setPage(p.id) }}>
           {p.label}
@@ -273,10 +276,12 @@ function App() {
     </header>
     <main className="page">
       {live.error && !live.data && <div className="alert">{live.error}</div>}
-      {/* Other pages: compact strip — Market Bias, Nifty PCR, Nifty OI Change and breadth pills */}
-      {page !== 'crypto' && <div className={'mini-strip' + (page === 'overview' || page === 'heatmap' ? ' m-only' : '')}>  {/* Overview / Heatmap show these as full panels on desktop */}
+      {/* Phones (compact view): Market Bias, OI Change, PCR, Expected Move, breadth and FII / DII as small cards */}
+      {page !== 'crypto' && <MiniCards bias={live.data?.bias} breadth={live.data?.breadth} fiiDii={ctx.data?.fii_dii?.data} />}
+      {/* Pills strip: Overview / Heatmap show full panels on desktop, so there it is for phones in Full data view only */}
+      {page !== 'crypto' && <div className={'mini-strip' + (page === 'overview' || page === 'heatmap' ? ' m-only' : '')}>
         <BiasPill bias={live.data?.bias} />
-        <PcrMeter compact em={page === 'overview'} />
+        <PcrMeter compact />
         <OiPill />
         <BreadthPill label="Nifty 50" b={live.data?.breadth?.nifty50} />
         <BreadthPill label="F&O" b={live.data?.breadth?.fo} />

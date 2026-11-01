@@ -228,7 +228,8 @@ export default function Heatmap({ live, selected, setSelected, toggle, goto }) {
             <span className="tile-name">{s.symbol}</span>
             <ChartIcon name={s.symbol} />
           </div>
-          <div className="tile-val">{fmtNum(s.quote?.ltp)}</div>
+          <div className="tile-val"><span className="c-hide">{fmtNum(s.quote?.ltp)}</span>
+            <span className="c-only">{isNum(s.quote?.ltp) ? Math.round(s.quote.ltp).toLocaleString('en-IN') : '—'}</span></div>
           <div className="tile-pct">{fmtPct(p)} <small>{BASIS_WORD[basis]}</small></div>
           <div className="tile-foot"><span>{basis === 'open' ? 'prev' : basis === 'prev' ? 'open' : 'today'} {fmtPct(other)}</span><span title="NSE advances / declines vs previous close (today)">{s.nse_breadth.up}↑ {s.nse_breadth.down}↓</span></div>
         </div>
