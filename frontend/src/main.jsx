@@ -276,7 +276,7 @@ function App() {
       {/* Other pages: compact strip — Market Bias, Nifty PCR, Nifty OI Change and breadth pills */}
       {page !== 'crypto' && <div className={'mini-strip' + (page === 'overview' || page === 'heatmap' ? ' m-only' : '')}>  {/* Overview / Heatmap show these as full panels on desktop */}
         <BiasPill bias={live.data?.bias} />
-        <PcrMeter compact />
+        <PcrMeter compact em={page === 'overview'} />
         <OiPill />
         <BreadthPill label="Nifty 50" b={live.data?.breadth?.nifty50} />
         <BreadthPill label="F&O" b={live.data?.breadth?.fo} />

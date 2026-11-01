@@ -1398,3 +1398,18 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
 .cards + .muted.small, .heatmap + .muted.small, .section + .muted.small { margin-top: 10px; margin-bottom: 12px }
 .vol-dir .count { font-family: var(--mono); font-size: 11px; background: var(--panel-2); border-radius: 3px; padding: 0 5px; margin-left: 4px; color: var(--ink-2) }
 .vol-dir button.on .count { background: rgba(255,255,255,.18); color: #fff }
+.cards.four.idx-five.idx-six { grid-template-columns: repeat(6, minmax(0, 1fr)) }
+@media (max-width: 1100px) { .cards.four.idx-five.idx-six { grid-template-columns: repeat(3, minmax(0, 1fr)) } }
+@media (max-width: 480px) { .cards.four.idx-five.idx-six { grid-template-columns: repeat(2, minmax(0, 1fr)) !important } }
+.pcr-pill.em-pill { background: var(--chip, rgba(120,120,140,.12)); color: var(--text); font-weight: 600; white-space: nowrap }
+.pcr-mini .pcr-pill.em-pill { padding: 1px 7px; font-size: 11px; margin-left: 6px }
+.pcr-mini .pcr-pill.em-pill::before { content: none }
+/* Market Overview top: Nifty PCR card + Expected Move card side by side */
+.pcr-row { margin: 0 0 10px }
+.pcr-row .pcr-meter { margin: 0 }
+.pcr-row > .pcr-meter { margin-top: 10px }
+.pcr-two { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 10px }
+.pcr-meter.tinted.up { background: var(--up-bg) } .pcr-meter.tinted.down { background: var(--down-bg) } .pcr-meter.tinted.amber { background: var(--amber-bg) }
+.pcr-meter.em { border-left-color: var(--accent); background: rgba(37, 99, 235, .07) }
+.pcr-meter.em .pcr-pill.em-pill { background: rgba(37, 99, 235, .14); color: var(--accent) }
+.pcr-sub { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 12px; margin-top: 4px }

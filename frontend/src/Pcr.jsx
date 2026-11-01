@@ -40,17 +40,13 @@ export function usePcr() {
 
 // Expected move to the nearest Nifty expiry, from the at-the-money implied volatility (±1 standard
 // deviation: roughly a 2-in-3 chance Nifty ends inside the range). Card in Market Overview > Indian Markets.
-export function ExpectedMoveCard() {
-  const res = usePoll(() => api('/api/index-options?symbol=NIFTY'), 60000, [])
-  const d = res.data, e = d?.expiries?.[0]
+// Pill beside Nifty PCR (OI): Nifty's expected move to the nearest expiry from ATM implied volatility.
+export function ExpectedMovePill({ d }) {
+  const e = d?.expiries?.[0]
+  if (!e || !isNum(e.move) || !isNum(d.spot)) return null
   const k = v => Math.round(v).toLocaleString('en-IN')
-  const ok = e && isNum(e.move) && isNum(d.spot)
-  return <div className="card" title="From option prices (at-the-money implied volatility): about a 2-in-3 chance Nifty ends this expiry inside the range. Not a prediction.">
-    <div className="card-k">Expected Move{e ? ' · ' + e.expiry_ist.split(',')[0] : ''}</div>
-    <div className="card-v">{ok ? '±' + k(e.move) : '—'}</div>
-    <div className="card-d muted">{ok ? `±${e.move_pct.toFixed(2)}% · ${k(d.spot - e.move)} – ${k(d.spot + e.move)}` : res.error ? 'Option data unavailable' : 'Loading…'}</div>
-    <div className="card-n">Nifty range to expiry (options)</div>
-  </div>
+  return <span className="pcr-pill em-pill" title="From option prices (at-the-money implied volatility): about a 2-in-3 chance Nifty ends this expiry inside the range. Not a prediction.">
+    Expected Move ±{k(e.move)} (±{e.move_pct.toFixed(2)}%) · {k(d.spot - e.move)} – {k(d.spot + e.move)} · to {e.expiry_ist.split(',')[0].split(' ').slice(0, 2).join(' ')}</span>
 }
 
 // Support / resistance from the option chain: strike with the highest put OI (support) and call OI
@@ -105,7 +101,7 @@ export function PcrDecision({ p }) {
 }
 
 // Meter shown on every page except Crypto: Nifty PCR for the nearest expiry, zone bar and meaning.
-export function PcrMeter({ compact = false }) {
+export function PcrMeter({ compact = false, em = false }) {
   const res = usePoll(() => api('/api/index-options?symbol=NIFTY'), 60000, [])
   const [open, setOpen] = useState(false)
   const d = res.data
@@ -116,20 +112,33 @@ export function PcrMeter({ compact = false }) {
   const pos = Math.max(0, Math.min(100, (v - 0.4) / (1.9 - 0.4) * 100))  // scale 0.4 … 1.9
   if (compact) return <span className={'pcr-mini ' + z.tone} title={z.text}>
     <span className="pcr-k">Nifty PCR (OI)</span> <b className="pcr-v">{v.toFixed(2)}</b> <span className={'pcr-pill ' + z.tone}>{z.label}</span>
-    <span className="pcr-bar">{[0.7, 1.0, 1.3, 1.5].map(t => <i key={t} className="pcr-tick" style={{ left: (t - 0.4) / 1.5 * 100 + '%' }} />)}<i className="pcr-mark" style={{ left: pos + '%' }} /></span></span>
-  return <div className={'pcr-meter ' + z.tone}>
-    <div className="pcr-main">
-      <span className="pcr-k">Nifty PCR (OI)</span>
-      <b className="pcr-v">{v.toFixed(2)}</b>
-      <span className={'pcr-pill ' + z.tone}>{z.label}</span>
-      <span className="pcr-bar" title="< 0.7 oversold · 0.7–1.0 bearish→neutral · 1.0–1.3 healthy bullish · 1.3–1.5 strong · > 1.5 overbought">
-        {[0.7, 1.0, 1.3, 1.5].map(t => <i key={t} className="pcr-tick" style={{ left: (t - 0.4) / 1.5 * 100 + '%' }} />)}
-        <i className="pcr-mark" style={{ left: pos + '%' }} /></span>
-      <span className="pcr-text muted small">{z.text}</span>
-      <span className="muted small">Expiry {e.expiry_ist.split(',')[0]} · all expiries {d.pcr_oi ?? '—'} · {istTime(d.fetched_at)} IST</span>
-      <button className="btn sm" onClick={() => setOpen(o => !o)}>{open ? 'Hide' : 'What is PCR?'}</button>
+    <span className="pcr-bar">{[0.7, 1.0, 1.3, 1.5].map(t => <i key={t} className="pcr-tick" style={{ left: (t - 0.4) / 1.5 * 100 + '%' }} />)}<i className="pcr-mark" style={{ left: pos + '%' }} /></span>{em && <ExpectedMovePill d={d} />}</span>
+  const k = n => Math.round(n).toLocaleString('en-IN')
+  const ok = isNum(e.move) && isNum(d.spot)
+  return <div className="pcr-row">
+    <div className="pcr-two">
+      <div className={'pcr-meter tinted ' + z.tone}>
+        <div className="pcr-main">
+          <span className="pcr-k">Nifty PCR (OI)</span>
+          <b className="pcr-v">{v.toFixed(2)}</b>
+          <span className={'pcr-pill ' + z.tone}>{z.label}</span>
+          <span className="pcr-bar" title="< 0.7 oversold · 0.7–1.0 bearish→neutral · 1.0–1.3 healthy bullish · 1.3–1.5 strong · > 1.5 overbought">
+            {[0.7, 1.0, 1.3, 1.5].map(t => <i key={t} className="pcr-tick" style={{ left: (t - 0.4) / 1.5 * 100 + '%' }} />)}
+            <i className="pcr-mark" style={{ left: pos + '%' }} /></span>
+          <button className="btn sm" onClick={() => setOpen(o => !o)}>{open ? 'Hide' : 'What is PCR?'}</button>
+        </div>
+        <div className="pcr-sub"><span className="pcr-text muted small">{z.text}</span>
+          <span className="muted small">Expiry {e.expiry_ist.split(',')[0]} · all expiries {d.pcr_oi ?? '—'} · {istTime(d.fetched_at)} IST</span></div>
+      </div>
+      <div className="pcr-meter tinted em" title="From option prices (at-the-money implied volatility): about a 2-in-3 chance Nifty ends this expiry inside the range. Not a prediction.">
+        <div className="pcr-main"><span className="pcr-k">Expected Move</span>
+          <b className="pcr-v">{ok ? '±' + k(e.move) : '—'}</b>
+          {ok && <span className="pcr-pill em-pill">±{e.move_pct.toFixed(2)}%</span>}</div>
+        <div className="pcr-sub"><span className="small"><b>{ok ? `${k(d.spot - e.move)} – ${k(d.spot + e.move)}` : ''}</b></span>
+          <span className="muted small">Nifty range to expiry {e.expiry_ist.split(',')[0]} (options)</span></div>
+      </div>
     </div>
-    {open && <><PcrGuide /><PcrDecision p={{ v, ...levels(d, e), expiry: e.expiry_ist.split(',')[0] }} /></>}
+    {open && <div className={'pcr-meter ' + z.tone}><PcrGuide /><PcrDecision p={{ v, ...levels(d, e), expiry: e.expiry_ist.split(',')[0] }} /></div>}
   </div>
 }
 

@@ -132,6 +132,30 @@ def constituents(index_symbol):
     return index_row, stocks
 
 
+def preopen():
+    """Pre-open session (9:00-9:08 IST) for Nifty 50 and F&O stocks. Each group's estimate is its members'
+    pre-open % changes weighted by free-float market cap (how Nifty itself is weighted)."""
+    from config import FO_INDEX
+    d = nse.get(NSE_API + "market-data-pre-open?key=FO")
+    rows = d.get("data") or []
+    if not rows:
+        raise SourceError("no pre-open data")
+    chg = {r["metadata"]["symbol"]: f(r["metadata"].get("pChange")) for r in rows}
+
+    def group(index_symbol):
+        _, quotes = constituents(index_symbol)
+        members = [(s, chg[s], q.get("ffmc") or 0) for s, q in quotes.items() if chg.get(s) is not None]
+        weight = sum(w for _, _, w in members)
+        ranked = sorted(members, key=lambda m: m[1])
+        return {"up": sum(p > 0 for _, p, _ in members), "down": sum(p < 0 for _, p, _ in members),
+                "unchanged": sum(p == 0 for _, p, _ in members),
+                "est_pct": round(sum(p * w for _, p, w in members) / weight, 2) if weight else None,
+                "gainers": [[s, p] for s, p, _ in ranked[::-1][:3] if p > 0],
+                "losers": [[s, p] for s, p, _ in ranked[:3] if p < 0]}
+
+    return {"at": d.get("timestamp"), "nifty50": group("NIFTY 50"), "fo": group(FO_INDEX)}
+
+
 def minute_series(symbol):
     """Today's (or the last session's) normal-market per-minute prices:
     [(date, minute_of_day, price)]. NSE encodes IST clock time as a UTC epoch."""

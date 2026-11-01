@@ -146,6 +146,7 @@ def _global():
 
 _global_cues = Cached(60, _global)
 _fii = Cached(600, sources.fii_dii)
+_preopen = Cached(60, sources.preopen)
 _sector_cache = {}
 
 
@@ -491,6 +492,12 @@ vol_scan = VolumeScan()
 def trend():
     """Trend Scan tab: VWAP, EMA 5/9, Supertrend, RSI, ADX/DI on 15-min and 1-hour candles."""
     return trend_scan.snapshot()
+
+
+@app.get("/api/preopen")
+def preopen():
+    """Market Overview > Indian Markets: NSE pre-open session (F&O stocks + Nifty 50 estimate)."""
+    return _preopen.get()
 
 
 @app.get("/api/volscan")

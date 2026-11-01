@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from 'react'
 import { BreadthBar, Empty, IndexLink, Pct, Section, StockLink } from './components.jsx'
-import { ExpectedMoveCard, OiChange, useOiChange } from './Pcr.jsx'
+import { OiChange, useOiChange } from './Pcr.jsx'
 import { PageGuide } from './guides.jsx'
-import { fmtCr, fmtNum, fmtPct, fmtRatio, fmtSigned, fmtVol, istDate, istTime, isNum, nseTs, tone, tvStock, tvSymbol, useClock } from './lib.js'
+import { api, fmtCr, fmtNum, fmtPct, fmtRatio, fmtSigned, fmtVol, istDate, istTime, isNum, nseTs, tone, tvStock, tvSymbol, useClock, usePoll } from './lib.js'
 
 const biasClass = l => l === 'BULLISH' ? 'bull' : l === 'BEARISH' ? 'bear' : 'neutral'
 
@@ -43,14 +43,33 @@ export function IndexCard({ name, label, q, vix }) {
   </div>
 }
 
+// NSE pre-open session (9:00-9:08 IST): each card's estimate = its stocks' pre-open % change weighted by
+// free-float market cap (how Nifty is weighted). Stays on the last session's pre-open until the next one.
+const GAP = 0.25  // % beyond which the open counts as a gap
+function PreOpenCard({ res, which, label }) {
+  const d = res.data?.data, g = d?.[which], p = g?.est_pct
+  const [day, time] = (d?.at || '').split(' ')
+  const gap = !isNum(p) ? null : p > GAP ? ['Gap up', 'bull'] : p < -GAP ? ['Gap down', 'bear'] : ['Flat', 'neutral']
+  const list = xs => xs.map(([s, v]) => `${s} ${fmtPct(v)}`).join(', ') || 'none'
+  return <div className={'card tinted ' + tone(p)}
+    title={g ? `${label} pre-open ${d.at} IST · top gainers: ${list(g.gainers)} · losers: ${list(g.losers)}. Estimate only: the real open can differ.` : undefined}>
+    <div className="card-k">Pre-Open {label}{gap && <span className={'vix-tag ' + gap[1]}>{gap[0]}</span>}</div>
+    <div className={'card-v ' + tone(p)}>{isNum(p) ? fmtPct(p) : '—'}</div>
+    <div className="card-d muted">{g ? `${g.up} up · ${g.down} down · ${g.unchanged} unch` : res.error || res.data?.error ? 'Pre-open data unavailable' : 'Loading…'}</div>
+    <div className="card-n">{d ? `${day.split('-').slice(0, 2).join(' ')} · ${time?.slice(0, 5)} IST (9:00–9:08)` : 'NSE pre-open, 9:00–9:08 IST'}</div>
+  </div>
+}
+
 function SummaryCards({ live }) {
   const { indices } = live
-  return <div className="cards four idx-five">
+  const pre = usePoll(() => api('/api/preopen'), 60000, [])
+  return <div className="cards four idx-five idx-six">
+    <PreOpenCard res={pre} which="nifty50" label="Nifty 50" />
+    <PreOpenCard res={pre} which="fo" label="F&O" />
     <IndexCard name="INDIA VIX" label="India VIX" q={indices.indiavix} vix />
     <IndexCard name="NIFTY 50" label="NIFTY 50" q={indices.nifty50} />
     <IndexCard name="NIFTY BANK" label="NIFTY BANK" q={indices.niftybank} />
     <IndexCard name="SENSEX" label="SENSEX" q={indices.sensex} />
-    <ExpectedMoveCard />
   </div>
 }
 
@@ -146,7 +165,8 @@ const HOW_TO = [
   ['🌍', 'Global Cues', 'How markets in other countries did. Like checking the weather in nearby towns before you go out. It is a hint, not a rule.'],
   ['📊', 'Nifty 50, Nifty Bank, Sensex', 'Each one is a "score" for a group of big Indian companies. Green and + means the score went up today. Red and − means it went down.'],
   ['😨', 'India VIX', 'The "fear meter". When it goes up, people are more worried. When it goes down, people are calmer.'],
-  ['📏', 'Expected Move', 'How far option traders expect Nifty to move by this expiry. ±234 means Nifty will probably stay between the two numbers shown, about 2 times out of 3. Higher fear (VIX) = a wider range. It shrinks as expiry gets closer.'],
+  ['📏', 'Expected Move (pill beside Nifty PCR)', 'How far option traders expect Nifty to move by this expiry. ±234 means Nifty will probably stay between the two numbers shown, about 2 times out of 3. Higher fear (VIX) = a wider range. It shrinks as expiry gets closer.'],
+  ['🌅', 'Pre-Open', 'NSE runs a short "warm-up" from 9:00 to 9:08 am where prices are set before the market opens. The two Pre-Open cards turn the warm-up prices of the Nifty 50 stocks and of the F&O stocks into one number each. Gap up = the day is likely to start higher than yesterday\'s close. Gap down = lower. Flat = about the same. It is only a starting hint: the market can turn after 9:15.'],
   ['🏦', 'FII / DII', 'What the big money did yesterday. FII = big foreign investors, DII = big Indian investors. + means they bought more than they sold. − means they sold more.'],
   ['🧮', 'Breadth (Nifty 50 and F&O)', 'Counts how many stocks went up and how many went down. Like a class test: if most students scored better, the class did well. If only the toppers did well, it was not a good day for everyone.'],
   ['🧭', 'Market Bias', 'A vote of 5 simple checks (Nifty, fear meter, and three up/down counts). Each check gives +1 or −1. Bullish = most checks are happy. Bearish = most checks are sad. Neutral = mixed.'],
@@ -215,7 +235,7 @@ export default function Overview({ live, ctx }) {
         <BreadthPanel card noStocks title="F&O Universe Breadth" subtitle="NSE stocks with F&O contracts · vs previous close" b={live.breadth.fo} rows={fo} showTotal />
       </div></FiiDii>
     </div>
-    <Section title="Indian Markets" subtitle="Indices, India VIX and Nifty's expected move · change vs previous close" className="idx-section"><SummaryCards live={live} /></Section>
+    <Section title="Indian Markets" subtitle="Pre-open, India VIX and indices · change vs previous close" className="idx-section"><SummaryCards live={live} /></Section>
     <div className="bias-row oi">
       <MarketBias bias={live.bias} />
       <OiChange nifty={live.indices.nifty50} />
