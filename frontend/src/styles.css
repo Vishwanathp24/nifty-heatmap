@@ -1413,11 +1413,11 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
 /* Phones: top strip as small cards (MiniCards in Pcr.jsx); the desktop pill strip keeps only the Journal slot */
 @media (max-width: 600px), (pointer: coarse) and (max-width: 1366px) { .app:not(.full-data) .mini-strip > :not(.mini-slot) { display: none !important } .app:not(.full-data) .mini-strip:not(:has(.mini-slot)) { display: none } }
 /* Compact view = phones and touch tablets (Full data switch off): c-only = compact view only, c-hide = hidden in it */
-.c-only, .full-toggle { display: none !important }
+.c-only, .f-only, .full-toggle { display: none !important }
 @media (max-width: 600px), (pointer: coarse) and (max-width: 1366px) {
   .app .full-toggle { display: inline-flex !important; align-self: center }
   .app:not(.full-data) .c-hide, .app:not(.full-data) .hm-cards { display: none !important }
-  .app:not(.full-data) .mini-cards.c-only { display: grid !important }
+  .app:not(.full-data) .mini-cards.c-only, .app.full-data .mini-cards.f-only { display: grid !important }
   .app:not(.full-data) span.c-only { display: inline !important }
 }
 .full-toggle { align-items: center; gap: 6px; margin: 6px 0 6px 8px; padding: 4px 10px 4px 6px; font-size: 12px; font-weight: 600; color: #c9ced8;
@@ -1490,3 +1490,7 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
   .app:not(.full-data) .mini-cards { grid-template-columns: repeat(8, minmax(0, 1fr)) }
   .app:not(.full-data) .ov .cues .cards.six, .app:not(.full-data) .ov .idx-section > .cards { grid-template-columns: repeat(6, minmax(0, 1fr)) !important }
 }
+/* Small cards on the other pages, every screen size: 8 in a row on desktop */
+.app .mini-cards.always { grid-template-columns: repeat(8, minmax(0, 1fr)) }
+@media (max-width: 1100px) { .app .mini-cards.always { grid-template-columns: repeat(4, minmax(0, 1fr)) } }
+@media (max-width: 600px) { .app .mini-cards.always { grid-template-columns: repeat(2, minmax(0, 1fr)) } }

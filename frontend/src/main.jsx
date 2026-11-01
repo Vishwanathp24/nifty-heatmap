@@ -3,11 +3,11 @@ import { createRoot } from 'react-dom/client'
 import './styles.css'
 import favicon from './icons/favicon-64.png'
 import { api, istDate, istTime, nseTs, setSessionValue, useClock, usePersistentState, useSessionState, usePoll } from './lib.js'
-import { BiasPill, BreadthPill, StockChartCtx, TopMoversCtx } from './components.jsx'
+import { StockChartCtx, TopMoversCtx } from './components.jsx'
 import Overview from './Overview.jsx'
 import Heatmap from './Heatmap.jsx'
 import Scanner, { DEFAULT_FILTERS, filterRows } from './Scanner.jsx'
-import { MiniCards, OiPill, PcrMeter } from './Pcr.jsx'
+import { MiniCards, PcrMeter } from './Pcr.jsx'
 import { PageHowTo } from './guides.jsx'
 // Pages loaded only when opened (smaller first download)
 const Crypto = lazy(() => import('./Crypto.jsx'))
@@ -276,17 +276,10 @@ function App() {
     </header>
     <main className="page">
       {live.error && !live.data && <div className="alert">{live.error}</div>}
-      {/* Phones (compact view): Market Bias, OI Change, PCR, Expected Move, breadth and FII / DII as small cards */}
-      {page !== 'crypto' && <MiniCards bias={live.data?.bias} breadth={live.data?.breadth} fiiDii={ctx.data?.fii_dii?.data} />}
-      {/* Pills strip on the other pages (Overview / Heatmap have the same data as full panels, or as the small cards) */}
-      {page !== 'crypto' && page !== 'overview' && page !== 'heatmap' && <div className="mini-strip">
-        <BiasPill bias={live.data?.bias} />
-        <PcrMeter compact />
-        <OiPill />
-        <BreadthPill label="Nifty 50" b={live.data?.breadth?.nifty50} />
-        <BreadthPill label="F&O" b={live.data?.breadth?.fo} />
-        {page === 'journal' && <div id="journal-account-slot" className="mini-slot" />}  {/* Journal puts its sign-in / saved status here */}
-      </div>}
+      {/* Market Bias, OI Change, PCR, Expected Move, breadth and FII / DII as small cards on every page except Crypto;
+          on Overview / Heatmap only in the phone / tablet views (desktop has the full panels) */}
+      {page !== 'crypto' && <MiniCards always={page !== 'overview' && page !== 'heatmap' ? true : fullData && 'full'} bias={live.data?.bias} breadth={live.data?.breadth} fiiDii={ctx.data?.fii_dii?.data} />}
+      {page === 'journal' && <div className="mini-strip"><div id="journal-account-slot" className="mini-slot" /></div>}  {/* Journal puts its sign-in / saved status here */}
       {page === 'overview' && <div className="c-hide"><PcrMeter /></div>}  {/* full PCR + Expected Move cards on Market Overview (compact view uses the small cards) */}
       {page === 'overview' && <Overview live={live.data} ctx={ctx.data} />}
       {page === 'heatmap' && <Heatmap live={live.data} selected={selected} setSelected={setSelected} toggle={toggleSector} goto={setPage} />}

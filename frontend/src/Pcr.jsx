@@ -131,9 +131,9 @@ export function PcrMeter({ compact = false }) {
   </div>
 }
 
-// Phones: the top strip as small 2-line cards (name, then value), 2 per row: Market Bias, Nifty OI
+// Top strip as small 2-line cards (name, then value), 2 per row: Market Bias, Nifty OI
 // Change, Nifty PCR (OI), Expected Move, Nifty 50 and F&O breadth, FII and DII net (last data date).
-export function MiniCards({ bias, breadth, fiiDii }) {
+export function MiniCards({ bias, breadth, fiiDii, always = false }) {
   const res = usePoll(() => api('/api/index-options?symbol=NIFTY'), 60000, [])
   const { s } = useOiChange()
   const d = res.data, e = d?.expiries?.[0], v = e?.pcr_oi, z = pcrZone(v)
@@ -149,7 +149,7 @@ export function MiniCards({ bias, breadth, fiiDii }) {
   const flowCard = (label, x) => x && isNum(x.net) && card(label, sign(x.net), `${label} · ${x.date.split('-').slice(0, 2).join(' ')}`,
     <>{x.net > 0 ? '+' : x.net < 0 ? '−' : ''}{Math.abs(x.net).toLocaleString('en-IN', { maximumFractionDigits: 0 })} <small>Cr net</small></>,
     `${label} cash market, provisional (NSE), data date ${x.date}: bought ₹${k(x.buy)} Cr, sold ₹${k(x.sell)} Cr`)
-  return <div className="mini-cards c-only">
+  return <div className={'mini-cards ' + (always === 'full' ? 'always f-only' : always ? 'always' : 'c-only')}>  {/* f-only: Full data view on phones / tablets */}
     {card('bias', b === 'BULLISH' ? 'up' : b === 'BEARISH' ? 'down' : 'amber', 'Market Bias',
       <>{b || 'N/A'} {isNum(bias?.score) && <small>{bias.score > 0 ? '+' : ''}{bias.score} / 5</small>}</>)}
     {card('oi', s && { bull: 'up', bear: 'down' }[s.sent.key] || (s ? 'amber' : ''), 'Nifty OI Change',
