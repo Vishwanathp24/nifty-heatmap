@@ -47,6 +47,12 @@ const TabIcon = ({ id }) => <svg className="tab-ic" viewBox="0 0 24 24" width="1
   strokeWidth={id === 'more' ? 3.2 : 1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={TAB_PATHS[id]} /></svg>
 const TAB_SHORT = { overview: 'Overview', heatmap: 'Heatmap', scanner: 'ORB', trend: 'Intraday', crypto: 'Crypto', ipo: 'IPO', learning: 'Learning', journal: 'Journal' }
 
+// Footer link that opens the Add to Home Screen banner (phones / tablets not using the app yet).
+function InstallLink() {
+  const where = useCanInstall()
+  return where ? <div className="install-link"><button className="btn sm" onClick={openInstall}>{where === 'phone' ? '📲 Add to Home Screen' : '⭐ Bookmark this site'}</button></div> : null
+}
+
 function TabBar({ pages, page, setPage, badges }) {
   const [more, setMore] = useState(false)
   const canInstall = useCanInstall()
@@ -57,7 +63,7 @@ function TabBar({ pages, page, setPage, badges }) {
   return <>
     {more && <div className="tab-sheet-bg" onClick={() => setMore(false)}><div className="tab-sheet" onClick={e => e.stopPropagation()}>
       <div className="tab-sheet-k">More pages</div>{rest.map(tab)}
-      {canInstall && <button className="tab install-tab" onClick={() => { setMore(false); openInstall() }}><span className="tab-icw">📲</span>Install app</button>}</div></div>}
+      {canInstall === 'phone' && <button className="tab install-tab" onClick={() => { setMore(false); openInstall() }}><span className="tab-icw">📲</span>Install app</button>}</div></div>}
     <nav className="tabbar" aria-label="Pages">{main.map(tab)}
       {rest.length > 0 && <button className={'tab' + (rest.some(p => p.id === page) ? ' on' : more ? ' open' : '')} onClick={() => setMore(m => !m)}>
         <span className="tab-icw"><TabIcon id="more" /></span>More</button>}</nav>
@@ -319,6 +325,7 @@ function App() {
     <TabBar pages={navPages} page={page} setPage={setPage} badges={{ heatmap: selected.length || null, scanner: orbNow[0] }} />
     <footer className="foot">
       <InfoLinks go={setPage} />
+      <InstallLink />
       Decision-support scanner — no buy/sell, target or stop-loss recommendations. Data: NSE (indices, quotes, per-minute prices, bhavcopy volumes, FII/DII, GIFT Nifty, market status), BSE (Sensex), Yahoo Finance (overseas indices, Scanner candles, opening-range fallback).
       {live.data?.source_ts && <> Latest NSE quote: {istDate(nseTs(live.data.source_ts))} {istTime(nseTs(live.data.source_ts))} IST.</>}
     </footer>
