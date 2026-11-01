@@ -126,16 +126,18 @@ function VolumeSpike({ vol, stocks, list, setList, onPick, picked }) {
   const base = (d?.rows || []).filter(r => r.lists.includes(list) && volDir(r, dir) && (!q || r.symbol.includes(q) || (r.company || '').toUpperCase().includes(q)))
     .map(r => ({ ...r, sector: sector[r.symbol] || '—' }))
   const hits = base.filter(r => r.ratio > VOL_X)
-  const shown = sortRows(allRows ? base : hits, sort.key, sort.dir)
+  const topPass = useTopPass()
+  const shown = topPass(sortRows(allRows ? base : hits, sort.key, sort.dir))  // Top 20 gainers / losers filter, as on the other scans
   const sp = { sort, setSort }
   const p = d?.progress
   const listName = VOL_LISTS.find(l => l.value === list)?.label
   const n = k => d ? volHits(d, list, k).length : ''
   return <>
     <div className="toolbar">
-      <Seg value={dir} onChange={setDir} options={[{ value: 'all', label: <>All <span className="count">{n('all')}</span></> },
+      <Seg value={dir} onChange={setDir} className="vol-dir" options={[{ value: 'all', label: <>All <span className="count">{n('all')}</span></> },
         { value: 'bull', label: <>Bullish <span className="count">{n('bull')}</span></>, tone: 'up' },
-        { value: 'bear', label: <>Bearish <span className="count">{n('bear')}</span></>, tone: 'down' }]} className="vol-dir" />
+        { value: 'bear', label: <>Bearish <span className="count">{n('bear')}</span></>, tone: 'down' }]} />
+      <TopFilter />
       <Seg options={VOL_LISTS} value={list} onChange={setList} />
       <input className="search" placeholder="Search symbol" value={search} onChange={e => setSearch(e.target.value)} />
       <label className="check-label"><input type="checkbox" checked={allRows} onChange={e => setAllRows(e.target.checked)} />Show all stocks (sorted by × average)</label>
