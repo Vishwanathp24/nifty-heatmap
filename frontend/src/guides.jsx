@@ -21,7 +21,7 @@ export function Disclaimer({ crypto = false }) {
   </div>
 }
 
-// Phones: the guide starts closed (just the heading and a Show button; the disclaimer always shows).
+// Phones and touch tablets: the guide starts closed (just the heading and a Show button; the disclaimer always shows).
 // Desktop always shows it open.
 export function PageGuide({ items, steps, stepsTitle = 'How to use this page, step by step', note, crypto, children }) {
   const [open, setOpen] = useState(false)
