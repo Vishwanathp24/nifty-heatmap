@@ -180,7 +180,7 @@ th .arrow { font-size: 9px; margin-left: 4px; opacity: .6 }
 /* ---------- heatmap ---------- */
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px }
 .sel-bar { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 6px 10px }
-.heatmap { display: grid; grid-template-columns: repeat(auto-fill, minmax(178px, 1fr)); gap: 6px }
+.heatmap { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(178px, 100%), 1fr)); gap: 6px }
 .tile { position: relative; border-radius: var(--radius); padding: 8px 10px; cursor: pointer; border: 2px solid transparent; min-height: 86px; user-select: none; display: flex; flex-direction: column }
 .tile:hover { filter: brightness(.97) }
 .tile.selected { border-color: var(--ink); box-shadow: inset 0 0 0 1px #fff }
@@ -529,7 +529,7 @@ th .arrow { font-size: 9px; margin-left: 4px; opacity: .6 }
 .strike-tbl tr.atm td { border-top: 2px solid #CA8A04; border-bottom: 2px solid #CA8A04 }
 .strike-k { background: var(--panel-2) }
 .k-tag { font-size: 9.5px; margin-left: 4px; padding: 0 4px; border-radius: 3px; background: #EDE9FE; color: #5B21B6; font-weight: 600 }
-.strat-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 8px }
+.strat-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: 8px }
 .strat { padding: 10px 12px; display: flex; flex-direction: column; gap: 6px }
 .strat-h { display: flex; justify-content: space-between; align-items: center; gap: 8px }
 .strat-legs { display: flex; flex-wrap: wrap; gap: 4px }
@@ -567,7 +567,7 @@ th .arrow { font-size: 9px; margin-left: 4px; opacity: .6 }
 .opt-view { display: flex; align-items: center; gap: 8px }
 .opt-foot { margin: 12px 0 0 }
 .opt-sec .tbl-wrap { border: 1px solid var(--border); border-radius: 6px }
-.strat-list { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px }
+.strat-list { grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: 12px }
 .strat { border: 1px solid var(--border); border-radius: 8px; padding: 14px; gap: 10px; background: var(--panel) }
 .strat-h b { font-size: 14px }
 .strat-why { line-height: 1.5; min-height: 36px }
@@ -626,7 +626,7 @@ th .arrow { font-size: 9px; margin-left: 4px; opacity: .6 }
 .strat-group { background: var(--panel-2); border-radius: 8px; padding: 12px }
 .strat-group .strat-list { grid-template-columns: 1fr }
 /* wide screens: cards share the row, and a lone card stretches to fill it (no empty gap) */
-@media (min-width: 1500px) { .strat-group .strat-list { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)) } }
+@media (min-width: 1500px) { .strat-group .strat-list { grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)) } }
 @media (max-width: 1000px) { .strat-groups { grid-template-columns: 1fr } }
 /* Strategy cards: chips never cut off; they sit side by side whenever there is room */
 .strat > .pf-metrics > span { white-space: nowrap }
@@ -646,7 +646,7 @@ th .arrow { font-size: 9px; margin-left: 4px; opacity: .6 }
 .strat-groups.single .strat-group.empty { order: 2; flex-direction: row; flex-wrap: wrap; align-items: center; padding: 8px 12px; gap: 8px }
 .strat-groups.single .strat-group.empty .sg-none { padding: 0; border: 0 }
 .strat-groups.single .strat-group.empty .sg-h .muted { display: none }
-.strat-groups.single .strat-group:not(.empty) .strat-list { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)) }
+.strat-groups.single .strat-group:not(.empty) .strat-list { grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)) }
 
 /* Stop-loss calculator */
 .sl-box { border: 1px solid #FECACA; background: #FFF7F7; border-radius: 6px; padding: 12px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 10px }
@@ -705,7 +705,7 @@ th .arrow { font-size: 9px; margin-left: 4px; opacity: .6 }
 .lc-nav { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; padding-right: 8px }
 .lc-ax.lc-day { font-weight: 700; fill: var(--ink) }
 .lc-daysep { stroke: var(--border-strong); stroke-dasharray: 2 4 }
-.lc-cards { display: grid; grid-template-columns: minmax(560px, 2fr) minmax(0, 3fr); gap: 12px; align-items: stretch; margin-top: 10px }
+.lc-cards { display: grid; grid-template-columns: minmax(min(560px, 100%), 2fr) minmax(0, 3fr); gap: 12px; align-items: stretch; margin-top: 10px }
 .lc-card { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; min-width: 0 }
 .lc-card-h { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap }
 .lc-card-h h3 { margin: 0; font-size: 14px }
@@ -717,7 +717,7 @@ th .arrow { font-size: 9px; margin-left: 4px; opacity: .6 }
 .lc-strat-group { background: var(--panel-2); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 8px }
 .lc-strat-gh { line-height: 1.35 }
 .lc-strat { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; line-height: 1.4 }
-.lc-strat-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 8px }  /* boxes stretch to fill the row */
+.lc-strat-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)); gap: 8px }  /* boxes stretch to fill the row */
 .lc-strat-name { font-size: 14px }
 .fit-badge { align-self: flex-start; background: var(--up); color: #fff; font-size: 11.5px; font-weight: 600; border-radius: 999px; padding: 2px 10px }
 .lc-strat.fit { border: 2px solid var(--up) }
@@ -737,7 +737,7 @@ th .arrow { font-size: 9px; margin-left: 4px; opacity: .6 }
 .lc-strat-groups .lc-strat-list { grid-template-columns: 1fr }
 .lc-calc { margin-top: 12px; min-width: 0 }
 .lc-calc .opt-tools { display: block }
-.calc-split { display: grid; grid-template-columns: minmax(560px, 2fr) minmax(0, 3fr); gap: 12px; align-items: stretch }  /* calculator card as tall as the payoff chart */  /* same split as Indicators | Strategy */
+.calc-split { display: grid; grid-template-columns: minmax(min(560px, 100%), 2fr) minmax(0, 3fr); gap: 12px; align-items: stretch }  /* calculator card as tall as the payoff chart */  /* same split as Indicators | Strategy */
 .lc-top { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 12px; align-items: start }
 .lc-top .lc-wrap { min-width: 0; margin-bottom: 0 }
 .lc-top .pnl-calc { padding: 10px 12px }
@@ -1130,7 +1130,7 @@ details.copt-notes[open] > summary { margin-bottom: 6px }
 .mini-strip .jr-account .btn { margin-left: 4px; padding: 2px 8px; font-size: 12px }
 .mini-strip .jr-account img { width: 20px; height: 20px }
 .mini-strip .jr-gbtn { min-height: 0 }
-.jr-days { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px; padding: 10px }
+.jr-days { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(160px, 100%), 1fr)); gap: 8px; padding: 10px }
 .jr-day { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 10px; border: 1px solid var(--border); border-left: 4px solid var(--border-strong); border-radius: var(--radius); background: var(--panel); cursor: pointer; font: inherit; text-align: left; color: var(--ink) }
 .jr-day.up { border-left-color: var(--up); background: var(--up-bg) } .jr-day.down { border-left-color: var(--down); background: var(--down-bg) }
 .jr-day.on { outline: 2px solid var(--accent) }
@@ -1158,7 +1158,7 @@ details.copt-notes[open] > summary { margin-bottom: 6px }
 .jr-scan-mood { display: inline-flex; align-items: center; gap: 6px; font-size: 13px }
 .jr-scan-mood select { font: inherit; font-size: 13px; padding: 4px 8px; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--panel); color: var(--ink) }
 /* Today's trades: compact blocks */
-.jr-days { grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); gap: 6px; padding: 8px 10px }
+.jr-days { grid-template-columns: repeat(auto-fill, minmax(min(124px, 100%), 1fr)); gap: 6px; padding: 8px 10px }
 .jr-day { padding: 4px 8px; gap: 0; border-left-width: 3px }
 .jr-day-d { font-size: 10.5px }
 .jr-day-p { font-size: 13px; line-height: 1.35 }
@@ -1174,7 +1174,7 @@ details.copt-notes[open] > summary { margin-bottom: 6px }
 @media (max-width: 700px) { .near-oi-row { grid-template-columns: 1fr 1fr } .near-oi-box.diff { grid-column: 1 / -1 } }
 .jr-chip .jr-fit { font-size: 11px; font-weight: 600; color: var(--up) } .jr-chip.on .jr-fit { color: #fff }
 /* IPO blog: cards */
-.blog { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-bottom: 12px }
+.blog { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: 12px; margin-bottom: 12px }
 .blog-card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; text-align: left; font: inherit; color: var(--ink) }
 button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(--border-strong) }
 .blog-card b { font-size: 15.5px; line-height: 1.35 }
