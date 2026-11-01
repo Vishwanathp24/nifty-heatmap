@@ -3,6 +3,7 @@ social tags, JSON-LD and a plain-text summary in the first HTML response (the ap
 client-rendered, so without this crawlers see an empty page)."""
 import html
 import json
+import os
 
 SITE = "https://moneymaau.com"
 NAME = "NSE Sector Heatmap"
@@ -59,6 +60,44 @@ PAGES = {
         "Short explanations of put-call ratio (PCR), opening range breakout (ORB), VWAP, EMA, Supertrend, RSI and ADX, and how each one is read on the scanners.",
         True,
     ),
+    "/about": (
+        "About | NSE Sector Heatmap",
+        "About NSE Sector Heatmap: a free Indian stock market dashboard with PCR, sector heatmap, ORB and intraday scanners, IPO tracker and plain-language guides.",
+        "About NSE Sector Heatmap",
+        "A free dashboard for the Indian stock market that brings Nifty PCR, market bias, FII/DII flows, sector heatmap, ORB and intraday scanners and an IPO tracker "
+        "onto one screen, with plain-language guides. Information and education only, not investment advice.",
+        True,
+    ),
+    "/contact": (
+        "Contact | NSE Sector Heatmap",
+        "Contact NSE Sector Heatmap for questions, data corrections, feedback, privacy requests or advertising.",
+        "Contact",
+        "Questions, data corrections, feature ideas, privacy requests or advertising: get in touch by email.",
+        True,
+    ),
+    "/privacy-policy": (
+        "Privacy Policy | NSE Sector Heatmap",
+        "How NSE Sector Heatmap collects and uses information, cookies and Google AdSense advertising, third-party services and your choices.",
+        "Privacy Policy",
+        "What information the site collects (optional Journal sign-in, notifications, a visitor count and server logs), how cookies and Google AdSense advertising "
+        "work, third-party services and how to opt out or delete your data.",
+        True,
+    ),
+    "/terms": (
+        "Terms of Use | NSE Sector Heatmap",
+        "Terms of use for NSE Sector Heatmap: information only, no guarantee of accuracy, acceptable use, third-party links and limitation of liability.",
+        "Terms of Use",
+        "The rules for using the site: information and education only, data provided as is, your own responsibility for trading decisions, acceptable use and governing law.",
+        True,
+    ),
+    "/disclaimer": (
+        "Disclaimer | NSE Sector Heatmap",
+        "NSE Sector Heatmap is not investment advice and not SEBI-registered. Scanner signals are conditions, data may be delayed, trading carries risk.",
+        "Disclaimer",
+        "Not investment advice and not a SEBI-registered adviser or research analyst. Scanner results are conditions, not recommendations; data may be delayed or wrong; "
+        "trading in equities, F&O and crypto carries a high risk of loss.",
+        True,
+    ),
     "/journal": (
         "Trading Journal | NSE Sector Heatmap",
         "Personal trading journal for logging and reviewing trades.",
@@ -67,6 +106,18 @@ PAGES = {
         False,
     ),
 }
+
+
+def adsense_client():
+    """Google AdSense publisher id from the ADSENSE_CLIENT environment variable ("ca-pub-1234..."), or "" when ads are off."""
+    v = os.environ.get("ADSENSE_CLIENT", "").strip()
+    return v if v.startswith("ca-pub-") else ""
+
+
+def ads_txt():
+    """ads.txt line Google asks publishers to serve at the site root (None when AdSense is not set up)."""
+    c = adsense_client()
+    return f"google.com, {c.replace('ca-', '', 1)}, DIRECT, f08c47fec0942fa0\n" if c else None
 
 
 def indexable_paths():
@@ -98,6 +149,9 @@ def render(index_html: str, path: str) -> str:
         f'    <meta name="twitter:description" content="{e(desc, quote=True)}" />\n'
         f'    <script type="application/ld+json">{json.dumps(graph, separators=(",", ":")).replace("</", "<\\/")}</script>'
     )
+    if adsense_client():  # AdSense site verification + Auto ads (set ADSENSE_CLIENT on the server)
+        head += (f'\n    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={adsense_client()}" '
+                 'crossorigin="anonymous"></script>')
     nav = "".join(f'<a href="{p}">{e(PAGES[p][2])}</a> ' for p in PAGES if p != path and PAGES[p][4])
     body = f'<div id="root"><main><h1>{e(h1)}</h1><p>{e(intro)}</p><nav>{nav}</nav></main></div>'
     out = index_html.replace("<title>NSE Sector Heatmap</title>", head, 1)

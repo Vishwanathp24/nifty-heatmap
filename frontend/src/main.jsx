@@ -9,6 +9,7 @@ import Heatmap from './Heatmap.jsx'
 import Scanner, { DEFAULT_FILTERS, filterRows } from './Scanner.jsx'
 import { MiniCards, PcrMeter } from './Pcr.jsx'
 import { PageHowTo } from './guides.jsx'
+import InfoPage, { INFO_PAGES, InfoLinks } from './Legal.jsx'
 // Pages loaded only when opened (smaller first download)
 const Crypto = lazy(() => import('./Crypto.jsx'))
 const Ipo = lazy(() => import('./Ipo.jsx'))
@@ -64,7 +65,9 @@ function TabBar({ pages, page, setPage, badges }) {
 const BASIC_PAGES = ['overview', 'heatmap', 'scanner']
 
 // One real URL per page, so each can be linked, indexed and shared. The server serves the same app for these paths.
-const PATHS = { overview: '/', heatmap: '/heatmap', scanner: '/orb-scanner', trend: '/intraday-scanner', crypto: '/crypto', ipo: '/ipo', learning: '/learning', journal: '/journal' }
+const PATHS = { overview: '/', heatmap: '/heatmap', scanner: '/orb-scanner', trend: '/intraday-scanner', crypto: '/crypto', ipo: '/ipo', learning: '/learning', journal: '/journal',
+  ...Object.fromEntries(INFO_PAGES.map(p => [p.id, p.path])) }  // + About, Contact, Privacy Policy, Terms of Use, Disclaimer (footer links)
+const INFO_IDS = INFO_PAGES.map(p => p.id)
 const pageFromPath = path => Object.keys(PATHS).find(id => PATHS[id] === path.replace(/(.)\/$/, '$1')) || 'overview'
 
 // Viewer count (last 24 h): ping every 15 s with a random per-browser id (no personal data).
@@ -187,6 +190,7 @@ function App() {
   const setPage = useCallback(id => {
     setPageState(id)
     if (window.location.pathname !== PATHS[id]) window.history.pushState(null, '', PATHS[id])
+    if (INFO_IDS.includes(id)) window.scrollTo({ top: 0 })
   }, [])
   useEffect(() => {  // browser back/forward
     const onPop = () => setPageState(pageFromPath(window.location.pathname))
@@ -196,7 +200,7 @@ function App() {
   const [fullData, setFullData] = usePersistentState('fullData', false)  // phones / tablets: original full panels instead of small cards
   const [mode, setMode] = useState('advanced')  // every visit opens Advanced; Basic lasts until the page is reloaded
   const basic = mode === 'basic'
-  useEffect(() => { if (basic && !BASIC_PAGES.includes(page)) setPage('overview') }, [basic, page])
+  useEffect(() => { if (basic && !BASIC_PAGES.includes(page) && !INFO_IDS.includes(page)) setPage('overview') }, [basic, page])
   const navPages = basic ? PAGES.filter(p => BASIC_PAGES.includes(p.id)) : PAGES
   const [selected, setSelected] = useSessionState('sectors', [])
   const [auto, setAuto] = usePersistentState('auto', true)
@@ -278,7 +282,7 @@ function App() {
       {live.error && !live.data && <div className="alert">{live.error}</div>}
       {/* Market Bias, OI Change, PCR, Expected Move, breadth and FII / DII as small cards on every page except Crypto;
           on Overview / Heatmap only in the phone / tablet views (desktop has the full panels) */}
-      {page !== 'crypto' && <MiniCards always={page !== 'overview' && page !== 'heatmap' ? true : fullData && 'full'} bias={live.data?.bias} breadth={live.data?.breadth} fiiDii={ctx.data?.fii_dii?.data} />}
+      {page !== 'crypto' && !INFO_IDS.includes(page) && <MiniCards always={page !== 'overview' && page !== 'heatmap' ? true : fullData && 'full'} bias={live.data?.bias} breadth={live.data?.breadth} fiiDii={ctx.data?.fii_dii?.data} />}
       {page === 'journal' && <div className="mini-strip"><div id="journal-account-slot" className="mini-slot" /></div>}  {/* Journal puts its sign-in / saved status here */}
       {page === 'overview' && <div className="c-hide"><PcrMeter /></div>}  {/* full PCR + Expected Move cards on Market Overview (compact view uses the small cards) */}
       {page === 'overview' && <Overview live={live.data} ctx={ctx.data} />}
@@ -286,6 +290,7 @@ function App() {
       <Suspense fallback={<div className="empty">Loading…</div>}>
         {page === 'trend' && <Scans trend={trend} live={live.data} selected={selected} setSelected={setSelected} chartReq={chartReq} orbLists={orbLists} />}
         {page === 'crypto' && <Crypto crypto={crypto} />}
+        {INFO_IDS.includes(page) && <InfoPage id={page} />}
         {page === 'ipo' && <Ipo ipo={ipo} />}
         {page === 'learning' && <Learning />}
         {page === 'journal' && <Journal live={live.data} />}
@@ -308,6 +313,7 @@ function App() {
     </main>
     <TabBar pages={navPages} page={page} setPage={setPage} badges={{ heatmap: selected.length || null, scanner: orbNow[0] }} />
     <footer className="foot">
+      <InfoLinks go={setPage} />
       Decision-support scanner — no buy/sell, target or stop-loss recommendations. Data: NSE (indices, quotes, per-minute prices, bhavcopy volumes, FII/DII, GIFT Nifty, market status), BSE (Sensex), Yahoo Finance (overseas indices, Scanner candles, opening-range fallback).
       {live.data?.source_ts && <> Latest NSE quote: {istDate(nseTs(live.data.source_ts))} {istTime(nseTs(live.data.source_ts))} IST.</>}
     </footer>

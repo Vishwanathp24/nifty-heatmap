@@ -1496,3 +1496,14 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
 .mcard .mv { white-space: normal; overflow: visible; text-overflow: clip; display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 4px }
 .mcard .mv small { white-space: nowrap; margin-left: 0 }
 @media (max-width: 1100px) { .mcard { padding: 6px 8px } .mcard .mv { font-size: 14px } .mcard .mv small { font-size: 10.5px } }
+/* About / Contact / Privacy Policy / Terms of Use / Disclaimer */
+.info-page { max-width: 820px; margin: 0 auto 16px; padding: 20px 24px; line-height: 1.6; color: var(--ink) }
+.info-page h1 { font-size: 22px; margin: 0 0 10px }
+.info-page h2 { font-size: 15.5px; margin: 20px 0 6px }
+.info-page p, .info-page li { font-size: 14px }
+.info-page ul { padding-left: 20px; margin: 6px 0 } .info-page li { margin: 4px 0 }
+.info-page .info-big { font-size: 16px }
+.info-page .info-list li { margin: 8px 0 }
+.info-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 16px; margin: 0 0 8px; font-size: 12.5px }
+.info-links a { color: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 2px }
+@media (max-width: 600px) { .info-page { padding: 14px 16px } .info-page h1 { font-size: 19px } }

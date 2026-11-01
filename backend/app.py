@@ -540,6 +540,13 @@ if DIST.exists():
     def robots_txt():
         return PlainTextResponse(seo.robots())
 
+    @app.get("/ads.txt", include_in_schema=False)
+    def ads_txt():
+        txt = seo.ads_txt()
+        if txt is None:
+            raise HTTPException(status_code=404)
+        return PlainTextResponse(txt)
+
     @app.get("/sitemap.xml", include_in_schema=False)
     def sitemap_xml():
         return Response(seo.sitemap(datetime.fromtimestamp((DIST / "index.html").stat().st_mtime).strftime("%Y-%m-%d")),
