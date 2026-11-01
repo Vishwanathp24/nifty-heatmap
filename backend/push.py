@@ -1,9 +1,10 @@
-"""Web push for Market Bias alerts: phones get them even when locked or the app is closed.
+"""Web push for Market Bias and Nifty OI Change alerts: phones get them even when locked or the app is closed.
 
 A browser that turns on 🔔 Bias subscribes through its own push service (Apple / Google /
-Mozilla) and posts the subscription here. A background thread checks the bias every 15 s
-and, during market hours, sends one push to every subscription when the label changes
-(Bullish / Neutral / Bearish). The VAPID key pair is created on first run and kept next to
+Mozilla) and posts the subscription here. A background thread checks every 15 s and, during
+market hours, sends one push to every subscription when the Market Bias label or the Nifty OI
+Change reading changes (Bullish / Neutral / Bearish). An OI Change reading must hold for about
+a minute first, so a reading that flickers around the threshold doesn't send a burst of alerts. The VAPID key pair is created on first run and kept next to
 the DB (never in git); subscriptions that the push service reports as gone are dropped.
 """
 import base64
@@ -47,10 +48,10 @@ def _save():
         pass
 
 
-def _send(sub, title, body):
+def _send(sub, title, body, tag="nse-bias"):
     """True if delivered or worth keeping; False when the subscription is gone."""
     try:
-        webpush(sub, json.dumps({"title": title, "body": body, "tag": "nse-bias"}),
+        webpush(sub, json.dumps({"title": title, "body": body, "tag": tag}),
                 vapid_private_key=str(KEY_FILE), vapid_claims={"sub": SUBJECT},
                 ttl=600, headers={"Urgency": "high"}, timeout=10)
     except WebPushException as exc:
@@ -60,10 +61,10 @@ def _send(sub, title, body):
     return True
 
 
-def send_all(title, body):
+def send_all(title, body, tag="nse-bias"):
     with _lock:
         subs = list(_subs.values())
-    gone = [s["endpoint"] for s in subs if not _send(s, title, body)]
+    gone = [s["endpoint"] for s in subs if not _send(s, title, body, tag)]
     if gone:
         with _lock:
             for e in gone:
@@ -81,7 +82,7 @@ def subscribe(sub):
         _save()
     # confirmation, so the phone shows straight away that alerts reach it
     threading.Thread(target=_send, args=(_subs[endpoint], "Market Bias alerts are on",
-                                         "You'll get a notification when the bias changes during market hours."),
+                                         "You'll get a notification when Market Bias or Nifty OI Change turns Bullish, Neutral or Bearish during market hours."),
                      daemon=True).start()
     return True
 
@@ -92,20 +93,37 @@ def unsubscribe(endpoint):
             _save()
 
 
-def start(get_bias):
-    """get_bias() -> (label, score, market_open). Runs the change watcher in the background."""
+OI_HOLD = 4  # checks (about a minute) a new OI Change reading must hold before it is sent
+
+
+def start(get_bias, get_oi=None):
+    """get_bias() -> (label, score, market_open); get_oi() -> (label, detail) for Nifty OI Change, or (None, "").
+    Runs the change watcher in the background."""
     def loop():
-        prev = None
+        prev = oi_prev = oi_new = None
+        oi_seen = 0
         while True:
             try:
                 label, score, is_open = get_bias()
             except Exception:
-                label = None
+                label, is_open = None, False
+            now = time.gmtime(time.time() + 5.5 * 3600)
+            at = f"{now.tm_hour:02d}:{now.tm_min:02d} IST"
             if label:
                 if is_open and prev and label != prev and _subs:
-                    now = time.gmtime(time.time() + 5.5 * 3600)
-                    send_all(f"Market Bias: {label} ({score:+d})",
-                             f"Changed from {prev} to {label} at {now.tm_hour:02d}:{now.tm_min:02d} IST")
+                    send_all(f"Market Bias: {label} ({score:+d})", f"Changed from {prev} to {label} at {at}")
                 prev = label
+            if get_oi:
+                try:
+                    oi, detail = get_oi()
+                except Exception:
+                    oi, detail = None, ""
+                if oi:
+                    oi_seen = oi_seen + 1 if oi == oi_new else 1
+                    oi_new = oi
+                    if oi != oi_prev and oi_seen >= OI_HOLD:
+                        if is_open and oi_prev and _subs:
+                            send_all(f"Nifty OI Change: {oi}", f"Changed from {oi_prev} to {oi} at {at}{' · ' + detail if detail else ''}", tag="nse-oi")
+                        oi_prev = oi
             time.sleep(CHECK_EVERY)
     threading.Thread(target=loop, name="bias-push", daemon=True).start()

@@ -131,7 +131,7 @@ function VolumeSpike({ vol, stocks, list, setList, onPick, picked }) {
   const sp = { sort, setSort }
   const p = d?.progress
   const listName = VOL_LISTS.find(l => l.value === list)?.label
-  const n = k => d ? volHits(d, list, k).length : ''
+  const n = k => d ? topPass(volHits(d, list, k)).length : ''  // follow the Top 20 button, like the list
   return <>
     <div className="toolbar">
       <Seg value={dir} onChange={setDir} className="vol-dir" options={[{ value: 'all', label: <>All <span className="count">{n('all')}</span></> },

@@ -74,6 +74,7 @@ const GUIDES = {
       ['📏', 'Dist ORB %', 'How far the price has moved away from the edge of the starting box. Very far away means the easy part of the move may already be over.'],
       ['🧰', 'Filters', 'Narrow the list by volume, time, price, sector, market size and more. "Still beyond range" hides stocks that fell back inside the box.'],
       ['🧭', 'Ribbon on top', 'Market Bias, PCR, OI Change and Breadth: the mood of the whole market, so you can see if a signal goes with it or against it.'],
+      ['✅', 'Top 20 gainers + losers', 'Ticked at first: the list shows only today\'s 20 biggest F&O gainers and 20 biggest losers, where most of the action is. Untick it to see every stock. The numbers on the tabs follow it.'],
     ],
     steps: [
       <><b>Pick the box size</b> (5, 15, 30 min or 1 hour). Bigger boxes give fewer but steadier signals.</>,
@@ -88,8 +89,9 @@ const GUIDES = {
       ['📈', 'Trending Stocks', 'Each stock gets a score from simple checks (price above its average lines, Supertrend, RSI, ADX). More checks passed = a stronger, cleaner trend.'],
       ['🟢', 'Bullish Intraday', 'Stocks that pass a list of "going up" conditions on the daily and 1-hour charts. Green ✓ = condition met.'],
       ['🔴', 'Bearish Intraday', 'The same idea for "going down" conditions.'],
+      ['✅', 'Top 20 gainers + losers', 'Ticked at first: the list shows only today\'s 20 biggest F&O gainers and 20 biggest losers, where most of the action is. Untick it to see every stock. The numbers on the tabs follow it.'],
       ['🌙', 'BTST Stocks', 'Stocks with very high volume, strong RSI and a close near their 1-year high today. BTST = "buy today, sell tomorrow" style lists. Bullish only.'],
-      ['🔊', 'Volume Spike', 'Stocks trading more than 3 times their normal daily volume (today vs the 20-day average). Pick the list: F&O, Nifty 50, Nifty 500, Midcap 150 or Smallcap 250. Use All / Bullish / Bearish: Bullish = price up with the volume, Bearish = price down. The Top 20 buttons show only today\'s biggest F&O gainers or losers. Big volume means big players are active.'],
+      ['🔊', 'Volume Spike', 'Stocks trading more than 3 times their normal daily volume (today vs the 20-day average). Pick the list: F&O, Nifty 50, Nifty 500, Midcap 150 or Smallcap 250. Use All / Bullish / Bearish: Bullish = price up with the volume, Bearish = price down. The Top 20 gainers + losers button (ticked at first) shows only today\'s biggest F&O movers; untick it to see every stock. Big volume means big players are active.'],
       ['🤝', 'Common Stocks', 'Stocks that show up in every scan for one direction at the same time (Trending + Intraday + ORB). When many scans agree, the signal is stronger.'],
       ['🕯️', 'Live Chart', 'A candle chart with indicators. Drag to move, use the price scale to zoom, and "Latest" to go back to now.'],
       ['👆', 'Click a row', 'Opens that stock\'s details and chart.'],

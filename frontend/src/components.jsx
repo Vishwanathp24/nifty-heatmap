@@ -10,7 +10,7 @@ const stop = e => e.stopPropagation()
 export const StockChartCtx = createContext(null)
 // Today's Top 20 F&O gainers / losers (set in main.jsx): map = symbol -> ['up' | 'down', rank];
 // only = '' | 'up' | 'down', the scanner filter shared by every scanner table.
-export const TopMoversCtx = createContext({ map: {}, only: '', setOnly: () => {} })
+export const TopMoversCtx = createContext({ map: {}, only: '', topOn: false, setTopOn: () => {} })
 
 // Scanner rows with the Top 20 filter applied; when it is on, ordered by rank (#1 first).
 export function useTopPass() {
@@ -20,12 +20,10 @@ export function useTopPass() {
 }
 
 export function TopFilter() {
-  const { only, setOnly, locked } = useContext(TopMoversCtx)
-  if (locked) return <span className="top-locked" title="Basic view: only stocks in today's Top 20 F&O gainers or losers. Switch to Advanced for every stock.">Top 20 gainers + losers only</span>
-  return <Seg value={only} onChange={setOnly} options={[{ value: '', label: 'All stocks', title: 'Show every stock in this scan' },
-    { value: 'both', label: 'Top 20 gainers + losers', title: 'Only stocks in today’s Top 20 F&O gainers or Top 20 losers' },
-    { value: 'up', label: 'Top 20 gainers', tone: 'up', title: 'Only stocks in today’s Top 20 F&O gainers' },
-    { value: 'down', label: 'Top 20 losers', tone: 'down', title: 'Only stocks in today’s Top 20 F&O losers' }]} />
+  const { topOn, setTopOn } = useContext(TopMoversCtx)
+  return <button className={'top-toggle' + (topOn ? ' on' : '')} aria-pressed={topOn} onClick={() => setTopOn(v => !v)}
+    title={topOn ? 'Showing only today’s Top 20 F&O gainers and losers. Tap to show all stocks' : 'Showing all stocks. Tap to show only today’s Top 20 F&O gainers and losers'}>
+    <i>{topOn ? '✓' : ''}</i>Top 20 gainers + losers</button>
 }
 
 // Tag shown beside a symbol in the scanners when it is in today's Top 20 gainers or losers.

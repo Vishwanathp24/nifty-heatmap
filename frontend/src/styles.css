@@ -1507,3 +1507,20 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
 .info-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 16px; margin: 0 0 8px; font-size: 12.5px }
 .info-links a { color: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 2px }
 @media (max-width: 600px) { .info-page { padding: 14px 16px } .info-page h1 { font-size: 19px } }
+/* Basic view: Top 20 gainers + losers on/off button */
+.top-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 5px 10px; border: 1px solid var(--border-strong); border-radius: var(--radius); background: var(--panel); color: var(--ink); cursor: pointer }
+.top-toggle i { display: inline-grid; place-items: center; width: 15px; height: 15px; border: 1.5px solid var(--border-strong); border-radius: 4px; font-style: normal; font-size: 11px; line-height: 1 }
+.top-toggle.on { background: var(--ink); color: var(--panel); border-color: var(--ink) } .top-toggle.on i { border-color: currentColor }
+/* ORB Scanner head on phones: tabs / Top 20 + sector / search + Filters */
+@media (max-width: 600px) { .scan-head { gap: 8px } .scan-head .search { width: auto; flex: 1 1 140px; min-width: 0 } .scan-head .grow { display: none } }
+/* "Add to Home Screen" banner (InstallPrompt.jsx): above the bottom tab bar */
+.install-bar { position: fixed; left: 8px; right: 8px; bottom: calc(64px + env(safe-area-inset-bottom)); z-index: 45; display: flex; gap: 10px; align-items: flex-start;
+  background: var(--panel); color: var(--ink); border: 1px solid var(--border-strong); border-left: 4px solid var(--accent); border-radius: 14px; padding: 10px 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .22); max-width: 560px; margin: 0 auto }
+.install-bar img { flex: none; border-radius: 10px }
+.ib-text { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; line-height: 1.4; min-width: 0 }
+.ib-text > b { font-size: 13.5px }
+.ib-share { vertical-align: -2px; color: var(--accent) }
+.ib-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px }
+@media (min-width: 601px) { .install-bar { bottom: 16px } }
+.tab-app .tab.install-tab .tab-icw { font-size: 18px; line-height: 1 }

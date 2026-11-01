@@ -267,15 +267,15 @@ export default function Scanner({ orb, live, selected, setSelected, tf, setTf, c
             onClick={() => setTab(id)} title={(id === 'breakout' && bias === 'BULLISH') || (id === 'breakdown' && bias === 'BEARISH') ? 'Aligned with current market bias' : ''}>
             {label} <span className="count">{counts[id]}</span></button>)}
       </div>
+      {/* one row: tabs · Top 20 · sector · search · filters (wraps in the same order on phones) */}
+      <TopFilter />
+      <SectorMulti sectors={sectors} selected={selected} setSelected={setSelected} />
+      {selected.length > 0 && <button className="btn sm clear-sectors" onClick={() => setSelected([])} title="Clear the sector filter (also clears the heatmap selection)">✕ Clear sectors ({selected.length})</button>}
       <input className="search" placeholder="Search symbol" value={filters.search} onChange={e => setF(x => ({ ...x, search: e.target.value }))} />
+      <button className="btn sm filters-toggle" onClick={() => setFiltersOpen(o => !o)}>{filtersOpen ? 'Hide filters' : 'Filters'}</button>
       <span className="grow" />
       <EngineStatus data={data} eng={eng} error={orb.error} />
     </div>
-
-    <div className="toolbar"><SectorMulti sectors={sectors} selected={selected} setSelected={setSelected} />
-      {selected.length > 0 && <button className="btn sm clear-sectors" onClick={() => setSelected([])} title="Clear the sector filter (also clears the heatmap selection)">✕ Clear sectors ({selected.length})</button>}
-      <TopFilter />
-      <button className="btn sm filters-toggle" onClick={() => setFiltersOpen(o => !o)}>{filtersOpen ? 'Hide filters' : 'Filters'}</button></div>
     <div className={'filters-wrap' + (filtersOpen ? ' open' : '')}>
       <Filters f={filters} setF={setF} tf={tf} setTf={setTf} confirm3={confirm3} setConfirm3={setConfirm3} reset={() => { setF(DEFAULT_FILTERS); setSort(DEFAULT_SORT); setTf(15); setConfirm3(1) }} />
     </div>

@@ -10,6 +10,7 @@ import Scanner, { DEFAULT_FILTERS, filterRows } from './Scanner.jsx'
 import { MiniCards, PcrMeter } from './Pcr.jsx'
 import { PageHowTo } from './guides.jsx'
 import InfoPage, { INFO_PAGES, InfoLinks } from './Legal.jsx'
+import InstallPrompt, { openInstall, useCanInstall } from './InstallPrompt.jsx'
 // Pages loaded only when opened (smaller first download)
 const Crypto = lazy(() => import('./Crypto.jsx'))
 const Ipo = lazy(() => import('./Ipo.jsx'))
@@ -48,13 +49,15 @@ const TAB_SHORT = { overview: 'Overview', heatmap: 'Heatmap', scanner: 'ORB', tr
 
 function TabBar({ pages, page, setPage, badges }) {
   const [more, setMore] = useState(false)
+  const canInstall = useCanInstall()
   const main = pages.length > 5 ? pages.slice(0, 4) : pages, rest = pages.length > 5 ? pages.slice(4) : []
   const go = id => { setMore(false); setPage(id); window.scrollTo({ top: 0 }) }
   const tab = p => <button key={p.id} className={'tab' + (page === p.id ? ' on' : '')} onClick={() => go(p.id)}>
     <span className="tab-icw"><TabIcon id={p.id} />{badges[p.id] ? <span className="tab-badge">{badges[p.id]}</span> : null}</span>{TAB_SHORT[p.id]}</button>
   return <>
     {more && <div className="tab-sheet-bg" onClick={() => setMore(false)}><div className="tab-sheet" onClick={e => e.stopPropagation()}>
-      <div className="tab-sheet-k">More pages</div>{rest.map(tab)}</div></div>}
+      <div className="tab-sheet-k">More pages</div>{rest.map(tab)}
+      {canInstall && <button className="tab install-tab" onClick={() => { setMore(false); openInstall() }}><span className="tab-icw">📲</span>Install app</button>}</div></div>}
     <nav className="tabbar" aria-label="Pages">{main.map(tab)}
       {rest.length > 0 && <button className={'tab' + (rest.some(p => p.id === page) ? ' on' : more ? ' open' : '')} onClick={() => setMore(m => !m)}>
         <span className="tab-icw"><TabIcon id="more" /></span>More</button>}</nav>
@@ -93,8 +96,8 @@ function useViewers() {
 
 const hhmm = d => d ? istTime(d).slice(0, 5) : '…'  // HH:MM for the compact header
 
-// Market Bias alert: a browser notification when the bias label (Bullish / Neutral / Bearish)
-// changes during market hours. Works while the dashboard is open, even in a background tab.
+// Market Bias and Nifty OI Change alerts: a notification when either label (Bullish / Neutral / Bearish)
+// changes during market hours (the server sends both by web push; the in-page fallback covers Market Bias). Works while the dashboard is open, even in a background tab.
 // Phones show notifications only through a service worker (sw.js); iPhones only for the
 // site added to the Home Screen (iOS 16.4+), so there the button explains how.
 const CAN_NOTIFY = typeof window !== 'undefined' && 'Notification' in window
@@ -142,8 +145,8 @@ function useBiasAlert(live, on) {  // in-page alert, used only where web push is
 
 function BiasAlertToggle({ on, setOn, setPushed }) {
   const [perm, setPerm] = useState(CAN_NOTIFY ? Notification.permission : 'denied')
-  if (!CAN_NOTIFY) return IS_IOS ? <button className="hdr-auto hdr-bell" aria-label="Market Bias alerts" onClick={() => alert(
-    'Market Bias alerts on iPhone:\n\n1. Open this site in Safari (or Chrome), tap Share, then "Add to Home Screen".\n'
+  if (!CAN_NOTIFY) return IS_IOS ? <button className="hdr-auto hdr-bell" aria-label="Market Bias and Nifty OI Change alerts" onClick={() => alert(
+    'Market Bias and Nifty OI Change alerts on iPhone:\n\n1. Open this site in Safari (or Chrome), tap Share, then "Add to Home Screen".\n'
     + '2. Open the dashboard from the new Home Screen icon.\n3. Tap 🔕 Bias there and choose Allow.\n\n(Needs iOS 16.4 or newer.)')}>🔕 Bias</button> : null
   const active = on && perm === 'granted'
   const click = async () => {
@@ -154,9 +157,9 @@ function BiasAlertToggle({ on, setOn, setPushed }) {
     if (p === 'granted') setPushed(await pushSubscribe())
   }
   const title = perm === 'denied' ? 'Notifications are blocked for this site: allow them in the browser’s site settings, then click again'
-    : active ? 'Market Bias alerts ON: you get a notification when the bias changes during market hours, even with the phone locked. Click to turn off'
-    : 'Get a notification when the Market Bias changes (Bullish / Neutral / Bearish)'
-  return <button className={'hdr-auto hdr-bell' + (active ? ' on' : '')} onClick={click} title={title} aria-label="Market Bias alerts">
+    : active ? 'Alerts ON: you get a notification when Market Bias or Nifty OI Change turns Bullish / Neutral / Bearish during market hours, even with the phone locked. Click to turn off'
+    : 'Get a notification when Market Bias or Nifty OI Change turns Bullish / Neutral / Bearish'
+  return <button className={'hdr-auto hdr-bell' + (active ? ' on' : '')} onClick={click} title={title} aria-label="Market Bias and Nifty OI Change alerts">
     {active ? '🔔 Bias' : '🔕 Bias'}</button>
 }
 
@@ -235,15 +238,16 @@ function App() {
   const ipo = usePoll(() => api('/api/ipo'), page === 'ipo' ? 30000 : 300000, [page === 'ipo'])
 
   // Today's Top 20 F&O gainers / losers (same ranking as the Sector Heatmap list), tagged in every scanner.
-  const [topOnly, setTopOnly] = useSessionState('top20.only', '')  // scanners: '' all, 'up' Top 20 gainers, 'down' losers
+  // Scanners (Basic and Advanced): one on/off button for Top 20 gainers + losers, on by default; tap off to see all stocks
+  const [topOn, setTopOn] = useSessionState('top20.on', true)
   const topMovers = useMemo(() => {
     const fo = (live.data?.stocks || []).filter(s => s.fo && Number.isFinite(s.pct_prev)).sort((a, b) => b.pct_prev - a.pct_prev)
     const n = Math.min(20, Math.floor(fo.length / 2)), out = {}
     fo.slice(0, n).forEach((s, i) => { if (s.pct_prev > 0) out[s.symbol] = ['up', i + 1] })
     fo.slice(-n).reverse().forEach((s, i) => { if (s.pct_prev < 0) out[s.symbol] = ['down', i + 1] })
-    return { map: out, only: basic ? 'both' : topOnly, setOnly: setTopOnly, locked: basic }  // Basic: scanners show Top 20 gainers + losers only
-  }, [live.data?.stocks, topOnly, basic])
-  const topCut = rows => basic ? rows.filter(r => topMovers.map[r.symbol]) : rows  // Basic: counts match the Top 20 gainers + losers list
+    return { map: out, only: topOn ? 'both' : '', topOn, setTopOn }
+  }, [live.data?.stocks, topOn])
+  const topCut = rows => topOn ? rows.filter(r => topMovers.map[r.symbol]) : rows  // tab counts match the list shown
   const toggleSector = useCallback(sym => setSelected(s => s.includes(sym) ? s.filter(x => x !== sym) : [...s, sym]), [setSelected])
   const orbCount = orb.data?.rows ? topCut(filterRows(orb.data.rows, orbFilters, selected, orb.data)).length : null
   const orb15Count = orb15.data?.rows ? topCut(filterRows(orb15.data.rows, orbFilters15, selected, orb15.data)).length : null
@@ -311,6 +315,7 @@ function App() {
       </>}
       <PageHowTo page={page} />  {/* Market Overview has its own (with the live 3-step check) */}
     </main>
+    <InstallPrompt />  {/* phones / tablets not using the home-screen app yet */}
     <TabBar pages={navPages} page={page} setPage={setPage} badges={{ heatmap: selected.length || null, scanner: orbNow[0] }} />
     <footer className="foot">
       <InfoLinks go={setPage} />

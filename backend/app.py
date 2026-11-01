@@ -73,7 +73,7 @@ def _start():
     engine.start()
     trend_scan.ensure_started()
     vol_scan.ensure_started()
-    push.start(_bias_now)
+    push.start(_bias_now, _oi_now)
 
 
 def _bias_now():
@@ -82,6 +82,37 @@ def _bias_now():
     if not d:
         return None, 0, False
     return d["bias"]["label"], d["bias"]["score"], ms["label"] == "Market Open"
+
+
+def _oi_now():
+    """Nifty OI Change reading for alerts, as on the OI Change card: fresh call vs put OI over the
+    strikes within ±10 of the at-the-money strike, nearest expiry."""
+    global _index_opt
+    from index_options import IndexOptions
+
+    if _index_opt is None:
+        _index_opt = IndexOptions(engine)
+    d = _index_opt.get("NIFTY")
+    e = (d.get("expiries") or [{}])[0]
+    ch, lot = e.get("chain") or [], d.get("lot")
+    if not ch or not lot:
+        return None, ""
+    i = next((n for n, r in enumerate(ch) if r.get("k") == e.get("atm_strike")), 0)
+    w = ch[max(0, i - 10): i + 11]
+    cc = sum(float((r.get("call") or {}).get("oi_chg") or 0) for r in w) * lot
+    pc = sum(float((r.get("put") or {}).get("oi_chg") or 0) for r in w) * lot
+    if pc > 0 >= cc:
+        return "Bullish", "puts added, calls cut"
+    if cc > 0 >= pc:
+        return "Bearish", "calls added, puts cut"
+    if cc <= 0 and pc <= 0:
+        return "Neutral", "OI falling on both sides"
+    share = pc / (pc + cc)
+    if share >= 0.6:
+        return "Bullish", f"puts {round(share * 100)}% of fresh OI"
+    if share <= 0.4:
+        return "Bearish", f"calls {round((1 - share) * 100)}% of fresh OI"
+    return "Neutral", f"puts {round(share * 100)}% of fresh OI"
 
 
 class Cached:
