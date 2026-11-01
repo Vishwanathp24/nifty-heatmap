@@ -193,7 +193,7 @@ function App() {
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
   }, [])
-  const [mode, setMode] = usePersistentState('siteMode', 'advanced')
+  const [mode, setMode] = useState('advanced')  // every visit opens Advanced; Basic lasts until the page is reloaded
   const basic = mode === 'basic'
   useEffect(() => { if (basic && !BASIC_PAGES.includes(page)) setPage('overview') }, [basic, page])
   const navPages = basic ? PAGES.filter(p => BASIC_PAGES.includes(p.id)) : PAGES
