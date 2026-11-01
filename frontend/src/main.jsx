@@ -278,8 +278,8 @@ function App() {
       {live.error && !live.data && <div className="alert">{live.error}</div>}
       {/* Phones (compact view): Market Bias, OI Change, PCR, Expected Move, breadth and FII / DII as small cards */}
       {page !== 'crypto' && <MiniCards bias={live.data?.bias} breadth={live.data?.breadth} fiiDii={ctx.data?.fii_dii?.data} />}
-      {/* Pills strip: Overview / Heatmap show full panels on desktop, so there it is for phones in Full data view only */}
-      {page !== 'crypto' && <div className={'mini-strip' + (page === 'overview' || page === 'heatmap' ? ' m-only' : '')}>
+      {/* Pills strip on the other pages (Overview / Heatmap have the same data as full panels, or as the small cards) */}
+      {page !== 'crypto' && page !== 'overview' && page !== 'heatmap' && <div className="mini-strip">
         <BiasPill bias={live.data?.bias} />
         <PcrMeter compact />
         <OiPill />
