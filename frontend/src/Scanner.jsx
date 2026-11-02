@@ -243,6 +243,14 @@ export default function Scanner({ orb, live, selected, setSelected, tf, setTf, c
 
   const data = orb.data
   const bias = live?.bias?.label
+  // All / Breakout / Breakdown follows the Market Bias (Bullish → Breakout, Bearish → Breakdown, Neutral → All)
+  // until the user picks a tab by hand; that choice holds for the visit, on every opening-range tab.
+  const [tabManual, setTabManual] = useSessionState('orb.tabManual', false)
+  useEffect(() => {
+    if (tabManual || !bias) return
+    const want = bias === 'BULLISH' ? 'breakout' : bias === 'BEARISH' ? 'breakdown' : 'all'
+    if (tab !== want) setTab(want)
+  }, [bias, tabManual])  // eslint-disable-line react-hooks/exhaustive-deps
   const sectors = live?.sectors || []
 
   const base = useMemo(() => filterRows(data?.rows || [], filters, selected), [data, selected, f]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -264,7 +272,7 @@ export default function Scanner({ orb, live, selected, setSelected, tf, setTf, c
         {[['all', 'All'], ['breakout', 'Breakout'], ['breakdown', 'Breakdown']].map(([id, label]) =>
           <button key={id} role="tab" aria-selected={tab === id}
             className={id + (tab === id ? ' on' : '') + ((id === 'breakout' && bias === 'BULLISH') || (id === 'breakdown' && bias === 'BEARISH') ? ' emph' : '')}
-            onClick={() => setTab(id)} title={(id === 'breakout' && bias === 'BULLISH') || (id === 'breakdown' && bias === 'BEARISH') ? 'Aligned with current market bias' : ''}>
+            onClick={() => { setTabManual(true); setTab(id) }} title={(id === 'breakout' && bias === 'BULLISH') || (id === 'breakdown' && bias === 'BEARISH') ? 'Aligned with current market bias' : ''}>
             {label} <span className="count">{counts[id]}</span></button>)}
       </div>
       {/* one row: tabs · Top 20 · sector · search · filters (wraps in the same order on phones) */}

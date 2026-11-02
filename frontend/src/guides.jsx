@@ -78,7 +78,7 @@ const GUIDES = {
     ],
     steps: [
       <><b>Pick the box size</b> (5, 15, 30 min or 1 hour). Bigger boxes give fewer but steadier signals.</>,
-      <><b>Check the ribbon:</b> on a Bullish day, Breakouts go with the mood. On a Bearish day, Breakdowns do.</>,
+      <><b>Check the mood:</b> on a Bullish day, Breakouts go with the mood. On a Bearish day, Breakdowns do. The page picks the matching tab for you (Bullish → Breakout, Bearish → Breakdown, Neutral → All); tap another tab to choose yourself.</>,
       <><b>Prefer strong signals:</b> high Vol Ratio, still beyond the range, and not too far from the box (small Dist ORB %).</>,
       <><b>Click a row</b> to open the stock and its chart, and check it yourself.</>,
     ],
