@@ -62,7 +62,7 @@ function PreOpenCard({ res, which, label, short }) {
       <AdChips className="c-hide" up={g.up} down={g.down} unch={g.unchanged} />
     </> : <>
       <div className={'card-v ' + tone(p)}>{isNum(p) ? fmtPct(p) : '—'}</div>
-      <div className="card-d muted">{g ? <><AdChips className="c-hide" up={g.up} down={g.down} unch={g.unchanged} /><span className="c-only">{g.up}↑ {g.down}↓</span></> : res.error || res.data?.error ? 'Pre-open data unavailable' : 'Loading…'}</div>
+      <div className="card-d muted">{g ? <><AdChips className="c-hide" up={g.up} down={g.down} unch={g.unchanged} /><AdChips className="c-only" up={g.up} down={g.down} /></> : res.error || res.data?.error ? 'Pre-open data unavailable' : 'Loading…'}</div>
     </>}
     <div className="card-n">{d ? `${day.split('-').slice(0, 2).join(' ')} · ${time?.slice(0, 5)} IST (9:00–9:08)${nse ? '' : ' · est.'}` : 'NSE pre-open, 9:00–9:08 IST'}</div>
   </div>
@@ -174,7 +174,7 @@ const HOW_TO = [
   ['📊', 'Nifty 50, Nifty Bank, Sensex', 'Each one is a "score" for a group of big Indian companies. Green and + means the score went up today. Red and − means it went down.'],
   ['😨', 'India VIX', 'The "fear meter". When it goes up, people are more worried. When it goes down, people are calmer.'],
   ['📏', 'Expected Move (pill beside Nifty PCR)', 'How far option traders expect Nifty to move by this expiry. ±234 means Nifty will probably stay between the two numbers shown, about 2 times out of 3. Higher fear (VIX) = a wider range. It shrinks as expiry gets closer.'],
-  ['🌅', 'Pre-Open', 'NSE runs a short "warm-up" from 9:00 to 9:08 am where prices are set before the market opens. The Nifty 50 card shows the price Nifty opens at (as published by NSE), how much that is above or below yesterday\'s close, and how many of the 50 stocks start up (Adv), down (Dec) or unchanged. The F&O card turns the warm-up prices of all F&O stocks into one estimated number. Gap up = the day is likely to start higher than yesterday\'s close. Gap down = lower. Flat = about the same. It is only a starting hint: the market can turn after 9:15.'],
+  ['🌅', 'Pre-Open', 'NSE runs a short "warm-up" from 9:00 to 9:08 am where prices are set before the market opens. The Nifty 50 card shows the price Nifty opens at (as published by NSE), how much that is above or below yesterday\'s close, and how many of the 50 stocks start up (green ↑), down (red ↓) or unchanged (grey —). The F&O card turns the warm-up prices of all F&O stocks into one estimated number. Gap up = the day is likely to start higher than yesterday\'s close. Gap down = lower. Flat = about the same. It is only a starting hint: the market can turn after 9:15.'],
   ['🏦', 'FII / DII', 'What the big money did yesterday. FII = big foreign investors, DII = big Indian investors. + means they bought more than they sold. − means they sold more.'],
   ['🔔', 'Alerts (🔕 Bias button at the top)', 'Tap it and allow notifications. Your phone then beeps when Market Bias or Nifty OI Change turns Bullish, Neutral or Bearish during market hours, even when it is locked. On iPhone, first add the site to your Home Screen (the site shows you how).'],
   ['📱', 'On a phone', 'The small cards at the top show the short version: Market Bias, Nifty OI Change, Nifty PCR, Expected Move, the up/down counts and FII / DII. Each card has its name on top and its value below. Green = good sign, red = bad sign, amber = mixed. Want every number? Turn on the Full data switch at the top to see the big panels instead.'],

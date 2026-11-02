@@ -1543,12 +1543,25 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
   .app:not(.full-data) .heatmap .tile-foot .ad-chips { gap: 2px; flex-wrap: nowrap }
   .app:not(.full-data) .heatmap .tile-foot .ad-chips > span { font-size: 9.5px; padding: 0 3px; border-radius: 4px }
 }
-@media (max-width: 600px), (pointer: coarse) and (max-width: 1366px) {
-  .app:not(.full-data) .heatmap .tile:has(.tile-foot .ad-chips) .tile-val { display: none }  /* % change + Adv / Dec chips on line 2 */
+@media (max-width: 600px), (pointer: coarse) and (max-width: 1366px) {  /* phone / tablet tiles: % change + ↑ / ↓ chips on line 2 (no room for the index value) */
+  .app:not(.full-data) .heatmap .tile:has(.tile-foot .ad-chips) .tile-val { display: none }
   .app:not(.full-data) .heatmap .tile:has(.tile-foot .ad-chips) .tile-foot { margin-left: auto }
 }
 @media (max-width: 360px) {
   .app:not(.full-data) .heatmap .tile { padding: 6px 6px; column-gap: 4px }
   .app:not(.full-data) .heatmap .tile-pct { font-size: 13.5px }
   .app:not(.full-data) .heatmap .tile-foot .ad-chips > span { font-size: 9px; padding: 0 2px }
+}
+/* compact Pre-Open F&O: Adv / Dec chips beside the % */
+@media (max-width: 600px), (pointer: coarse) and (max-width: 1366px) {
+  .app:not(.full-data) .ad-chips.c-only { display: inline-flex !important; flex-wrap: nowrap; gap: 2px }
+  .app:not(.full-data) .ov .idx-section .card-d .ad-chips > span { font-size: 9.5px; padding: 0 3px; border-radius: 4px }
+}
+@media (max-width: 360px) {
+  .app:not(.full-data) .ov .idx-section .card { padding: 6px 8px; column-gap: 4px }
+  .app:not(.full-data) .ov .idx-section .card-v { font-size: 13.5px }
+  .app:not(.full-data) .ov .idx-section .card-d .ad-chips > span { font-size: 9px; padding: 0 2px }
+}
+@media (max-width: 360px) {  /* very small phones: Pre-Open F&O chips go under the % instead of being cut off */
+  .app:not(.full-data) .ov .idx-section .card-d.muted:has(.ad-chips.c-only) { grid-column: 1 / -1; overflow: visible }
 }
