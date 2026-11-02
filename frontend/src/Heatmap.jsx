@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { BreadthBar, ChartIcon, Drawer, Empty, IndexLink, Pct, Seg, SortTh, StockLink } from './components.jsx'
+import { AdChips, BreadthBar, ChartIcon, Drawer, Empty, IndexLink, Pct, Seg, SortTh, StockLink } from './components.jsx'
 import { StockDrawer } from './Scanner.jsx'
 import { OiCard, PcrCard } from './Pcr.jsx'
 import { BreadthPanel } from './Overview.jsx'
@@ -231,7 +231,7 @@ export default function Heatmap({ live, selected, setSelected, toggle, goto }) {
           <div className="tile-val"><span className="c-hide">{fmtNum(s.quote?.ltp)}</span>
             <span className="c-only">{isNum(s.quote?.ltp) ? Math.round(s.quote.ltp).toLocaleString('en-IN') : '—'}</span></div>
           <div className="tile-pct">{fmtPct(p)} <small>{BASIS_WORD[basis]}</small></div>
-          <div className="tile-foot"><span>{basis === 'open' ? 'prev' : basis === 'prev' ? 'open' : 'today'} {fmtPct(other)}</span><span title="NSE advances / declines vs previous close (today)">{s.nse_breadth.up}↑ {s.nse_breadth.down}↓</span></div>
+          <div className="tile-foot"><span>{basis === 'open' ? 'prev' : basis === 'prev' ? 'open' : 'today'} {fmtPct(other)}</span><span title="NSE advances / declines vs previous close (today)"><AdChips up={s.nse_breadth.up} down={s.nse_breadth.down} /></span></div>
         </div>
       })}
       {!shown.length && <Empty>No sectors match.</Empty>}

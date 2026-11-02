@@ -132,14 +132,20 @@ def constituents(index_symbol):
     return index_row, stocks
 
 
+_preopen_done = {}  # pre-open timestamp -> a complete result (all Nifty 50 members + NSE value); pre-open data never changes after 9:08
+
+
 def preopen():
-    """Pre-open session (9:00-9:08 IST) for Nifty 50 and F&O stocks. Each group's estimate is its members'
-    pre-open % changes weighted by free-float market cap (how Nifty itself is weighted)."""
+    """Pre-open session (9:00-9:08 IST) for Nifty 50 and F&O stocks: advances / declines from each stock's
+    pre-open price, NSE's Nifty 50 pre-open value, and for F&O an estimate (members' pre-open % changes
+    weighted by free-float market cap, the way Nifty itself is weighted)."""
     from config import FO_INDEX
     d = nse.get(NSE_API + "market-data-pre-open?key=FO")
     rows = d.get("data") or []
     if not rows:
         raise SourceError("no pre-open data")
+    if d.get("timestamp") in _preopen_done:
+        return _preopen_done[d.get("timestamp")]
     chg = {r["metadata"]["symbol"]: f(r["metadata"].get("pChange")) for r in rows}
 
     def group(index_symbol):
@@ -153,7 +159,22 @@ def preopen():
                 "gainers": [[s, p] for s, p, _ in ranked[::-1][:3] if p > 0],
                 "losers": [[s, p] for s, p, _ in ranked[:3] if p < 0]}
 
-    return {"at": d.get("timestamp"), "nifty50": group("NIFTY 50"), "fo": group(FO_INDEX)}
+    n50 = group("NIFTY 50")
+    # NSE's own Nifty 50 pre-open value: the index opens at its pre-open price, so today's open vs the
+    # previous close (as on NSE's pre-open page). Before the pre-open closes (open still 0) the estimate stays.
+    at = str(d.get("timestamp") or "")  # "02-Nov-2026 09:09:31"; during 9:00-9:08 the index open is not set yet
+    try:
+        idx = all_indices().get("NIFTY 50") or {}
+        if idx.get("open") and idx.get("prev") and at[12:17] >= "09:08":
+            n50.update(value=idx["open"], change=round(idx["open"] - idx["prev"], 2), pct=round((idx["open"] - idx["prev"]) / idx["prev"] * 100, 2))
+    except SourceError:
+        pass
+    out = {"at": d.get("timestamp"), "nifty50": n50, "fo": group(FO_INDEX)}
+    # NSE's member lists sometimes come back short during the session: keep only a complete reading
+    if n50.get("value") and n50["up"] + n50["down"] + n50["unchanged"] >= 50:
+        _preopen_done.clear()
+        _preopen_done[out["at"]] = out
+    return out
 
 
 def minute_series(symbol):

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react'
-import { Empty, Section, Seg, SortTh } from './components.jsx'
+import { AdChips, Empty, Section, Seg, SortTh } from './components.jsx'
 import { PageNote } from './guides.jsx'
 import { heatClass, isNum, istTime, setSessionValue, sortRows, tvCrypto, useSessionState } from './lib.js'
 import Trend, { useTrendSettings } from './Trend.jsx'
@@ -98,7 +98,7 @@ function Heatmap({ coins }) {
       onClick={() => setSel(s => s === c.category ? null : c.category)} title="Click to show its coins">
       <div className="tile-name">{c.category}</div>
       <div className="tile-pct">{c.pct > 0 ? '+' : ''}{c.pct.toFixed(2)}%</div>
-      <div className="tile-sub">{c.up}↑ {c.down}↓ · {c.coins} coins</div>
+      <div className="tile-sub"><AdChips up={c.up} down={c.down} /> · {c.coins} coins</div>
     </button>)}</div>
     <h3 className="sub-h">{sel ? `${sel} coins` : 'All coins'} · today % since 12:00 AM IST {sel && <button className="btn sm" onClick={() => setSel(null)}>✕ Show all</button>}</h3>
     <div className="heatmap coins">{list.map(c => <a key={c.symbol} className={'tile ' + heatClass(dayPct(c))} href={tvCrypto(c.symbol)} target="_blank" rel="noopener noreferrer" title={c.name}>

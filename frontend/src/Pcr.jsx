@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react'
-import { Empty, Section, Seg } from './components.jsx'
+import { AdChips, Empty, Section, Seg } from './components.jsx'
 import { api, fmtVol, isNum, istTime, usePersistentState, usePoll } from './lib.js'
 
 // PCR (OI) = total put open interest ÷ total call open interest, read from the option sellers'
@@ -144,8 +144,8 @@ export function MiniCards({ bias, breadth, fiiDii, always = false }) {
   const card = (key, tone, label, value, title) => <div key={key} className={'mcard ' + (tone || '')} title={title}>
     <div className="mk">{label}</div><div className="mv">{value}</div></div>
   const breadthCard = (label, x) => x && card(label, !isNum(x.ad_ratio) ? 'amber' : sign(x.ad_ratio - 1), label + ' Breadth',
-    <>{x.up}↑ {x.down}↓ <small>A/D {isNum(x.ad_ratio) ? x.ad_ratio.toFixed(2) : 'N/A'}</small></>,
-    `${label} breadth vs previous close: ${x.up} advancing, ${x.down} declining, ${x.unchanged} unchanged`)
+    <AdChips up={x.up} down={x.down} />,
+    `${label} breadth vs previous close: ${x.up} advancing, ${x.down} declining, ${x.unchanged} unchanged · A/D ratio ${isNum(x.ad_ratio) ? x.ad_ratio.toFixed(2) : 'N/A'}`)
   const flowCard = (label, x) => x && isNum(x.net) && card(label, sign(x.net), `${label} · ${x.date.split('-').slice(0, 2).join(' ')}`,
     <>{x.net > 0 ? '+' : x.net < 0 ? '−' : ''}{Math.abs(x.net).toLocaleString('en-IN', { maximumFractionDigits: 0 })} <small>Cr net</small></>,
     `${label} cash market, provisional (NSE), data date ${x.date}: bought ₹${k(x.buy)} Cr, sold ₹${k(x.sell)} Cr`)

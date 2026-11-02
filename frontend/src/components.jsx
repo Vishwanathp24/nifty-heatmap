@@ -130,6 +130,18 @@ export function Empty({ children }) {
 }
 
 // Ribbon pill: advancing / declining and A/D ratio for a breadth bucket (tone by A/D vs 1).
+// Advances / declines / unchanged as small coloured chips (same look everywhere, as on NSE's pre-open page).
+export function AdChips({ up, down, unch, className = '' }) {
+  return <span className={'ad-chips ' + className}><span className="up">Adv {up ?? '—'}</span><span className="down">Dec {down ?? '—'}</span>
+    {unch != null && <span>Unch {unch}</span>}</span>
+}
+
+// A "29 up / 21 down" reading (Market Bias table) shown as chips; any other text unchanged.
+export function AdText({ text }) {
+  const m = /^(\d+) up \/ (\d+) down$/.exec(text || '')
+  return m ? <AdChips up={m[1]} down={m[2]} /> : text
+}
+
 export function BreadthPill({ label, b }) {
   if (!b) return null
   const tone = !isNum(b.ad_ratio) ? 'neutral' : b.ad_ratio > 1 ? 'bull' : b.ad_ratio < 1 ? 'bear' : 'neutral'
