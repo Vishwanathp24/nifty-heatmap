@@ -207,7 +207,9 @@ function App() {
     return () => window.removeEventListener('popstate', onPop)
   }, [])
   const [fullData, setFullData] = usePersistentState('fullData', false)  // phones / tablets: original full panels instead of small cards
-  const [mode, setMode] = useState('advanced')  // every visit opens Advanced; Basic lasts until the page is reloaded
+  // Every visit opens Basic on phones and Advanced on larger screens (a link to a page Basic doesn't have,
+  // e.g. /ipo, opens Advanced so it isn't bounced to the Overview); a switch lasts until the page is reloaded.
+  const [mode, setMode] = useState(() => window.matchMedia('(max-width: 600px)').matches && [...BASIC_PAGES, ...INFO_IDS].includes(page) ? 'basic' : 'advanced')
   const basic = mode === 'basic'
   useEffect(() => { if (basic && !BASIC_PAGES.includes(page) && !INFO_IDS.includes(page)) setPage('overview') }, [basic, page])
   const navPages = basic ? PAGES.filter(p => BASIC_PAGES.includes(p.id)) : PAGES
