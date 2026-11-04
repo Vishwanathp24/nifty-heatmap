@@ -2,19 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
 // Only set for the Netlify build; must match backend/.access_key.
-// The owner can also unlock the public site on their own devices (moneymaau.com/?owner): the key is kept in that
-// browser only and unlocks the private Kite view there.
-const storedKey = (() => { try { return localStorage.getItem('nseid:ownerKey') || '' } catch { return '' } })()
-const DASHBOARD_KEY = import.meta.env.VITE_DASHBOARD_KEY || storedKey
-export const OWNER_BUILD = !!DASHBOARD_KEY  // owner's build or unlocked browser: shows the private Kite view
-export const OWNER_UNLOCKED = !import.meta.env.VITE_DASHBOARD_KEY && !!storedKey
-export async function unlockOwner(key) {
-  const r = await fetch(API_BASE + '/api/kite/status', { headers: { 'X-Dashboard-Key': key } }).catch(() => null)
-  if (!r) throw new Error('Cannot reach the server.')
-  if (r.status === 401) throw new Error('That key is not right.')
-  try { localStorage.setItem('nseid:ownerKey', key) } catch { throw new Error('This browser does not allow saving it (private mode?).') }
-}
-export function lockOwner() { try { localStorage.removeItem('nseid:ownerKey') } catch { /* ignore */ } }
+const DASHBOARD_KEY = import.meta.env.VITE_DASHBOARD_KEY || ''
 
 export class ApiError extends Error {
   constructor(message, status) { super(message); this.status = status }

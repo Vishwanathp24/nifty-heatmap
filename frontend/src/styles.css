@@ -1603,3 +1603,4 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
 .kt-tbl tr.kt-closed td { opacity: .6 }
 .kt-sum { grid-template-columns: repeat(auto-fit, minmax(min(160px, 100%), 1fr)); margin-bottom: 12px }
 .fy-nomarket { margin: 4px 0 14px }
+.mode-switch button { display: inline-flex; align-items: center; gap: 6px } .mode-ic { flex: none }

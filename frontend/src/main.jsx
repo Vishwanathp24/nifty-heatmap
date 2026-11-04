@@ -2,7 +2,7 @@ import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useStat
 import { createRoot } from 'react-dom/client'
 import './styles.css'
 import favicon from './icons/favicon-64.png'
-import { OWNER_BUILD, unlockOwner, api, istDate, istTime, nseTs, setSessionValue, useClock, usePersistentState, useSessionState, usePoll } from './lib.js'
+import { api, istDate, istTime, nseTs, setSessionValue, useClock, usePersistentState, useSessionState, usePoll } from './lib.js'
 import { StockChartCtx, TopMoversCtx } from './components.jsx'
 import Overview from './Overview.jsx'
 import Heatmap from './Heatmap.jsx'
@@ -16,7 +16,6 @@ const Crypto = lazy(() => import('./Crypto.jsx'))
 const Ipo = lazy(() => import('./Ipo.jsx'))
 const Learning = lazy(() => import('./Learning.jsx'))
 const Journal = lazy(() => import('./Journal.jsx'))
-const Kite = lazy(() => import('./Kite.jsx'))  // private Kite Live view (owner only)
 const Scans = lazy(() => import('./Scans.jsx'))  // Intraday Scanner: charts, option chain, payoff tools - loaded when opened
 
 const REFRESH_MS = 10000
@@ -71,23 +70,10 @@ function TabBar({ pages, page, setPage, badges }) {
   </>
 }
 
-// moneymaau.com/?owner: the owner enters the server's access key once to unlock the private Kite view in this browser.
-function OwnerUnlock() {
-  const [key, setKey] = useState(''), [err, setErr] = useState(null), [busy, setBusy] = useState(false)
-  const close = () => window.location.replace(window.location.pathname)
-  const save = async e => {
-    e.preventDefault(); setBusy(true); setErr(null)
-    try { await unlockOwner(key.trim()); window.location.replace('/?kite=1') } catch (x) { setErr(x.message); setBusy(false) }
-  }
-  return <div className="owner-backdrop" onClick={close}><form className="owner-box" onClick={e => e.stopPropagation()} onSubmit={save}>
-    <b>Owner unlock</b>
-    <span className="muted small">Enter the dashboard access key from the server to open the private Kite view in this browser.</span>
-    <input type="password" name="owner-key" value={key} onChange={e => setKey(e.target.value)} autoComplete="new-password" data-lpignore="true" data-1p-ignore autoFocus placeholder="Access key" />
-    <span className="fy-actions"><button className="btn primary" disabled={busy || !key.trim()}>{busy ? 'Checking…' : 'Unlock'}</button>
-      <button type="button" className="btn ghost sm" onClick={close}>Cancel</button></span>
-    {err && <span className="down small">{err}</span>}
-  </form></div>
-}
+// Icons on the Basic / Advanced switch (larger screens only; phones keep the short text buttons).
+const MODE_ICON = { basic: 'M4 5h16v14H4z M4 10h16', advanced: 'M4 4h7v7H4z M13 4h7v7h-7z M4 13h7v7H4z M13 13h7v7h-7z' }
+const ModeIcon = ({ id }) => <svg className="mode-ic d-only" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
+  strokeWidth="2" strokeLinejoin="round" aria-hidden="true"><path d={MODE_ICON[id]} /></svg>
 
 // Advanced top menu: these pages sit under one "Learn & Track" dropdown instead of their own links.
 const MENU_IDS = ['learning', 'journal']
@@ -249,12 +235,8 @@ function App() {
   const [fullData, setFullData] = usePersistentState('fullData', false)  // phones / tablets: original full panels instead of small cards
   // Every visit opens Basic on phones (a page Basic doesn't have opens the home page instead) and Advanced on
   // larger screens; a switch lasts until the page is reloaded.
-  // Kite (owner only) is a third mode: the live Zerodha Kite view instead of the site pages. Coming back from
-  // the Kite login (?kite=1) opens it.
-  const [mode, setMode] = useState(() => OWNER_BUILD && new URLSearchParams(window.location.search).has('kite') ? 'kite'
-    : window.matchMedia('(max-width: 600px)').matches ? 'basic' : 'advanced')
-  useEffect(() => { if (window.location.search.includes('kite')) window.history.replaceState(null, '', window.location.pathname) }, [])
-  const basic = mode === 'basic', kite = mode === 'kite'
+  const [mode, setMode] = useState(() => window.matchMedia('(max-width: 600px)').matches ? 'basic' : 'advanced')
+  const basic = mode === 'basic'
   useEffect(() => { if (basic && !BASIC_PAGES.includes(page) && !INFO_IDS.includes(page)) setPage('overview') }, [basic, page])
   const navPages = basic ? PAGES.filter(p => BASIC_PAGES.includes(p.id)) : PAGES
   const [selected, setSelected] = useSessionState('sectors', [])
@@ -320,22 +302,22 @@ function App() {
       <button className="hdr-brand" onClick={() => { setPage('overview'); window.scrollTo({ top: 0 }) }} title="Go to homepage (Market Overview)">
         <span>NSE Sector Heatmap</span></button>
       <div className="seg mode-switch" role="group" aria-label="Site version">
-        {[['basic', 'Basic'], ['advanced', 'Advanced'], ...(OWNER_BUILD ? [['kite', 'Kite']] : [])].map(([v, l]) => <button key={v} className={mode === v ? 'on' : ''} onClick={() => setMode(v)}
-          title={v === 'basic' ? 'Simple view: Market Overview, Sector Heatmap and ORB Scanner only' : v === 'kite' ? 'Live data from your own Zerodha Kite account (private)' : 'Full view: every scanner, chart and tool'}>{l}</button>)}
+        {[['basic', 'Basic'], ['advanced', 'Advanced']].map(([v, l]) => <button key={v} className={mode === v ? 'on' : ''} onClick={() => setMode(v)}
+          title={v === 'basic' ? 'Simple view: Market Overview, Sector Heatmap and ORB Scanner only' : 'Full view: every scanner, chart and tool'}><ModeIcon id={v} />{l}</button>)}
       </div>
       <button className={'full-toggle' + (fullData ? ' on' : '')} role="switch" aria-checked={fullData} onClick={() => setFullData(f => !f)}
         title="Phones and tablets: show the full data panels (as in the first version) instead of the small cards"><i />Full data</button>
-      {!kite && <nav className="hdr-nav">
+      <nav className="hdr-nav">
         {navPages.filter(p => !MENU_IDS.includes(p.id)).map(p => <a key={p.id} href={PATHS[p.id]} className={page === p.id ? 'active' : ''} onClick={e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); setPage(p.id) }}>
           {p.label}
           {p.id === 'heatmap' && selected.length ? <span className="badge">{selected.length}</span> : null}
           {p.id === 'scanner' && orbNow[0] != null ? <span className="badge" title={`Signals passing the current ${orbNow[1]} ORB filters`}>{orbNow[0]}</span> : null}
         </a>)}
       <NavMenu pages={navPages.filter(p => MENU_IDS.includes(p.id))} page={page} go={setPage} />
-      </nav>}
+      </nav>
       <StatusBar live={live} auto={auto} setAuto={setAuto} crypto={page === 'crypto'} />
     </header>
-    {kite ? <main className="page"><Suspense fallback={<div className="empty">Loading…</div>}><Kite /></Suspense></main> : <main className="page">
+    <main className="page">
       {live.error && !live.data && <div className="alert">{live.error}</div>}
       {/* Market Bias, OI Change, PCR, Expected Move, breadth and FII / DII as small cards on every page except Crypto;
           on Overview / Heatmap only in the phone / tablet views (desktop has the full panels) */}
@@ -367,10 +349,9 @@ function App() {
           : <Scanner key="orb15" orm={15} orb={orb15} live={live.data} selected={selected} setSelected={setSelected} tf={tf15} setTf={setTf15} confirm3={confirm15} setConfirm3={setConfirm15} f={orbFilters15} setF={setOrbFilters15} />}
       </>}
       <PageHowTo page={page} />  {/* Market Overview has its own (with the live 3-step check) */}
-    </main>}
-    {!OWNER_BUILD && new URLSearchParams(window.location.search).has('owner') && <OwnerUnlock />}
+    </main>
     <InstallPrompt />  {/* phones / tablets not using the home-screen app yet */}
-    <TabBar pages={navPages} page={kite ? null : page} setPage={id => { if (kite) setMode("advanced"); setPage(id) }} badges={{ heatmap: selected.length || null, scanner: orbNow[0] }} />
+    <TabBar pages={navPages} page={page} setPage={setPage} badges={{ heatmap: selected.length || null, scanner: orbNow[0] }} />
     <footer className="foot">
       <InfoLinks go={setPage} />
       <InstallLink />
