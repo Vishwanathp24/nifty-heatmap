@@ -418,69 +418,94 @@ def index_options(symbol: str = "NIFTY"):
         raise HTTPException(status_code=502, detail=f"NSE option chain unavailable ({exc}).")
 
 
-# ---- Fyers Live (private: the owner's own Fyers API app; needs the dashboard access key) ----
-from fyers_live import FyersError, FyersLive
+# ---- Kite Live (private: the owner's own Zerodha Kite Connect app; needs the dashboard access key) ----
+from kite_live import KiteError, KiteLive
 
-_fyers = FyersLive()
+
+def _nse_prev_oi(name, expiry):
+    """Previous-close OI in shares per (strike, CE/PE) from the NSE option chain (Kite quotes don't carry it)."""
+    global _index_opt
+    from index_options import IndexOptions
+
+    if _index_opt is None:
+        _index_opt = IndexOptions(engine)
+    d = _index_opt.get(name)
+    want = datetime.strptime(expiry, "%Y-%m-%d").strftime("%d-%b-%Y")
+    e = next((x for x in d.get("expiries") or [] if x.get("code") == want), None)
+    lot = d.get("lot")
+    if not e or not lot:
+        return None
+    out = {}
+    for r in e.get("chain") or []:
+        for side, t in (("call", "CE"), ("put", "PE")):
+            o = r.get(side) or {}
+            if o.get("oi") is not None and o.get("oi_chg") is not None:
+                out[(float(r["k"]), t)] = (float(o["oi"]) - float(o["oi_chg"])) * lot
+    return out
+
+
+_kite = KiteLive(_nse_prev_oi)
 
 
 def _owner(request: Request):
     if not secrets.compare_digest(request.headers.get("x-dashboard-key") or "", ACCESS_KEY):
-        raise HTTPException(status_code=401, detail="Fyers Live is private to the dashboard owner.")
+        raise HTTPException(status_code=401, detail="Kite Live is private to the dashboard owner.")
 
 
-@app.get("/api/fyers/status")
-def fyers_status(request: Request):
+@app.get("/api/kite/status")
+def kite_status(request: Request):
     _owner(request)
-    return _fyers.status()
+    return _kite.status()
 
 
-@app.post("/api/fyers/config")
-async def fyers_config(request: Request):
+@app.post("/api/kite/config")
+async def kite_config(request: Request):
     _owner(request)
     b = await request.json()
     try:
-        _fyers.save_config(b.get("client_id"), b.get("secret_key"), b.get("redirect_uri"))
+        _kite.save_config(b.get("api_key"), b.get("api_secret"))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return {"ok": True}
 
 
-@app.get("/api/fyers/login-url")
-def fyers_login_url(request: Request):
+@app.get("/api/kite/login-url")
+def kite_login_url(request: Request):
     _owner(request)
     try:
-        return {"url": _fyers.login_url()}
-    except FyersError as exc:
+        return {"url": _kite.login_url()}
+    except KiteError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
 
-@app.get("/fyers/callback", include_in_schema=False)
-def fyers_callback(auth_code: str = "", state: str = ""):
-    """Fyers sends the browser back here after login (set this as the app's redirect URL)."""
+@app.get("/kite/callback", include_in_schema=False)
+def kite_callback(request_token: str = "", state: str = "", status: str = ""):
+    """Kite sends the browser back here after login (set this as the app's redirect URL)."""
     try:
-        _fyers.finish_login(auth_code, state)
-    except (FyersError, ValueError) as exc:
-        return HTMLResponse(f"<p style='font:16px system-ui;padding:24px'>Fyers login failed: {_html.escape(str(exc))} "
-                            "<a href='/?fyers=1'>Back to Fyers Live</a></p>", status_code=400)
-    return RedirectResponse("/?fyers=1", status_code=302)
+        if status and status != "success":
+            raise KiteError("Kite login was not completed.")
+        _kite.finish_login(request_token, state)
+    except (KiteError, ValueError) as exc:
+        return HTMLResponse(f"<p style='font:16px system-ui;padding:24px'>Kite login failed: {_html.escape(str(exc))} "
+                            "<a href='/?kite=1'>Back to the Kite view</a></p>", status_code=400)
+    return RedirectResponse("/?kite=1", status_code=302)
 
 
-@app.post("/api/fyers/logout")
-def fyers_logout(request: Request):
+@app.post("/api/kite/logout")
+def kite_logout(request: Request):
     _owner(request)
-    _fyers.logout()
+    _kite.logout()
     return {"ok": True}
 
 
-@app.get("/api/fyers/live")
-def fyers_live(request: Request, index: str = "NIFTY", strikes: int = 10, expiry: str = ""):
+@app.get("/api/kite/live")
+def kite_live(request: Request, index: str = "NIFTY", strikes: int = 10, expiry: str = ""):
     _owner(request)
     try:
-        return {"quotes": _fyers.quotes(), "chain": _fyers.chain(index, strikes, expiry)}
+        return {"quotes": _kite.quotes(), "chain": _kite.chain(index, strikes, expiry)}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    except FyersError as exc:
+    except KiteError as exc:
         raise HTTPException(status_code=502, detail=str(exc))
 
 

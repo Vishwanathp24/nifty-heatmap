@@ -9,3 +9,5 @@ tools/
 .netlify/
 backend/.fyers.json
 backend/.fyers_token.json
+backend/.kite.json
+backend/.kite_token.json

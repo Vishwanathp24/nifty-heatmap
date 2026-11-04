@@ -16,7 +16,7 @@ const Crypto = lazy(() => import('./Crypto.jsx'))
 const Ipo = lazy(() => import('./Ipo.jsx'))
 const Learning = lazy(() => import('./Learning.jsx'))
 const Journal = lazy(() => import('./Journal.jsx'))
-const Fyers = lazy(() => import('./Fyers.jsx'))  // private Fyers Live view (owner's build only)
+const Kite = lazy(() => import('./Kite.jsx'))  // private Kite Live view (owner only)
 const Scans = lazy(() => import('./Scans.jsx'))  // Intraday Scanner: charts, option chain, payoff tools - loaded when opened
 
 const REFRESH_MS = 10000
@@ -71,17 +71,17 @@ function TabBar({ pages, page, setPage, badges }) {
   </>
 }
 
-// moneymaau.com/?owner: the owner enters the server's access key once to unlock the private Fyers view in this browser.
+// moneymaau.com/?owner: the owner enters the server's access key once to unlock the private Kite view in this browser.
 function OwnerUnlock() {
   const [key, setKey] = useState(''), [err, setErr] = useState(null), [busy, setBusy] = useState(false)
   const close = () => window.location.replace(window.location.pathname)
   const save = async e => {
     e.preventDefault(); setBusy(true); setErr(null)
-    try { await unlockOwner(key.trim()); window.location.replace('/?fyers=1') } catch (x) { setErr(x.message); setBusy(false) }
+    try { await unlockOwner(key.trim()); window.location.replace('/?kite=1') } catch (x) { setErr(x.message); setBusy(false) }
   }
   return <div className="owner-backdrop" onClick={close}><form className="owner-box" onClick={e => e.stopPropagation()} onSubmit={save}>
     <b>Owner unlock</b>
-    <span className="muted small">Enter the dashboard access key from the server to open the private Fyers view in this browser.</span>
+    <span className="muted small">Enter the dashboard access key from the server to open the private Kite view in this browser.</span>
     <input type="password" value={key} onChange={e => setKey(e.target.value)} autoComplete="off" autoFocus placeholder="Access key" />
     <span className="fy-actions"><button className="btn primary" disabled={busy || !key.trim()}>{busy ? 'Checking…' : 'Unlock'}</button>
       <button type="button" className="btn ghost sm" onClick={close}>Cancel</button></span>
@@ -249,12 +249,12 @@ function App() {
   const [fullData, setFullData] = usePersistentState('fullData', false)  // phones / tablets: original full panels instead of small cards
   // Every visit opens Basic on phones (a page Basic doesn't have opens the home page instead) and Advanced on
   // larger screens; a switch lasts until the page is reloaded.
-  // Fyers (owner's build only) is a third mode: the live Fyers view instead of the site pages. Coming back from
-  // the Fyers login (?fyers=1) opens it.
-  const [mode, setMode] = useState(() => OWNER_BUILD && new URLSearchParams(window.location.search).has('fyers') ? 'fyers'
+  // Kite (owner only) is a third mode: the live Zerodha Kite view instead of the site pages. Coming back from
+  // the Kite login (?kite=1) opens it.
+  const [mode, setMode] = useState(() => OWNER_BUILD && new URLSearchParams(window.location.search).has('kite') ? 'kite'
     : window.matchMedia('(max-width: 600px)').matches ? 'basic' : 'advanced')
-  useEffect(() => { if (window.location.search.includes('fyers')) window.history.replaceState(null, '', window.location.pathname) }, [])
-  const basic = mode === 'basic', fyers = mode === 'fyers'
+  useEffect(() => { if (window.location.search.includes('kite')) window.history.replaceState(null, '', window.location.pathname) }, [])
+  const basic = mode === 'basic', kite = mode === 'kite'
   useEffect(() => { if (basic && !BASIC_PAGES.includes(page) && !INFO_IDS.includes(page)) setPage('overview') }, [basic, page])
   const navPages = basic ? PAGES.filter(p => BASIC_PAGES.includes(p.id)) : PAGES
   const [selected, setSelected] = useSessionState('sectors', [])
@@ -320,12 +320,12 @@ function App() {
       <button className="hdr-brand" onClick={() => { setPage('overview'); window.scrollTo({ top: 0 }) }} title="Go to homepage (Market Overview)">
         <span>NSE Sector Heatmap</span></button>
       <div className="seg mode-switch" role="group" aria-label="Site version">
-        {[['basic', 'Basic'], ['advanced', 'Advanced'], ...(OWNER_BUILD ? [['fyers', 'Fyers']] : [])].map(([v, l]) => <button key={v} className={mode === v ? 'on' : ''} onClick={() => setMode(v)}
-          title={v === 'basic' ? 'Simple view: Market Overview, Sector Heatmap and ORB Scanner only' : v === 'fyers' ? 'Live data from your own Fyers account (private)' : 'Full view: every scanner, chart and tool'}>{l}</button>)}
+        {[['basic', 'Basic'], ['advanced', 'Advanced'], ...(OWNER_BUILD ? [['kite', 'Kite']] : [])].map(([v, l]) => <button key={v} className={mode === v ? 'on' : ''} onClick={() => setMode(v)}
+          title={v === 'basic' ? 'Simple view: Market Overview, Sector Heatmap and ORB Scanner only' : v === 'kite' ? 'Live data from your own Zerodha Kite account (private)' : 'Full view: every scanner, chart and tool'}>{l}</button>)}
       </div>
       <button className={'full-toggle' + (fullData ? ' on' : '')} role="switch" aria-checked={fullData} onClick={() => setFullData(f => !f)}
         title="Phones and tablets: show the full data panels (as in the first version) instead of the small cards"><i />Full data</button>
-      {!fyers && <nav className="hdr-nav">
+      {!kite && <nav className="hdr-nav">
         {navPages.filter(p => !MENU_IDS.includes(p.id)).map(p => <a key={p.id} href={PATHS[p.id]} className={page === p.id ? 'active' : ''} onClick={e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); setPage(p.id) }}>
           {p.label}
           {p.id === 'heatmap' && selected.length ? <span className="badge">{selected.length}</span> : null}
@@ -335,7 +335,7 @@ function App() {
       </nav>}
       <StatusBar live={live} auto={auto} setAuto={setAuto} crypto={page === 'crypto'} />
     </header>
-    {fyers ? <main className="page"><Suspense fallback={<div className="empty">Loading…</div>}><Fyers /></Suspense></main> : <main className="page">
+    {kite ? <main className="page"><Suspense fallback={<div className="empty">Loading…</div>}><Kite /></Suspense></main> : <main className="page">
       {live.error && !live.data && <div className="alert">{live.error}</div>}
       {/* Market Bias, OI Change, PCR, Expected Move, breadth and FII / DII as small cards on every page except Crypto;
           on Overview / Heatmap only in the phone / tablet views (desktop has the full panels) */}
@@ -370,7 +370,7 @@ function App() {
     </main>}
     {!OWNER_BUILD && new URLSearchParams(window.location.search).has('owner') && <OwnerUnlock />}
     <InstallPrompt />  {/* phones / tablets not using the home-screen app yet */}
-    <TabBar pages={navPages} page={fyers ? null : page} setPage={id => { if (fyers) setMode("advanced"); setPage(id) }} badges={{ heatmap: selected.length || null, scanner: orbNow[0] }} />
+    <TabBar pages={navPages} page={kite ? null : page} setPage={id => { if (kite) setMode("advanced"); setPage(id) }} badges={{ heatmap: selected.length || null, scanner: orbNow[0] }} />
     <footer className="foot">
       <InfoLinks go={setPage} />
       <InstallLink />

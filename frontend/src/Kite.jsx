@@ -3,9 +3,10 @@ import { Empty, Section, Seg } from './components.jsx'
 import { OWNER_UNLOCKED, api, isNum, lockOwner, istTime, usePersistentState, usePoll } from './lib.js'
 import { OiBars, oiSentiment, shares } from './Pcr.jsx'
 
-// Fyers Live: live index quotes and the option chain from the owner's own Fyers API app.
-// Private (needs the dashboard access key, so it only appears in the owner's build). Fyers access tokens
-// end every day, so the page asks for a Fyers login once each morning.
+// Kite Live: live index quotes and option-chain OI from the owner's own Zerodha Kite Connect app.
+// Private (needs the dashboard access key: the owner's build, or a browser unlocked at /?owner). Kite access
+// tokens end every morning, so the page asks for a Kite login once a day. OI change = live OI minus the
+// previous close OI from the NSE option chain (Kite quotes don't carry it).
 
 const INDICES = [['NIFTY', 'Nifty'], ['BANKNIFTY', 'Bank Nifty'], ['FINNIFTY', 'Fin Nifty'], ['MIDCPNIFTY', 'Midcap'], ['SENSEX', 'Sensex']]
 const STRIKES = [{ value: 5, label: '±5' }, { value: 10, label: '±10' }, { value: 20, label: '±20' }]
@@ -14,39 +15,40 @@ const n2 = v => isNum(v) ? v.toLocaleString('en-IN', { maximumFractionDigits: 2 
 const sign = v => !isNum(v) ? '' : v > 0 ? 'up' : v < 0 ? 'down' : ''
 const pct = (a, b) => isNum(a) && isNum(b) && b ? (a - b) / Math.abs(b) * 100 : null
 
-export default function Fyers() {
+export default function Kite() {
   const [n, setN] = useState(0)
-  const st = usePoll(() => api('/api/fyers/status'), 60000, [n])
+  const st = usePoll(() => api('/api/kite/status'), 60000, [n])
   const reload = () => setN(x => x + 1)
   const s = st.data
-  return <div className="fyers">
-    {!s ? <Empty>{st.error || 'Checking your Fyers connection…'}</Empty>
+  return <div className="kite">
+    {!s ? <Empty>{st.error || 'Checking your Kite connection…'}</Empty>
       : !s.configured ? <Setup onDone={reload} />
       : !s.logged_in ? <Login s={s} reload={reload} />
       : <Live s={s} reload={reload} />}
   </div>
 }
 
+const CALLBACK = window.location.origin + '/kite/callback'
+
 function Setup({ onDone, initial }) {
-  const [f, setF] = useState({ client_id: initial?.client_id || '', secret_key: '', redirect_uri: initial?.redirect_uri || window.location.origin + '/fyers/callback' })
+  const [f, setF] = useState({ api_key: initial?.api_key || '', api_secret: '' })
   const [err, setErr] = useState(null), [busy, setBusy] = useState(false)
   const save = async e => {
     e.preventDefault(); setBusy(true); setErr(null)
-    try { await api('/api/fyers/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(f) }); onDone?.() }
+    try { await api('/api/kite/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(f) }); onDone?.() }
     catch (x) { setErr(x.message) } finally { setBusy(false) }
   }
-  const field = (k, label, type = 'text', ph = '') => <label className="fy-field"><span>{label}</span>
-    <input type={type} value={f[k]} placeholder={ph} autoComplete="off" spellCheck={false} onChange={e => setF({ ...f, [k]: e.target.value })} /></label>
-  return <Section title="Connect your Fyers account" subtitle="One-time setup. Your keys stay on this computer (backend/.fyers.json) and are never sent anywhere except Fyers.">
+  const field = (k, label, type = 'text') => <label className="fy-field"><span>{label}</span>
+    <input type={type} value={f[k]} autoComplete="off" spellCheck={false} onChange={e => setF({ ...f, [k]: e.target.value })} /></label>
+  return <Section title="Connect your Zerodha Kite account" subtitle="One-time setup. Your API key and secret are kept in a private file on the server and are only sent to Zerodha.">
     <ol className="fy-steps">
-      <li>Open <a href="https://myapi.fyers.in/dashboard" target="_blank" rel="noopener noreferrer">myapi.fyers.in</a> and log in with your Fyers account.</li>
-      <li>Create an app. As <b>Redirect URL</b> enter exactly: <code>{f.redirect_uri}</code></li>
-      <li>Copy the <b>App ID</b> (looks like <code>XXXXXXX-100</code>) and the <b>Secret ID</b> into the boxes below and save.</li>
+      <li>Open <a href="https://developers.kite.trade/apps" target="_blank" rel="noopener noreferrer">developers.kite.trade</a>, log in and open your app.</li>
+      <li>Set the <b>Redirect URL</b> to exactly: <code>{CALLBACK}</code></li>
+      <li>Copy the <b>API key</b> and <b>API secret</b> into the boxes below and save. Live quotes need a paid <b>Kite Connect</b> app (the free Personal app has no market data).</li>
     </ol>
     <form className="fy-form" onSubmit={save}>
-      {field('client_id', 'App ID', 'text', 'XXXXXXX-100')}
-      {field('secret_key', 'Secret ID', 'password')}
-      {field('redirect_uri', 'Redirect URL')}
+      {field('api_key', 'API key')}
+      {field('api_secret', 'API secret', 'password')}
       <button className="btn primary" disabled={busy}>{busy ? 'Saving…' : 'Save'}</button>
       {err && <span className="down small">{err}</span>}
     </form>
@@ -57,24 +59,23 @@ function Login({ s, reload }) {
   const [err, setErr] = useState(null), [edit, setEdit] = useState(false)
   const go = async () => {
     setErr(null)
-    try { window.location.href = (await api('/api/fyers/login-url')).url } catch (x) { setErr(x.message) }
+    try { window.location.href = (await api('/api/kite/login-url')).url } catch (x) { setErr(x.message) }
   }
   if (edit) return <Setup initial={s} onDone={() => { setEdit(false); reload() }} />
-  return <Section title="Log in to Fyers" subtitle="Fyers logins last until the end of the day, so this is needed once each morning.">
-    {s.error && <div className="alert">{s.error}</div>}
-    <p>App <code>{s.client_id}</code> · comes back to <code>{s.redirect_uri}</code></p>
-    <div className="fy-actions"><button className="btn primary" onClick={go}>Log in with Fyers</button>
-      <button className="btn ghost sm" onClick={() => setEdit(true)}>Change App ID / Secret</button></div>
+  return <Section title="Log in to Kite" subtitle="Kite logins end every morning, so this is needed once a day.">
+    <p>API key <code>{s.api_key}</code> · comes back to <code>{CALLBACK}</code></p>
+    <div className="fy-actions"><button className="btn primary" onClick={go}>Log in with Kite</button>
+      <button className="btn ghost sm" onClick={() => setEdit(true)}>Change API key / secret</button></div>
     {err && <p className="down small">{err}</p>}
   </Section>
 }
 
 function Live({ s, reload }) {
-  const [index, setIndex] = usePersistentState('fy.index', 'NIFTY')
-  const [strikes, setStrikes] = usePersistentState('fy.strikes', 10)
-  const [speed, setSpeed] = usePersistentState('fy.speed', 3000)
+  const [index, setIndex] = usePersistentState('kite.index', 'NIFTY')
+  const [strikes, setStrikes] = usePersistentState('kite.strikes', 10)
+  const [speed, setSpeed] = usePersistentState('kite.speed', 3000)
   const [expiry, setExpiry] = useState('')
-  const res = usePoll(() => api(`/api/fyers/live?index=${index}&strikes=${strikes}&expiry=${expiry}`), speed, [index, strikes, expiry, speed])
+  const res = usePoll(() => api(`/api/kite/live?index=${index}&strikes=${strikes}&expiry=${expiry}`), speed, [index, strikes, expiry, speed])
   const nse = usePoll(() => api('/api/index-options?symbol=NIFTY'), 30000, [])
   const d = res.data, c = d?.chain
   const sum = useMemo(() => {
@@ -95,11 +96,11 @@ function Live({ s, reload }) {
     const co = t('call', 'oi'), po = t('put', 'oi')
     return { co, po, cc: t('call', 'oi_chg'), pc: t('put', 'oi_chg'), pcr: co ? po / co : null, at: nse.data.fetched_at, n: rows.length }
   }, [sum, nse.data, index, nearest, c])
-  const logout = async () => { await api('/api/fyers/logout', { method: 'POST' }).catch(() => {}); reload() }
+  const logout = async () => { await api('/api/kite/logout', { method: 'POST' }).catch(() => {}); reload() }
 
   return <>
     <div className="fy-bar">
-      <span className="fy-who">🟢 Fyers: <b>{s.name || s.fy_id || 'connected'}</b></span>
+      <span className="fy-who">🟢 Kite: <b>{s.name || s.user_id || 'connected'}</b></span>
       <span className="muted small">Live · every {speed / 1000} s{d?.chain?.at && <> · {istTime(d.chain.at)} IST</>}</span>
       <Seg options={SPEEDS} value={speed} onChange={setSpeed} />
       <button className="btn ghost sm" onClick={logout}>Log out</button>
@@ -113,7 +114,7 @@ function Live({ s, reload }) {
       <div className="card-n muted small">O {n2(q.open)} · H {n2(q.high)} · L {n2(q.low)}</div>
     </div>)}</div>}
 
-    <Section title={`${INDICES.find(i => i[0] === index)?.[1]} OI Change (Fyers live)`}
+    <Section title={`${INDICES.find(i => i[0] === index)?.[1]} OI Change (Kite live)`}
       subtitle={c ? `Spot ${n2(c.spot)} · ATM ${n2(c.atm)} · strikes ${n2(sum?.lo)}–${n2(sum?.hi)} · OI in shares` : 'Loading the option chain…'}
       right={<div className="fy-ctrls">
         <Seg options={INDICES.map(([value, label]) => ({ value, label }))} value={index} onChange={v => { setIndex(v); setExpiry('') }} />
@@ -121,7 +122,8 @@ function Live({ s, reload }) {
         {c?.expiries?.length > 0 && <select className="fy-exp" value={expiry || c.expiry} onChange={e => setExpiry(e.target.value === c.expiries[0].ts ? '' : e.target.value)}>
           {c.expiries.slice(0, 8).map(x => <option key={x.ts} value={x.ts}>{x.label}</option>)}</select>}
       </div>} className="oi-section">
-      {!sum ? <Empty>{res.error || 'Loading the Fyers option chain…'}</Empty> : <div className="oi-grid">
+      {c && !c.has_prev && <div className="alert">OI change isn’t available for this index / expiry (no previous-close OI from NSE), so only total OI is meaningful here.</div>}
+      {!sum ? <Empty>{res.error || 'Loading the Kite option chain…'}</Empty> : <div className="oi-grid">
         <div className={'bias-main oi-sent ' + sum.sent.key}>
           <div className="k">Market Sentiment (OI)</div>
           <div className="bias-label">{sum.sent.label}</div>
@@ -138,15 +140,15 @@ function Live({ s, reload }) {
       </div>}
     </Section>
 
-    {cmp && <Section title="Fyers vs NSE option chain" subtitle={`Same ${cmp.n} strikes, nearest expiry · NSE read at ${istTime(cmp.at)} IST (refreshes about every 30 s), Fyers live`}>
-      <table className="tbl compact fy-cmp"><thead><tr><th></th><th className="num">Fyers</th><th className="num">NSE (site)</th><th className="num">Difference</th></tr></thead>
+    {cmp && <Section title="Kite vs NSE option chain" subtitle={`Same ${cmp.n} strikes, nearest expiry · NSE read at ${istTime(cmp.at)} IST (refreshes about every 30 s), Kite live`}>
+      <table className="tbl compact fy-cmp"><thead><tr><th></th><th className="num">Kite</th><th className="num">NSE (site)</th><th className="num">Difference</th></tr></thead>
         <tbody>{[['Call OI', sum.co, cmp.co, shares], ['Put OI', sum.po, cmp.po, shares], ['Call OI change', sum.cc, cmp.cc, shares], ['Put OI change', sum.pc, cmp.pc, shares], ['PCR', sum.pcr, cmp.pcr, v => v?.toFixed(2)]].map(([l, a, b, f]) => {
           const p = pct(a, b)
           return <tr key={l}><td>{l}</td><td className="num">{f(a)}</td><td className="num">{f(b)}</td><td className={'num ' + (isNum(p) && Math.abs(p) > 2 ? 'amber' : 'muted')}>{isNum(p) ? `${p > 0 ? '+' : ''}${p.toFixed(1)}%` : '—'}</td></tr>
         })}</tbody></table>
     </Section>}
 
-    {c?.chain?.length > 0 && <Section title="Option chain (Fyers live)" subtitle="OI and OI change in shares; LTP change vs previous close. ATM strike highlighted.">
+    {c?.chain?.length > 0 && <Section title="Option chain (Kite live)" subtitle="OI and OI change in shares; LTP change vs previous close. ATM strike highlighted.">
       <div className="tbl-wrap"><table className="tbl compact fy-chain">
         <thead><tr><th className="num">Call OI</th><th className="num">OI chg</th><th className="num">Vol</th><th className="num">LTP</th><th className="num fy-k">Strike</th><th className="num">LTP</th><th className="num">Vol</th><th className="num">OI chg</th><th className="num">Put OI</th></tr></thead>
         <tbody>{c.chain.map(r => <tr key={r.k} className={r.k === c.atm ? 'fy-atm' : ''}>
@@ -159,11 +161,11 @@ function Live({ s, reload }) {
     </Section>}
 
     <details className="panel fy-guide"><summary><b>How to read this page</b></summary><ul>
-      <li><b>Private:</b> this view only exists in your own build and uses your Fyers login; visitors to the public site never see it.</li>
-      <li><b>Login:</b> Fyers logins end every day, so tap “Log in with Fyers” once each morning.</li>
+      <li><b>Private:</b> only you see this view (your own build, or a browser you unlocked with the owner key). It uses your Zerodha Kite login.</li>
+      <li><b>Login:</b> Kite logins end every morning, so tap “Log in with Kite” once a day.</li>
       <li><b>Index cards:</b> live price, change from the previous close, and today’s open / high / low.</li>
-      <li><b>OI Change:</b> the same reading as the site’s Nifty OI Change panel, but from Fyers and refreshed every few seconds. Pick the index, the strikes (±5 / ±10 / ±20 around the at-the-money strike) and the expiry.</li>
-      <li><b>Fyers vs NSE:</b> for Nifty’s nearest expiry, the same strikes from the NSE chain the rest of the site uses, with the difference. Small gaps are normal because NSE’s chain updates every 30–60 s.</li>
+      <li><b>OI Change:</b> the same reading as the site’s Nifty OI Change panel, but with live OI from Kite, refreshed every few seconds. Kite doesn’t give yesterday’s OI, so the change is live OI minus the previous close OI from the NSE option chain. Pick the index, the strikes (±5 / ±10 / ±20 around the at-the-money strike) and the expiry.</li>
+      <li><b>Kite vs NSE:</b> for Nifty’s nearest expiry, the same strikes from the NSE chain the rest of the site uses, with the difference. Small gaps are normal because NSE’s chain updates every 30–60 s.</li>
       <li><b>Option chain:</b> calls on the left, puts on the right; the at-the-money strike is highlighted. Not a buy / sell signal.</li>
     </ul></details>
   </>
