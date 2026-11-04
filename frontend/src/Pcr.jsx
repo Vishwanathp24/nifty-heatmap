@@ -183,8 +183,8 @@ export function PcrCard() {
 // panel: today's change in call vs put OI, total OI, PCR now vs at the open, and a sentiment from
 // the OI change. Read from the option writers' side like the PCR zones: fresh put OI = support
 // being built (bullish), fresh call OI = resistance being built (bearish). OI is in shares (contracts × lot).
-const OI_RANGES = [{ value: 5, label: '±5' }, { value: 10, label: '±10' }, { value: 20, label: '±20' }, { value: 0, label: 'All' }]
-const shares = v => (v < 0 ? '−' : '') + fmtVol(Math.abs(v)).replace(' ', '')
+export const OI_RANGES = [{ value: 5, label: '±5' }, { value: 10, label: '±10' }, { value: 20, label: '±20' }, { value: 0, label: 'All' }]
+export const shares = v => (v < 0 ? '−' : '') + fmtVol(Math.abs(v)).replace(' ', '')
 
 export function oiSentiment(cc, pc) {
   if (pc > 0 && cc <= 0) return { key: 'bull', label: 'Bullish', why: 'Put OI is being added while call OI is cut — writers building support, not resistance.' }
@@ -197,7 +197,7 @@ export function oiSentiment(cc, pc) {
   return { key: 'neutral', label: 'Neutral', pct: Math.round(share * 100), why: `Fresh OI is close to even (puts ${Math.round(share * 100)}%) — no clear side.` }
 }
 
-function OiBars({ title, c, p, signed }) {
+export function OiBars({ title, c, p, signed }) {
   const max = Math.max(Math.abs(c), Math.abs(p)) || 1
   return <div className="oi-bars">
     <div className="oi-bars-k">{title}</div>

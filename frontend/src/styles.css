@@ -1564,3 +1564,38 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
 @media (max-width: 360px) {  /* very small phones: Pre-Open F&O chips go under the % instead of being cut off */
   .app:not(.full-data) .ov .idx-section .card-d.muted:has(.ad-chips.c-only) { grid-column: 1 / -1; overflow: visible }
 }
+
+/* ---- Fyers Live (owner's build only) ---- */
+.fy-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 4px 0 12px }
+.fy-bar .fy-who { font-size: 14px }
+.fy-quotes { grid-template-columns: repeat(auto-fit, minmax(min(170px, 100%), 1fr)) }
+.fy-ctrls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: flex-end }
+.fy-exp { height: 30px; border: 1px solid var(--line); border-radius: 8px; padding: 0 8px; background: var(--card, #fff); color: var(--ink); font: inherit; font-size: 13px }
+.fy-steps { margin: 0 0 14px 18px; line-height: 1.7 }
+.fy-steps code, .fyers p code { background: var(--soft, #f2f2f2); padding: 1px 5px; border-radius: 4px; font-size: 12.5px; word-break: break-all }
+.fy-form { display: grid; gap: 10px; max-width: 460px }
+.fy-field { display: grid; gap: 4px; font-size: 13px }
+.fy-field input { height: 36px; border: 1px solid var(--line); border-radius: 8px; padding: 0 10px; font: inherit }
+.fy-form .btn { justify-self: start }
+.fy-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap }
+.fy-chain .fy-k { background: var(--soft, #f6f6f6); text-align: center }
+.fy-chain tr.fy-atm td { background: #fff7e0 }
+.fy-cmp { max-width: 640px }
+
+/* Advanced top menu: "Menu" dropdown (Learning, Journal) */
+.nav-menu { position: relative; display: flex; align-items: stretch }
+.nav-menu > button { border: 0; background: transparent; color: #9AA3B2; padding: 0 12px; cursor: pointer; font: inherit; font-weight: 500; font-size: 13px; border-bottom: 2px solid transparent; white-space: nowrap; display: flex; align-items: center; gap: 5px }
+.nav-menu > button:hover, .nav-menu.open > button { color: #fff; background: rgba(255,255,255,.04) }
+.nav-menu.active > button { color: #fff; border-bottom-color: var(--accent-bright); background: rgba(255,255,255,.06) }
+.nav-caret { font-size: 10px; opacity: .8 }
+.nav-menu-list { position: absolute; top: 100%; right: 0; z-index: 60; min-width: 170px; background: #141A24; border: 1px solid #242C3A; border-radius: 10px; padding: 6px; box-shadow: 0 10px 28px rgba(0,0,0,.35); display: grid; gap: 2px }
+.hdr-nav .nav-menu-list a { padding: 9px 12px; border-radius: 7px; border-bottom: 0; min-height: 0; justify-content: flex-start; color: #C9D1DD }
+.hdr-nav .nav-menu-list a:hover { background: rgba(255,255,255,.07); color: #fff }
+.hdr-nav .nav-menu-list a.active { background: rgba(255,255,255,.1); color: #fff }
+@media (max-width: 768px) {
+  .hdr-nav .nav-menu { order: 3; flex: 1 1 auto; border-top: 1px solid #242C3A }
+  .nav-menu > button { width: 100%; justify-content: center; min-height: 40px; font-size: 12.5px }
+}
+.owner-box { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 1001; width: min(380px, calc(100vw - 32px)); background: #fff; color: var(--ink); border-radius: 14px; padding: 18px; display: grid; gap: 10px; box-shadow: 0 18px 50px rgba(0,0,0,.3) }
+.owner-box input { height: 38px; border: 1px solid var(--line); border-radius: 8px; padding: 0 10px; font: inherit }
+.owner-backdrop { position: fixed; inset: 0; z-index: 1000; background: rgba(10,14,20,.55) }

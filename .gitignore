@@ -7,3 +7,5 @@ __pycache__/
 .DS_Store
 tools/
 .netlify/
+backend/.fyers.json
+backend/.fyers_token.json

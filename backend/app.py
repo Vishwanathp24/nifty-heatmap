@@ -3,6 +3,7 @@
 Run:  uvicorn app:app --host 127.0.0.1 --port 8100
 The built frontend (frontend/dist) is served from / when present.
 """
+import html as _html
 import mimetypes
 import os
 import secrets
@@ -415,6 +416,72 @@ def index_options(symbol: str = "NIFTY"):
         raise HTTPException(status_code=400, detail=str(exc))
     except sources.SourceError as exc:
         raise HTTPException(status_code=502, detail=f"NSE option chain unavailable ({exc}).")
+
+
+# ---- Fyers Live (private: the owner's own Fyers API app; needs the dashboard access key) ----
+from fyers_live import FyersError, FyersLive
+
+_fyers = FyersLive()
+
+
+def _owner(request: Request):
+    if not secrets.compare_digest(request.headers.get("x-dashboard-key") or "", ACCESS_KEY):
+        raise HTTPException(status_code=401, detail="Fyers Live is private to the dashboard owner.")
+
+
+@app.get("/api/fyers/status")
+def fyers_status(request: Request):
+    _owner(request)
+    return _fyers.status()
+
+
+@app.post("/api/fyers/config")
+async def fyers_config(request: Request):
+    _owner(request)
+    b = await request.json()
+    try:
+        _fyers.save_config(b.get("client_id"), b.get("secret_key"), b.get("redirect_uri"))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"ok": True}
+
+
+@app.get("/api/fyers/login-url")
+def fyers_login_url(request: Request):
+    _owner(request)
+    try:
+        return {"url": _fyers.login_url()}
+    except FyersError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get("/fyers/callback", include_in_schema=False)
+def fyers_callback(auth_code: str = "", state: str = ""):
+    """Fyers sends the browser back here after login (set this as the app's redirect URL)."""
+    try:
+        _fyers.finish_login(auth_code, state)
+    except (FyersError, ValueError) as exc:
+        return HTMLResponse(f"<p style='font:16px system-ui;padding:24px'>Fyers login failed: {_html.escape(str(exc))} "
+                            "<a href='/?fyers=1'>Back to Fyers Live</a></p>", status_code=400)
+    return RedirectResponse("/?fyers=1", status_code=302)
+
+
+@app.post("/api/fyers/logout")
+def fyers_logout(request: Request):
+    _owner(request)
+    _fyers.logout()
+    return {"ok": True}
+
+
+@app.get("/api/fyers/live")
+def fyers_live(request: Request, index: str = "NIFTY", strikes: int = 10, expiry: str = ""):
+    _owner(request)
+    try:
+        return {"quotes": _fyers.quotes(), "chain": _fyers.chain(index, strikes, expiry)}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except FyersError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
 
 
 _accounts = None

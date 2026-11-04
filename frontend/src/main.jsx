@@ -2,7 +2,7 @@ import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useStat
 import { createRoot } from 'react-dom/client'
 import './styles.css'
 import favicon from './icons/favicon-64.png'
-import { api, istDate, istTime, nseTs, setSessionValue, useClock, usePersistentState, useSessionState, usePoll } from './lib.js'
+import { OWNER_BUILD, unlockOwner, api, istDate, istTime, nseTs, setSessionValue, useClock, usePersistentState, useSessionState, usePoll } from './lib.js'
 import { StockChartCtx, TopMoversCtx } from './components.jsx'
 import Overview from './Overview.jsx'
 import Heatmap from './Heatmap.jsx'
@@ -16,6 +16,7 @@ const Crypto = lazy(() => import('./Crypto.jsx'))
 const Ipo = lazy(() => import('./Ipo.jsx'))
 const Learning = lazy(() => import('./Learning.jsx'))
 const Journal = lazy(() => import('./Journal.jsx'))
+const Fyers = lazy(() => import('./Fyers.jsx'))  // private Fyers Live view (owner's build only)
 const Scans = lazy(() => import('./Scans.jsx'))  // Intraday Scanner: charts, option chain, payoff tools - loaded when opened
 
 const REFRESH_MS = 10000
@@ -68,6 +69,45 @@ function TabBar({ pages, page, setPage, badges }) {
       {rest.length > 0 && <button className={'tab' + (rest.some(p => p.id === page) ? ' on' : more ? ' open' : '')} onClick={() => setMore(m => !m)}>
         <span className="tab-icw"><TabIcon id="more" /></span>More</button>}</nav>
   </>
+}
+
+// moneymaau.com/?owner: the owner enters the server's access key once to unlock the private Fyers view in this browser.
+function OwnerUnlock() {
+  const [key, setKey] = useState(''), [err, setErr] = useState(null), [busy, setBusy] = useState(false)
+  const close = () => window.location.replace(window.location.pathname)
+  const save = async e => {
+    e.preventDefault(); setBusy(true); setErr(null)
+    try { await unlockOwner(key.trim()); window.location.replace('/?fyers=1') } catch (x) { setErr(x.message); setBusy(false) }
+  }
+  return <div className="owner-backdrop" onClick={close}><form className="owner-box" onClick={e => e.stopPropagation()} onSubmit={save}>
+    <b>Owner unlock</b>
+    <span className="muted small">Enter the dashboard access key from the server to open the private Fyers view in this browser.</span>
+    <input type="password" value={key} onChange={e => setKey(e.target.value)} autoComplete="off" autoFocus placeholder="Access key" />
+    <span className="fy-actions"><button className="btn primary" disabled={busy || !key.trim()}>{busy ? 'Checking…' : 'Unlock'}</button>
+      <button type="button" className="btn ghost sm" onClick={close}>Cancel</button></span>
+    {err && <span className="down small">{err}</span>}
+  </form></div>
+}
+
+// Advanced top menu: these pages sit under one "Learn & Track" dropdown instead of their own links.
+const MENU_IDS = ['learning', 'journal']
+function NavMenu({ pages, page, go }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+  useEffect(() => {
+    if (!open) return
+    const off = e => { if (!ref.current?.contains(e.target)) setOpen(false) }
+    const esc = e => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('pointerdown', off); document.addEventListener('keydown', esc)
+    return () => { document.removeEventListener('pointerdown', off); document.removeEventListener('keydown', esc) }
+  }, [open])
+  if (!pages.length) return null
+  const cur = pages.find(p => p.id === page)
+  return <div className={'nav-menu' + (cur ? ' active' : '') + (open ? ' open' : '')} ref={ref}>
+    <button aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(o => !o)}>Learn &amp; Track <span className="nav-caret">▾</span></button>
+    {open && <div className="nav-menu-list" role="menu">{pages.map(p => <a key={p.id} role="menuitem" href={PATHS[p.id]} className={page === p.id ? 'active' : ''}
+      onClick={e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); setOpen(false); go(p.id) }}>{p.label}</a>)}</div>}
+  </div>
 }
 
 // Basic site (header switch): only these pages, exactly as in Advanced.
@@ -209,8 +249,12 @@ function App() {
   const [fullData, setFullData] = usePersistentState('fullData', false)  // phones / tablets: original full panels instead of small cards
   // Every visit opens Basic on phones (a page Basic doesn't have opens the home page instead) and Advanced on
   // larger screens; a switch lasts until the page is reloaded.
-  const [mode, setMode] = useState(() => window.matchMedia('(max-width: 600px)').matches ? 'basic' : 'advanced')
-  const basic = mode === 'basic'
+  // Fyers (owner's build only) is a third mode: the live Fyers view instead of the site pages. Coming back from
+  // the Fyers login (?fyers=1) opens it.
+  const [mode, setMode] = useState(() => OWNER_BUILD && new URLSearchParams(window.location.search).has('fyers') ? 'fyers'
+    : window.matchMedia('(max-width: 600px)').matches ? 'basic' : 'advanced')
+  useEffect(() => { if (window.location.search.includes('fyers')) window.history.replaceState(null, '', window.location.pathname) }, [])
+  const basic = mode === 'basic', fyers = mode === 'fyers'
   useEffect(() => { if (basic && !BASIC_PAGES.includes(page) && !INFO_IDS.includes(page)) setPage('overview') }, [basic, page])
   const navPages = basic ? PAGES.filter(p => BASIC_PAGES.includes(p.id)) : PAGES
   const [selected, setSelected] = useSessionState('sectors', [])
@@ -276,21 +320,22 @@ function App() {
       <button className="hdr-brand" onClick={() => { setPage('overview'); window.scrollTo({ top: 0 }) }} title="Go to homepage (Market Overview)">
         <span>NSE Sector Heatmap</span></button>
       <div className="seg mode-switch" role="group" aria-label="Site version">
-        {[['basic', 'Basic'], ['advanced', 'Advanced']].map(([v, l]) => <button key={v} className={mode === v ? 'on' : ''} onClick={() => setMode(v)}
-          title={v === 'basic' ? 'Simple view: Market Overview, Sector Heatmap and ORB Scanner only' : 'Full view: every scanner, chart and tool'}>{l}</button>)}
+        {[['basic', 'Basic'], ['advanced', 'Advanced'], ...(OWNER_BUILD ? [['fyers', 'Fyers']] : [])].map(([v, l]) => <button key={v} className={mode === v ? 'on' : ''} onClick={() => setMode(v)}
+          title={v === 'basic' ? 'Simple view: Market Overview, Sector Heatmap and ORB Scanner only' : v === 'fyers' ? 'Live data from your own Fyers account (private)' : 'Full view: every scanner, chart and tool'}>{l}</button>)}
       </div>
       <button className={'full-toggle' + (fullData ? ' on' : '')} role="switch" aria-checked={fullData} onClick={() => setFullData(f => !f)}
         title="Phones and tablets: show the full data panels (as in the first version) instead of the small cards"><i />Full data</button>
-      <nav className="hdr-nav">
-        {navPages.map(p => <a key={p.id} href={PATHS[p.id]} className={page === p.id ? 'active' : ''} onClick={e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); setPage(p.id) }}>
+      {!fyers && <nav className="hdr-nav">
+        {navPages.filter(p => !MENU_IDS.includes(p.id)).map(p => <a key={p.id} href={PATHS[p.id]} className={page === p.id ? 'active' : ''} onClick={e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); setPage(p.id) }}>
           {p.label}
           {p.id === 'heatmap' && selected.length ? <span className="badge">{selected.length}</span> : null}
           {p.id === 'scanner' && orbNow[0] != null ? <span className="badge" title={`Signals passing the current ${orbNow[1]} ORB filters`}>{orbNow[0]}</span> : null}
         </a>)}
-      </nav>
+      <NavMenu pages={navPages.filter(p => MENU_IDS.includes(p.id))} page={page} go={setPage} />
+      </nav>}
       <StatusBar live={live} auto={auto} setAuto={setAuto} crypto={page === 'crypto'} />
     </header>
-    <main className="page">
+    {fyers ? <main className="page"><Suspense fallback={<div className="empty">Loading…</div>}><Fyers /></Suspense></main> : <main className="page">
       {live.error && !live.data && <div className="alert">{live.error}</div>}
       {/* Market Bias, OI Change, PCR, Expected Move, breadth and FII / DII as small cards on every page except Crypto;
           on Overview / Heatmap only in the phone / tablet views (desktop has the full panels) */}
@@ -322,9 +367,10 @@ function App() {
           : <Scanner key="orb15" orm={15} orb={orb15} live={live.data} selected={selected} setSelected={setSelected} tf={tf15} setTf={setTf15} confirm3={confirm15} setConfirm3={setConfirm15} f={orbFilters15} setF={setOrbFilters15} />}
       </>}
       <PageHowTo page={page} />  {/* Market Overview has its own (with the live 3-step check) */}
-    </main>
+    </main>}
+    {!OWNER_BUILD && new URLSearchParams(window.location.search).has('owner') && <OwnerUnlock />}
     <InstallPrompt />  {/* phones / tablets not using the home-screen app yet */}
-    <TabBar pages={navPages} page={page} setPage={setPage} badges={{ heatmap: selected.length || null, scanner: orbNow[0] }} />
+    <TabBar pages={navPages} page={fyers ? null : page} setPage={id => { if (fyers) setMode("advanced"); setPage(id) }} badges={{ heatmap: selected.length || null, scanner: orbNow[0] }} />
     <footer className="foot">
       <InfoLinks go={setPage} />
       <InstallLink />
