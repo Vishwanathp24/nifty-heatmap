@@ -31,12 +31,15 @@ export function PcrGuide() {
   </div>
 }
 
-// Nifty PCR for the nearest expiry (shared by the meter and the Sector Heatmap card).
+// Nifty PCR for the nearest expiry (shared by the meter and the Sector Heatmap card). It uses the same
+// strikes around the at-the-money strike as the OI Change panel (±10 by default), the way option-chain
+// sites show it; the whole-chain figure (every listed strike) is kept as a side note.
 export function usePcr() {
-  const res = usePoll(() => api('/api/index-options?symbol=NIFTY'), 60000, [])
-  const d = res.data, e = d?.expiries?.[0], v = e?.pcr_oi
-  return d && isNum(v) ? { v, zone: pcrZone(v), expiry: e.expiry_ist.split(',')[0], all: d.pcr_oi, at: d.fetched_at, ...levels(d, e) } : null
+  const { d, e, s } = useOiChange()
+  const v = s?.pcr
+  return d && isNum(v) ? { v, zone: pcrZone(v), expiry: e.expiry_ist.split(',')[0], full: e.pcr_oi, all: d.pcr_oi, span: spanText(s), at: d.fetched_at, ...levels(d, e) } : null
 }
+const spanText = s => s ? `strikes ${s.lo.toLocaleString('en-IN')}–${s.hi.toLocaleString('en-IN')}` : ''
 
 // Support / resistance from the option chain: strike with the highest put OI (support) and call OI
 // (resistance) for the nearest expiry.
@@ -91,11 +94,9 @@ export function PcrDecision({ p }) {
 
 // Meter shown on every page except Crypto: Nifty PCR for the nearest expiry, zone bar and meaning.
 export function PcrMeter({ compact = false }) {
-  const res = usePoll(() => api('/api/index-options?symbol=NIFTY'), 60000, [])
+  const { d, e, s } = useOiChange()
   const [open, setOpen] = useState(false)
-  const d = res.data
-  const e = d?.expiries?.[0]
-  const v = e?.pcr_oi
+  const v = s?.pcr
   const z = pcrZone(v)
   if (!d || !z) return null
   const pos = Math.max(0, Math.min(100, (v - 0.4) / (1.9 - 0.4) * 100))  // scale 0.4 … 1.9
@@ -117,7 +118,7 @@ export function PcrMeter({ compact = false }) {
           <button className="btn sm" onClick={() => setOpen(o => !o)}>{open ? 'Hide' : 'What is PCR?'}</button>
         </div>
         <div className="pcr-sub"><span className="pcr-text muted small">{z.text}</span>
-          <span className="muted small">Expiry {e.expiry_ist.split(',')[0]} · all expiries {d.pcr_oi ?? '—'} · {istTime(d.fetched_at)} IST</span></div>
+          <span className="muted small">Expiry {e.expiry_ist.split(',')[0]} · {spanText(s)} · all strikes {isNum(e.pcr_oi) ? e.pcr_oi.toFixed(2) : '—'} · all expiries {isNum(d.pcr_oi) ? d.pcr_oi.toFixed(2) : '—'} · {istTime(d.fetched_at)} IST</span></div>
       </div>
       <div className="pcr-meter tinted em" title="From option prices (at-the-money implied volatility): about a 2-in-3 chance Nifty ends this expiry inside the range. Not a prediction.">
         <div className="pcr-main"><span className="pcr-k">Expected Move</span>
@@ -134,9 +135,9 @@ export function PcrMeter({ compact = false }) {
 // Top strip as small 2-line cards (name, then value), 2 per row: Market Bias, Nifty OI
 // Change, Nifty PCR (OI), Expected Move, Nifty 50 and F&O breadth, FII and DII net (last data date).
 export function MiniCards({ bias, breadth, fiiDii, always = false }) {
-  const res = usePoll(() => api('/api/index-options?symbol=NIFTY'), 60000, [])
+  const res = usePoll(() => api('/api/index-options?symbol=NIFTY'), 30000, [])
   const { s } = useOiChange()
-  const d = res.data, e = d?.expiries?.[0], v = e?.pcr_oi, z = pcrZone(v)
+  const d = res.data, e = d?.expiries?.[0], v = s?.pcr, z = pcrZone(v)
   const k = n => Math.round(n).toLocaleString('en-IN')
   const em = e && isNum(e.move) && isNum(d.spot)
   const b = bias?.label
@@ -154,7 +155,7 @@ export function MiniCards({ bias, breadth, fiiDii, always = false }) {
       <>{b || 'N/A'} {isNum(bias?.score) && <small>{bias.score > 0 ? '+' : ''}{bias.score} / 5</small>}</>)}
     {card('oi', s && { bull: 'up', bear: 'down' }[s.sent.key] || (s ? 'amber' : ''), 'Nifty OI Change',
       <>{s ? s.sent.label : '—'} {s && isNum(s.sent.pct) && <small>{s.sent.key === 'bear' ? 'calls' : 'puts'} {s.sent.pct}%</small>}</>, s?.sent.why)}
-    {card('pcr', z?.tone, 'Nifty PCR (OI)', <>{z ? v.toFixed(2) : '—'} {z && <small>{z.label.split(' / ')[0]}</small>}</>, z ? `${z.label}: ${z.text}` : undefined)}
+    {card('pcr', z?.tone, 'Nifty PCR (OI)', <>{z ? v.toFixed(2) : '—'} {z && <small>{z.label.split(' / ')[0]}</small>}</>, z ? `${z.label}: ${z.text} (${spanText(s)}; all strikes ${isNum(e.pcr_oi) ? e.pcr_oi.toFixed(2) : '—'})` : undefined)}
     {card('em', 'em', 'Expected Move', em ? <>±{k(e.move)} <small>{k(d.spot - e.move)}–{k(d.spot + e.move)}</small></> : '—',
       'From option prices (at-the-money implied volatility): about a 2-in-3 chance Nifty ends this expiry inside the range. Not a prediction.')}
     {breadthCard('Nifty 50', breadth?.nifty50)}
@@ -171,7 +172,7 @@ export function PcrCard() {
     <div className={'card hm-card pcr-card ' + (pcr?.zone.tone || '')}>
       <div className="card-k">Nifty PCR (OI)</div>
       <div className="card-v">{pcr ? pcr.v.toFixed(2) : '—'} {pcr && <span className={'pcr-pill ' + pcr.zone.tone}>{pcr.zone.label}</span>}</div>
-      <div className="card-n">{pcr ? <>{pcr.zone.text} <span className="muted">Expiry {pcr.expiry} · all expiries {pcr.all ?? '—'}</span></> : 'Loading…'}</div>
+      <div className="card-n">{pcr ? <>{pcr.zone.text} <span className="muted">Expiry {pcr.expiry} · {pcr.span} · all strikes {isNum(pcr.full) ? pcr.full.toFixed(2) : '—'}</span></> : 'Loading…'}</div>
       {pcr && (() => { const c = pcrCheck(pcr); return <div className={'pcr-dec-status small ' + c.state} title="Support = highest put OI strike, resistance = highest call OI strike (nearest expiry)">
         {c.state === 'wait' ? `Wait — inside ${pcr.support?.toLocaleString('en-IN')} support / ${pcr.resistance?.toLocaleString('en-IN')} resistance` : c.state === 'ce' ? `Above ${pcr.resistance?.toLocaleString('en-IN')} resistance — CE side only if it sustains` : `Below ${pcr.support?.toLocaleString('en-IN')} support — PE side only if it sustains`}</div> })()}
     </div>
@@ -209,7 +210,7 @@ function OiBars({ title, c, p, signed }) {
 
 // Shared by the Market Overview panel and the Sector Heatmap card; the strike range is one setting.
 export function useOiChange() {
-  const res = usePoll(() => api('/api/index-options?symbol=NIFTY'), 60000, [])
+  const res = usePoll(() => api('/api/index-options?symbol=NIFTY'), 30000, [])
   const [range, setRange] = usePersistentState('oiRange', 10)
   const d = res.data, e = d?.expiries?.[0]
   const s = useMemo(() => {

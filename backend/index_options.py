@@ -18,7 +18,7 @@ from urllib.parse import quote
 import sources
 
 IST = timezone(timedelta(hours=5, minutes=30))
-TTL = 60
+TTL = 30  # seconds; NSE refreshes the chain about every 30–60 s in market hours
 N_EXPIRIES = 6
 BAND = 0.08  # strikes within +-8% of spot (indices)
 BAND_STOCK = 0.20  # stock strikes are wider apart relative to price
