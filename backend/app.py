@@ -498,6 +498,15 @@ def kite_logout(request: Request):
     return {"ok": True}
 
 
+@app.get("/api/kite/portfolio")
+def kite_portfolio(request: Request):
+    _owner(request)
+    try:
+        return _kite.portfolio()
+    except KiteError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+
 @app.get("/api/kite/live")
 def kite_live(request: Request, index: str = "NIFTY", strikes: int = 10, expiry: str = ""):
     _owner(request)

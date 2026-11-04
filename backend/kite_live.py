@@ -240,3 +240,26 @@ class KiteLive:
                     "expiry": ex, "chain": [rows[k] for k in sorted(rows)], "has_prev": bool(prev),
                     "at": datetime.now(timezone.utc).isoformat()}
         return self._cached(f"chain:{name}:{strikes}:{expiry}", f)
+
+    # ---- your account (works on the free Personal app too) -------------------------------
+    def portfolio(self):
+        def f():
+            pos = self._get("/portfolio/positions")
+            hold = self._get("/portfolio/holdings")
+            def p(x):
+                return {"symbol": x.get("tradingsymbol"), "exchange": x.get("exchange"), "product": x.get("product"),
+                        "qty": x.get("quantity"), "avg": x.get("average_price"), "ltp": x.get("last_price"),
+                        "close": x.get("close_price"), "pnl": x.get("pnl"), "m2m": x.get("m2m"),
+                        "realised": x.get("realised"), "unrealised": x.get("unrealised"),
+                        "buy_qty": x.get("day_buy_quantity"), "sell_qty": x.get("day_sell_quantity")}
+            def h(x):
+                qty = (x.get("quantity") or 0) + (x.get("t1_quantity") or 0)
+                avg, ltp, close = x.get("average_price") or 0, x.get("last_price") or 0, x.get("close_price") or 0
+                return {"symbol": x.get("tradingsymbol"), "exchange": x.get("exchange"), "qty": qty, "t1": x.get("t1_quantity") or 0,
+                        "avg": avg, "ltp": ltp, "close": close, "invested": qty * avg, "value": qty * ltp,
+                        "pnl": x.get("pnl") if x.get("pnl") is not None else qty * (ltp - avg),
+                        "day_chg": qty * (ltp - close) if close else None, "day_pct": x.get("day_change_percentage")}
+            return {"positions": [p(x) for x in (pos.get("net") or [])], "holdings": [h(x) for x in hold or []],
+                    "at": datetime.now(timezone.utc).isoformat()}
+        return self._cached("portfolio", f, ttl=5)
+

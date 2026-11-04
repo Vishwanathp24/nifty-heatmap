@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Empty, Section, Seg } from './components.jsx'
 import { OWNER_UNLOCKED, api, isNum, lockOwner, istTime, usePersistentState, usePoll } from './lib.js'
 import { OiBars, oiSentiment, shares } from './Pcr.jsx'
@@ -75,7 +75,9 @@ function Live({ s, reload }) {
   const [strikes, setStrikes] = usePersistentState('kite.strikes', 10)
   const [speed, setSpeed] = usePersistentState('kite.speed', 3000)
   const [expiry, setExpiry] = useState('')
-  const res = usePoll(() => api(`/api/kite/live?index=${index}&strikes=${strikes}&expiry=${expiry}`), speed, [index, strikes, expiry, speed])
+  const [noMarket, setNoMarket] = useState(false)  // the free Personal app has no market data: stop asking for it
+  const res = usePoll(() => api(`/api/kite/live?index=${index}&strikes=${strikes}&expiry=${expiry}`), noMarket ? 3.6e6 : speed, [index, strikes, expiry, speed, noMarket])
+  useEffect(() => { if (res.error && /paid Kite Connect|permission/i.test(res.error)) setNoMarket(true) }, [res.error])
   const nse = usePoll(() => api('/api/index-options?symbol=NIFTY'), 30000, [])
   const d = res.data, c = d?.chain
   const sum = useMemo(() => {
@@ -101,11 +103,14 @@ function Live({ s, reload }) {
   return <>
     <div className="fy-bar">
       <span className="fy-who">🟢 Kite: <b>{s.name || s.user_id || 'connected'}</b></span>
-      <span className="muted small">Live · every {speed / 1000} s{d?.chain?.at && <> · {istTime(d.chain.at)} IST</>}</span>
-      <Seg options={SPEEDS} value={speed} onChange={setSpeed} />
+      {noMarket ? <span className="muted small">Positions and holdings refresh every 10 s</span> : <>
+        <span className="muted small">Live · every {speed / 1000} s{d?.chain?.at && <> · {istTime(d.chain.at)} IST</>}</span>
+        <Seg options={SPEEDS} value={speed} onChange={setSpeed} /></>}
       <button className="btn ghost sm" onClick={logout}>Log out</button>
       {OWNER_UNLOCKED && <button className="btn ghost sm" title="Forget the owner key in this browser" onClick={() => { lockOwner(); window.location.replace('/') }}>Lock this browser</button>}
     </div>
+    <Portfolio reload={reload} />
+    {noMarket ? <p className="muted small fy-nomarket">Live index quotes and option-chain OI need a paid Kite Connect app; your app is the free Personal type. Market data on the other pages comes from NSE (refreshed every 30 s).</p> : <>
     {res.error && <div className="alert">{res.error}{/expired|log in/i.test(res.error) && <> <button className="btn sm" onClick={reload}>Log in again</button></>}</div>}
     {d && <div className="cards fy-quotes">{d.quotes.map(q => <div key={q.symbol} className={'card tinted ' + sign(q.chg)}>
       <div className="card-k">{q.name}</div>
@@ -160,13 +165,65 @@ function Live({ s, reload }) {
         </tr>)}</tbody></table></div>
     </Section>}
 
+    </>}
+
     <details className="panel fy-guide"><summary><b>How to read this page</b></summary><ul>
       <li><b>Private:</b> only you see this view (your own build, or a browser you unlocked with the owner key). It uses your Zerodha Kite login.</li>
       <li><b>Login:</b> Kite logins end every morning, so tap “Log in with Kite” once a day.</li>
+      <li><b>Positions:</b> your open and closed positions today with quantity, average price, last price and P&amp;L (from Zerodha, refreshed every 10 s). The total at the top is today’s P&amp;L across all positions.</li>
+      <li><b>Holdings:</b> your demat holdings with average cost, last price, current value, overall P&amp;L and today’s change. T1 shares (bought yesterday, not yet delivered) are included.</li>
+      <li><b>Free vs paid app:</b> positions and holdings work with the free Personal app; the index cards, OI and option chain below need a paid Kite Connect app.</li>
       <li><b>Index cards:</b> live price, change from the previous close, and today’s open / high / low.</li>
       <li><b>OI Change:</b> the same reading as the site’s Nifty OI Change panel, but with live OI from Kite, refreshed every few seconds. Kite doesn’t give yesterday’s OI, so the change is live OI minus the previous close OI from the NSE option chain. Pick the index, the strikes (±5 / ±10 / ±20 around the at-the-money strike) and the expiry.</li>
       <li><b>Kite vs NSE:</b> for Nifty’s nearest expiry, the same strikes from the NSE chain the rest of the site uses, with the difference. Small gaps are normal because NSE’s chain updates every 30–60 s.</li>
       <li><b>Option chain:</b> calls on the left, puts on the right; the at-the-money strike is highlighted. Not a buy / sell signal.</li>
     </ul></details>
+  </>
+}
+
+const inr = v => isNum(v) ? (v < 0 ? '−' : '') + '₹' + Math.abs(v).toLocaleString('en-IN', { maximumFractionDigits: 0 }) : '—'
+const signed = v => isNum(v) ? (v > 0 ? '+' : '') + inr(v) : '—'
+
+// Your Zerodha positions and holdings (work on the free Personal app).
+function Portfolio({ reload }) {
+  const res = usePoll(() => api('/api/kite/portfolio'), 10000, [])
+  const d = res.data
+  if (!d) return res.error ? <div className="alert">{res.error}{/expired|log in/i.test(res.error) && <> <button className="btn sm" onClick={reload}>Log in again</button></>}</div>
+    : <Empty>Loading your positions and holdings…</Empty>
+  const pos = d.positions, hold = d.holdings
+  const posPnl = pos.reduce((a, r) => a + (r.pnl || 0), 0)
+  const inv = hold.reduce((a, r) => a + r.invested, 0), val = hold.reduce((a, r) => a + r.value, 0)
+  const hPnl = hold.reduce((a, r) => a + (r.pnl || 0), 0), hDay = hold.reduce((a, r) => a + (r.day_chg || 0), 0)
+  return <>
+    {res.error && <div className="alert">{res.error}</div>}
+    <Section title="Positions" subtitle={`Today · ${pos.length} position${pos.length === 1 ? '' : 's'} · updated ${istTime(d.at)} IST`}
+      right={pos.length > 0 && <span className={'kt-total ' + sign(posPnl)}>P&amp;L <b>{signed(posPnl)}</b></span>}>
+      {!pos.length ? <Empty>No positions today.</Empty> : <div className="tbl-wrap"><table className="tbl compact kt-tbl">
+        <thead><tr><th>Instrument</th><th>Product</th><th className="num">Qty</th><th className="num">Avg</th><th className="num">LTP</th><th className="num">P&amp;L</th></tr></thead>
+        <tbody>{pos.map((r, i) => <tr key={r.symbol + r.product + i} className={r.qty === 0 ? 'kt-closed' : ''}>
+          <td><b>{r.symbol}</b> <span className="muted small">{r.exchange}</span></td><td className="muted">{r.product}</td>
+          <td className={'num ' + sign(r.qty)}>{r.qty}</td><td className="num">{n2(r.avg)}</td><td className="num">{n2(r.ltp)}</td>
+          <td className={'num ' + sign(r.pnl)}><b>{signed(r.pnl)}</b></td></tr>)}</tbody></table></div>}
+    </Section>
+    <Section title="Holdings" subtitle={`${hold.length} stock${hold.length === 1 ? '' : 's'} · updated ${istTime(d.at)} IST`}>
+      {!hold.length ? <Empty>No holdings.</Empty> : <>
+        <div className="cards kt-sum">
+          <div className="card"><div className="card-k">Invested</div><div className="card-v">{inr(inv)}</div></div>
+          <div className="card"><div className="card-k">Current value</div><div className="card-v">{inr(val)}</div></div>
+          <div className={'card tinted ' + sign(hPnl)}><div className="card-k">Total P&amp;L</div><div className={'card-v ' + sign(hPnl)}>{signed(hPnl)}</div>
+            <div className={'card-n ' + sign(hPnl)}>{inv ? `${hPnl >= 0 ? '+' : ''}${(hPnl / inv * 100).toFixed(2)}%` : ''}</div></div>
+          <div className={'card tinted ' + sign(hDay)}><div className="card-k">Today</div><div className={'card-v ' + sign(hDay)}>{signed(hDay)}</div>
+            <div className={'card-n ' + sign(hDay)}>{val - hDay ? `${hDay >= 0 ? '+' : ''}${(hDay / (val - hDay) * 100).toFixed(2)}%` : ''}</div></div>
+        </div>
+        <div className="tbl-wrap"><table className="tbl compact kt-tbl">
+          <thead><tr><th>Stock</th><th className="num">Qty</th><th className="num">Avg cost</th><th className="num">LTP</th><th className="num">Value</th><th className="num">P&amp;L</th><th className="num">Net %</th><th className="num">Day %</th></tr></thead>
+          <tbody>{[...hold].sort((a, b) => b.value - a.value).map(r => <tr key={r.symbol + r.exchange}>
+            <td><b>{r.symbol}</b>{r.t1 ? <span className="muted small"> (T1 {r.t1})</span> : null}</td>
+            <td className="num">{r.qty}</td><td className="num">{n2(r.avg)}</td><td className="num">{n2(r.ltp)}</td><td className="num">{inr(r.value)}</td>
+            <td className={'num ' + sign(r.pnl)}>{signed(r.pnl)}</td>
+            <td className={'num ' + sign(r.pnl)}>{r.invested ? `${r.pnl >= 0 ? '+' : ''}${(r.pnl / r.invested * 100).toFixed(2)}%` : '—'}</td>
+            <td className={'num ' + sign(r.day_pct)}>{isNum(r.day_pct) ? `${r.day_pct > 0 ? '+' : ''}${r.day_pct.toFixed(2)}%` : '—'}</td></tr>)}</tbody></table></div>
+      </>}
+    </Section>
   </>
 }
