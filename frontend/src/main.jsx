@@ -82,7 +82,7 @@ function OwnerUnlock() {
   return <div className="owner-backdrop" onClick={close}><form className="owner-box" onClick={e => e.stopPropagation()} onSubmit={save}>
     <b>Owner unlock</b>
     <span className="muted small">Enter the dashboard access key from the server to open the private Kite view in this browser.</span>
-    <input type="password" value={key} onChange={e => setKey(e.target.value)} autoComplete="off" autoFocus placeholder="Access key" />
+    <input type="password" name="owner-key" value={key} onChange={e => setKey(e.target.value)} autoComplete="new-password" data-lpignore="true" data-1p-ignore autoFocus placeholder="Access key" />
     <span className="fy-actions"><button className="btn primary" disabled={busy || !key.trim()}>{busy ? 'Checking…' : 'Unlock'}</button>
       <button type="button" className="btn ghost sm" onClick={close}>Cancel</button></span>
     {err && <span className="down small">{err}</span>}
