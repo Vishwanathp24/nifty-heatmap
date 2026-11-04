@@ -130,9 +130,33 @@ function Fresh({ row, live }) {
   return <span className="muted">{hrMin(age)}{live ? ' ago' : ''}</span>
 }
 
+// EMA (seeded with the simple average of the first n closes) and RSI 14 (Wilder) on the chart's own candles.
+function emaSeries(v, n) {
+  const out = v.map(() => null)
+  if (v.length < n) return out
+  let e = v.slice(0, n).reduce((a, b) => a + b, 0) / n
+  out[n - 1] = e
+  for (let i = n; i < v.length; i++) { e = v[i] * 2 / (n + 1) + e * (1 - 2 / (n + 1)); out[i] = e }
+  return out
+}
+function rsi14(v, n = 14) {
+  if (v.length <= n) return null
+  let g = 0, l = 0
+  for (let i = 1; i <= n; i++) { const d = v[i] - v[i - 1]; d > 0 ? g += d : l -= d }
+  g /= n; l /= n
+  for (let i = n + 1; i < v.length; i++) { const d = v[i] - v[i - 1]; g = (g * (n - 1) + Math.max(d, 0)) / n; l = (l * (n - 1) + Math.max(-d, 0)) / n }
+  return l === 0 ? 100 : 100 - 100 / (1 + g / l)
+}
+
 function IntradayChart({ data, extra }) {  // extra: optional 15-min range {or_high, or_low}
   const c = data?.candles || []
   if (!c.length) return <Empty>No candles.</Empty>
+  const closes = c.map(k => k.c)
+  const e9 = emaSeries(closes, 9), e21 = emaSeries(closes, 21), rsi = rsi14(closes)
+  const l9 = e9[e9.length - 1], l21 = e21[e21.length - 1]
+  const emaSide = isNum(l9) && isNum(l21) && isNum(rsi) ? (l9 > l21 && rsi > 60 ? 'bull' : l9 < l21 && rsi < 40 ? 'bear' : 'none') : null
+  let crossI = -1
+  for (let i = 1; i < c.length; i++) if (isNum(e9[i - 1]) && isNum(e21[i - 1]) && Math.sign(e9[i] - e21[i]) !== Math.sign(e9[i - 1] - e21[i - 1])) crossI = i
   const sig = data.signal
   const W = 640, H = 300, PH = 210, VH = 60, L = 8, R = 84, T = 8
   const cw = (W - L - R) / Math.max(c.length, 1)
@@ -168,6 +192,11 @@ function IntradayChart({ data, extra }) {  // extra: optional 15-min range {or_h
       <line x1={L} x2={W - R} y1={y(extra.or_high)} y2={y(extra.or_high)} className="or-line or15" />
       <line x1={L} x2={W - R} y1={y(extra.or_low)} y2={y(extra.or_low)} className="or-line or15" />
     </>}
+    {[[e9, 'ema9'], [e21, 'ema21']].map(([ser, cls]) => {
+      const pts = ser.map((v, i) => isNum(v) ? `${x(i).toFixed(1)},${y(v).toFixed(1)}` : null).filter(Boolean)
+      return pts.length > 1 && <polyline key={cls} points={pts.join(' ')} className={'ema-line ' + cls} />
+    })}
+    {crossI > 0 && <text x={x(crossI)} y={y(e21[crossI]) + (e9[crossI] > e21[crossI] ? 14 : -6)} className={'axis-t ema-x ' + (e9[crossI] > e21[crossI] ? 'up' : 'down')} textAnchor="middle">{e9[crossI] > e21[crossI] ? '▲' : '▼'}<title>9 EMA crossed {e9[crossI] > e21[crossI] ? 'above' : 'below'} the 21 EMA at {c[crossI].t}</title></text>}
     {labels.map(l => <text key={l.t} x={W - R + 4} y={l.y} className={'axis-t ' + l.cls}>{l.t}</text>)}
     {c.map((k, i) => {
       const up = k.c >= k.o
@@ -188,6 +217,9 @@ function IntradayChart({ data, extra }) {  // extra: optional 15-min range {or_h
     </>}
     {ticks.map(([k, i]) => <text key={k.m} x={x(i)} y={H - 4} className="axis-t" textAnchor="middle">{k.t}</text>)}
     <text x={L + 2} y={PH + 12} className="axis-t">{c.some(k => isNum(k.v)) ? 'Volume (5m, recorded)' : 'Volume not recorded for this session'}</text>
+    {emaSide && <text x={W - R - 4} y={PH + 12} className="axis-t" textAnchor="end">
+      <tspan className="ema9-t">EMA 9 {fmtNum(l9)}</tspan> · <tspan className="ema21-t">EMA 21 {fmtNum(l21)}</tspan> · RSI {rsi.toFixed(1)}
+      {emaSide === 'bull' ? <tspan className="up"> · Bullish (9 &gt; 21, RSI &gt; 60)</tspan> : emaSide === 'bear' ? <tspan className="down"> · Bearish (9 &lt; 21, RSI &lt; 40)</tspan> : <tspan> · 9/21 + RSI: no match</tspan>}</text>}
   </svg>
 }
 
@@ -226,7 +258,7 @@ function SignalDrawer({ row, tf, confirm3, orm, onClose }) {
     {s.rejected?.length > 0 && <div className="note-box"><b>{s.rejected.length} earlier break{s.rejected.length > 1 ? 's' : ''} rejected</b> (3-min confirmation failed — hollow markers on the chart):
       {s.rejected.map(r => <div key={r.min}>· {r.time.replace(/^0/, '')} break close {fmtNum(r.price)} → 3-min close {fmtNum(r.confirm_close)}</div>)}</div>}
     {!s.or_exact && <div className="note-box">Opening range taken from NSE's 1-minute price series because the app was not running before {orEndTxt} — intraminute wicks may be missed.</div>}
-    <h4>Intraday 5-minute chart <span className="muted small">shaded {orm <= 15 ? 'pink' : 'light blue'} = opening range 09:15–{orEndTxt} · dashed = OR high / low · marker = {Number(confirm3) ? '3-min confirmation close · hollow = rejected break' : `first ${tf}-min close beyond the range`}</span></h4>
+    <h4>Intraday 5-minute chart <span className="muted small">shaded {orm <= 15 ? 'pink' : 'light blue'} = opening range 09:15–{orEndTxt} · dashed = OR high / low · marker = {Number(confirm3) ? '3-min confirmation close · hollow = rejected break' : `first ${tf}-min close beyond the range`} · <span className="ema9-t">orange = EMA 9</span>, <span className="ema21-t">purple = EMA 21</span> (▲▼ = crossover)</span></h4>
     {err ? <div className="alert">{err}</div> : data ? <IntradayChart data={data} /> : <Empty>Loading candles…</Empty>}
     <a className="btn primary" href={tvStock(row.symbol)} target="_blank" rel="noopener noreferrer">Open TradingView ↗</a>
   </Drawer>
@@ -388,7 +420,7 @@ export function StockDrawer({ stock, onClose }) {
   ]
   return <Drawer open onClose={onClose} wide title={<StockLink symbol={stock.symbol} company={stock.company} className="strong" />}>
     <div className="facts-grid">{facts.map(([k, v]) => <div key={k}><div className="k">{k}</div><div className="v">{v}</div></div>)}</div>
-    <h4>Intraday 5-minute chart <span className="muted small">shaded: light blue = 1-hour range (09:15–10:15), pink = 15-min range (09:15–09:30){sig ? ' · green/red dashed = 1-hour OR high / low' : ''}{sig15 ? ' · blue dotted = 15-min OR high / low' : ''} · marker = 1-hour ORB signal</span></h4>
+    <h4>Intraday 5-minute chart <span className="muted small">shaded: light blue = 1-hour range (09:15–10:15), pink = 15-min range (09:15–09:30){sig ? ' · green/red dashed = 1-hour OR high / low' : ''}{sig15 ? ' · blue dotted = 15-min OR high / low' : ''} · marker = 1-hour ORB signal · <span className="ema9-t">orange = EMA 9</span>, <span className="ema21-t">purple = EMA 21</span> (▲▼ = crossover)</span></h4>
     {err ? <div className="alert">{err}</div> : data ? <IntradayChart data={data} extra={sig15 ? { or_high: sig15.or_high, or_low: sig15.or_low } : null} /> : <Empty>Loading candles…</Empty>}
     <a className="btn primary" href={tvStock(stock.symbol)} target="_blank" rel="noopener noreferrer">Open TradingView ↗</a>
   </Drawer>

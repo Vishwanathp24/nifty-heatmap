@@ -1658,3 +1658,13 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
   .app:not(.full-data) .outlook .ol-grid { margin-top: 10px }
 }
 .ol-dot { margin-right: 6px; font-size: 13px } @media (max-width: 600px), (pointer: coarse) and (max-width: 1366px) { .app:not(.full-data) .outlook h2 span.c-hide { display: none !important } }
+.cp-pill { display: inline-block; font-size: 11.5px; font-weight: 600; padding: 1px 7px; border-radius: 10px; margin: 1px 4px 1px 0; border: 1px solid var(--border); background: var(--panel-2); color: var(--ink); white-space: nowrap; cursor: help }
+.cp-pill.bull { color: var(--up); background: var(--up-bg); border-color: #bfe3cd }
+.cp-pill.bear { color: var(--down); background: var(--down-bg, #fdecec); border-color: #f3c7c7 }
+.cp-help { padding: 10px 14px; margin: 10px 0 } .cp-help ul { margin: 6px 0 6px 18px; line-height: 1.6; font-size: 13px }
+.cp-cell { min-width: 260px; white-space: normal } .cp-read { font-size: 12px; line-height: 1.4; color: var(--ink-2, var(--ink)); margin-top: 3px; white-space: normal }
+/* EMA 9 / 21 on the intraday 5-minute charts */
+.ichart .ema-line { fill: none; stroke-width: 1.4; stroke-linejoin: round; pointer-events: none }
+.ichart .ema-line.ema9 { stroke: #F59E0B } .ichart .ema-line.ema21 { stroke: #8B5CF6 }
+.ema9-t { fill: #D97706; color: #D97706 } .ema21-t { fill: #7C3AED; color: #7C3AED }
+.ichart .ema-x { font-size: 11px; font-weight: 700 } .ichart .ema-x.up { fill: var(--up) } .ichart .ema-x.down { fill: var(--down) }

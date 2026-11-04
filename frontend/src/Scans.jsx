@@ -170,7 +170,7 @@ function VolumeSpike({ vol, stocks, list, setList, onPick, picked }) {
   </>
 }
 
-const TABS = [['iopt', 'Index Options'], ['trend', 'Trending Stocks'], ['bull', 'Bullish Intraday'], ['bear', 'Bearish Intraday'], ['btst', 'BTST Stocks'], ['vol', 'Volume Spike'], ['common', 'Common Stocks'], ['chart', 'Live Chart']]
+const TABS = [['iopt', 'Index Options'], ['trend', 'Trending Stocks'], ['bull', 'Bullish Intraday'], ['bear', 'Bearish Intraday'], ['btst', 'BTST Stocks'], ['vol', 'Volume Spike'], ['ema', 'EMA 9/21 + RSI'], ['candle', 'Candlestick'], ['common', 'Common Stocks'], ['chart', 'Live Chart']]
 
 // Live Chart: NSE stock candles (Yahoo) on 1m ... 1M with the indicator table; the stock list
 // follows the sector filter.
@@ -301,7 +301,11 @@ export default function Scans({ trend: trendRaw, live, selected, setSelected, ch
   }, [data, dir, tfs, rsiMin, adxMin, universe, topPass])
   const [volList, setVolList] = useSessionState('vol.list', 'fo')
   const vol = usePoll(() => api('/api/volscan'), tab === 'vol' ? 60000 : 300000, [tab === 'vol'])
-  const tabCounts = { ...counts, vol: vol.data ? topPass(volHits(vol.data, volList)).length : null }
+  const cp = usePoll(() => api('/api/candle-patterns'), tab === 'candle' ? 60000 : 300000, [tab === 'candle'])
+  const cpRows = useMemo(() => (cp.data?.rows || []).filter(r => !selected.length || r.sectors.some(x => selected.includes(x))), [cp.data, selected])
+  const [emaTf] = useSessionState('ema.tf', 'tf15')
+  const emaN = data ? topPass(emaRows(data.rows, emaTf).filter(r => r.side)).length : null
+  const tabCounts = { ...counts, ema: emaN, vol: vol.data ? topPass(volHits(vol.data, volList)).length : null, candle: cp.data ? topPass(cpRows).length : null }
   const cyc = data?.cycle
   return <div className="trend-page">
     <div className="page-title"><h1>Intraday Scanner</h1>
@@ -316,6 +320,8 @@ export default function Scans({ trend: trendRaw, live, selected, setSelected, ch
     </div>
     {tab === 'iopt' ? <OptionsBoard market={INDIA} bias={live?.bias} />
       : tab === 'vol' ? <VolumeSpike key={'v' + resetKey} vol={vol} stocks={live?.stocks} list={volList} setList={setVolList} {...pp} />
+      : tab === 'ema' ? (!data ? <Empty>{trend.error || 'Loading scan data…'}</Empty> : <EmaRsi key={'e' + resetKey} data={data} {...pp} />)
+      : tab === 'candle' ? <CandleScan key={'cs' + resetKey} res={cp} rows={cpRows} {...pp} />
       : tab === 'chart' ? <StockLive key={'sl' + chartReq} stocks={live?.stocks || []} selected={selected} bias={live?.bias?.label} nifty={live?.indices?.nifty50} />
       : !data ? <Empty>{trend.error || 'Loading scan data…'}</Empty>
       : !data.rows.length ? <Empty>Calculating for the first time — this takes about 2–3 minutes…</Empty>
@@ -325,3 +331,145 @@ export default function Scans({ trend: trendRaw, live, selected, setSelected, ch
     {pick && <StockDrawer stock={live?.stocks?.find(s => s.symbol === pick.symbol) || pick} onClose={() => setPick(null)} />}
   </div>
 }
+
+// Candlestick tab: daily candle patterns on the F&O stocks (today's candle from the live NSE feed).
+const CANDLE_SIDES = [{ value: 'all', label: 'All' }, { value: 'bull', label: 'Bullish', tone: 'up' }, { value: 'bear', label: 'Bearish', tone: 'down' }, { value: 'neutral', label: 'Indecision' }]
+const PATTERN_HELP = [
+  ['Marubozu', 'a full body with almost no shadows: one side was in control all day'],
+  ['Doji', 'open ≈ close: indecision (dragonfly = long lower shadow, gravestone = long upper shadow)'],
+  ['Hammer / Hanging Man', 'small body at the top, long lower shadow: after a fall = hammer, after a rise = hanging man'],
+  ['Shooting Star / Inverted Hammer', 'small body at the bottom, long upper shadow: after a rise = shooting star, after a fall = inverted hammer'],
+  ['Engulfing', "today's body covers all of yesterday's opposite-colour body"],
+  ['Harami', "a small candle inside yesterday's big body: the move is slowing"],
+  ['Morning / Evening Star', 'big candle, small candle, then a strong candle the other way: a three-day turn'],
+]
+function CandleScan({ res, rows, onPick, picked }) {
+  const [side, setSide] = useSessionState('candle.side', 'all')
+  const [pat, setPat] = useSessionState('candle.pat', '')
+  const [search, setSearch] = useState('')
+  const [sort, setSort] = useState({ key: 'symbol', dir: 'asc' })
+  const d = res.data
+  const topPass = useTopPass()
+  const q = search.trim().toUpperCase()
+  const names = useMemo(() => [...new Set(rows.flatMap(r => r.patterns.map(p => p.name)))].sort(), [rows])
+  const base = rows.filter(r => (!q || r.symbol.includes(q) || (r.company || '').toUpperCase().includes(q))
+    && r.patterns.some(p => (side === 'all' || p.side === side) && (!pat || p.name === pat)))
+  const shown = topPass(sortRows(base, sort.key, sort.dir))
+  const n = k => topPass(rows.filter(r => r.patterns.some(p => k === 'all' || p.side === k))).length
+  const sp = { sort, setSort }
+  return <>
+    <div className="toolbar">
+      <Seg value={side} onChange={setSide} options={CANDLE_SIDES.map(o => ({ ...o, label: <>{o.label} <span className="count">{d ? n(o.value) : ''}</span></> }))} />
+      <TopFilter />
+      <select className="search" value={pat} onChange={e => setPat(e.target.value)} aria-label="Pattern">
+        <option value="">Every pattern</option>{names.map(x => <option key={x} value={x}>{x}</option>)}</select>
+      <input className="search" placeholder="Search symbol" value={search} onChange={e => setSearch(e.target.value)} />
+    </div>
+    <p className="muted small qualify-line"><b>{shown.length}</b> of {d?.universe ?? '…'} F&amp;O stocks show a candlestick pattern on the {d?.session_date ? new Date(d.session_date + 'T12:00:00+05:30').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : 'latest'} daily candle{d?.loading ? ` (loading history for ${d.loading} more)` : ''}. Trend = close vs 5 sessions earlier.</p>
+    {!d ? <Empty>{res.error || 'Loading candlestick patterns…'}</Empty> : <div className="tbl-wrap panel trend-wrap">
+      <table className="tbl trend-tbl pickable">
+        <thead><tr>
+          <SortTh label="Symbol" k="symbol" {...sp} defaultDir="asc" />
+          <SortTh label="Sector" k="sector" {...sp} defaultDir="asc" />
+          <SortTh label="LTP" k="ltp" {...sp} num />
+          <SortTh label="Chg %" k="pct" {...sp} num />
+          <th>Pattern · read</th>
+          <SortTh label="Trend" k="trend" {...sp} defaultDir="asc" title="Close vs the close 5 sessions earlier: up / down (±2%) or flat" />
+          <SortTh label="Confirms at" k="confirm" {...sp} num title="Bullish: a close above the pattern's high. Bearish: a close below its low. Patterns often fail the next day, so many traders wait for this." />
+          <SortTh label="Fails at" k="fail" {...sp} num title="Bullish: a close below the pattern's low. Bearish: a close above its high. Beyond this level the pattern no longer holds." />
+          <SortTh label="To fail" k="risk_pct" {...sp} num title="How far the fail level is from the close, in %: the move against you before the pattern is proven wrong" />
+        </tr></thead>
+        <tbody>{shown.map(r => <tr key={r.symbol} onClick={() => onPick(r)} className={picked === r.symbol ? 'active' : undefined}>
+          <td><StockLink symbol={r.symbol} company={r.company} className="strong" /><TopTag symbol={r.symbol} /></td>
+          <td className="muted">{r.sector}</td>
+          <td className="num">{fmtNum(r.ltp)}</td>
+          <td className={'num ' + (r.pct > 0 ? 'up' : r.pct < 0 ? 'down' : '')}>{isNum(r.pct) ? (r.pct > 0 ? '+' : '') + r.pct.toFixed(2) + '%' : '—'}</td>
+          <td className="cp-cell">{r.patterns.map(p => <span key={p.name} className={'cp-pill ' + p.side} title={p.note}>{p.name}</span>)}
+            <div className="cp-read" title={`Pattern candle(s): high ${fmtNum(r.pat_hi)}, low ${fmtNum(r.pat_lo)} · today O ${fmtNum(r.o)} H ${fmtNum(r.h)} L ${fmtNum(r.l)} C ${fmtNum(r.c)} · ${r.stretch > 0 ? '+' : ''}${r.stretch}% vs 20-day average`}>{r.read}</div></td>
+          <td className={'muted ' + (r.trend === 'up' ? 'up' : r.trend === 'down' ? 'down' : '')}>{r.trend === 'up' ? '↑ up' : r.trend === 'down' ? '↓ down' : '→ flat'}</td>
+          <td className={'num ' + (r.bias === 'bull' ? 'up' : r.bias === 'bear' ? 'down' : 'muted')}>{isNum(r.confirm) ? fmtNum(r.confirm) : '—'}</td>
+          <td className="num muted">{isNum(r.fail) ? fmtNum(r.fail) : '—'}</td>
+          <td className={'num ' + (r.risk_pct >= 5 ? 'amber' : 'muted')}>{isNum(r.risk_pct) ? r.risk_pct.toFixed(1) + '%' : '—'}</td>
+        </tr>)}</tbody>
+      </table>
+      {!shown.length && <Empty>{d.loading ? `Loading daily history… ${d.universe - d.loading} of ${d.universe} stocks` : 'No stock matches these filters.'}</Empty>}
+    </div>}
+    <details className="panel cp-help"><summary><b>What the patterns mean</b></summary><ul>
+      {PATTERN_HELP.map(([k, v]) => <li key={k}><b>{k}</b>: {v}.</li>)}</ul>
+      <p><b>Reading the levels:</b> <b>Confirms at</b> is where the pattern would be proven (a close above the pattern's high for a bullish one, below its low for a bearish one). <b>Fails at</b> is where it stops being valid. <b>To fail</b> is that distance in %: a wide one means a bigger move against the idea before it is proven wrong. <b>Stretched</b> means the price is already far from its 20-day average, where moves often pause.</p>
+      <p className="muted small">Hover a pattern for a one-line explanation. A pattern is a chart shape, not a buy / sell signal: check volume, the trend and the levels before acting, and wait for the next candle to confirm.</p></details>
+    <p className="muted small">Daily history: Yahoo Finance (last 3 months, refreshed twice a day). Today's candle: NSE live open / high / low / last price, so during the session a pattern can still change until the close.</p>
+  </>
+}
+
+// EMA 9/21 + RSI tab: trend direction from the 9 / 21 EMA, strength from RSI(14).
+// Bullish = 9 EMA above 21 EMA and RSI above 60; bearish = 9 EMA below 21 EMA and RSI below 40.
+const EMA_TFS = [{ value: 'tf15', label: '15 Min' }, { value: 'tf60', label: '1 Hour' }, { value: 'daily', label: 'Daily' }]
+export function emaRows(rows, tf) {
+  return (rows || []).filter(r => r.fo).map(r => {
+    const x = r[tf] || {}
+    const { ema9: e9, ema21: e21, ema9_p: p9, ema21_p: p21, rsi } = x
+    const up = gt(e9, e21), dn = lt(e9, e21)
+    const side = up && gt(rsi, 60) ? 'bull' : dn && lt(rsi, 40) ? 'bear' : null
+    const cross = isNum(p9) && isNum(p21) ? (up && p9 <= p21 ? 'up' : dn && p9 >= p21 ? 'down' : null) : null
+    const gap = isNum(e9) && isNum(e21) && e21 ? (e9 - e21) / e21 * 100 : null
+    return { ...r, e9, e21, rsi, side, cross, gap, close: x.close ?? r.ltp }
+  })
+}
+function EmaRsi({ data, onPick, picked }) {
+  const [tf, setTf] = useSessionState('ema.tf', 'tf15')
+  const [side, setSide] = useSessionState('ema.side', 'bull')
+  const [fresh, setFresh] = useSessionState('ema.fresh', false)
+  const [search, setSearch] = useState('')
+  const [sort, setSort] = useState({ key: 'rsi', dir: 'desc' })
+  const topPass = useTopPass()
+  const q = search.trim().toUpperCase()
+  const all = useMemo(() => emaRows(data.rows, tf), [data, tf])
+  const pick = all.filter(r => r.side === side && (!fresh || r.cross) && (!q || r.symbol.includes(q) || (r.company || '').toUpperCase().includes(q)))
+  const shown = topPass(sortRows(pick, sort.key, side === 'bear' && sort.key === 'rsi' ? (sort.dir === 'desc' ? 'asc' : 'desc') : sort.dir))
+  const n = k => topPass(all.filter(r => r.side === k && (!fresh || r.cross))).length
+  const sp = { sort, setSort }
+  const tfName = EMA_TFS.find(t => t.value === tf)?.label
+  return <>
+    <div className="toolbar">
+      <Seg value={side} onChange={setSide} options={[{ value: 'bull', label: <>Bullish <span className="count">{n('bull')}</span></>, tone: 'up' },
+        { value: 'bear', label: <>Bearish <span className="count">{n('bear')}</span></>, tone: 'down' }]} />
+      <Seg value={tf} onChange={setTf} options={EMA_TFS} />
+      <TopFilter />
+      <label className="check-label" title="Only stocks whose 9 EMA crossed the 21 EMA on the latest candle"><input type="checkbox" checked={fresh} onChange={e => setFresh(e.target.checked)} />Fresh crossover only</label>
+      <input className="search" placeholder="Search symbol" value={search} onChange={e => setSearch(e.target.value)} />
+    </div>
+    <p className="muted small qualify-line"><b className={side === 'bear' ? 'down' : 'up'}>{shown.length}</b> F&amp;O stocks on the <b>{tfName}</b> chart with {side === 'bull'
+      ? <><b>9 EMA above the 21 EMA</b> and <b>RSI(14) above 60</b> (uptrend with strength)</>
+      : <><b>9 EMA below the 21 EMA</b> and <b>RSI(14) below 40</b> (downtrend with weakness)</>}{fresh ? ', crossed on the latest candle' : ''}. The latest candle is still forming during market hours.</p>
+    <div className="tbl-wrap panel trend-wrap">
+      <table className="tbl trend-tbl pickable">
+        <thead><tr>
+          <SortTh label="Symbol" k="symbol" {...sp} defaultDir="asc" />
+          <SortTh label="Sector" k="sector" {...sp} defaultDir="asc" />
+          <SortTh label="LTP" k="ltp" {...sp} num />
+          <SortTh label="Chg %" k="pct_prev" {...sp} num />
+          <SortTh label="EMA 9" k="e9" {...sp} num />
+          <SortTh label="EMA 21" k="e21" {...sp} num />
+          <SortTh label="Gap %" k="gap" {...sp} num title="(EMA 9 − EMA 21) ÷ EMA 21: how far apart the two averages are" />
+          <SortTh label="RSI 14" k="rsi" {...sp} num />
+          <th title="Did the 9 EMA cross the 21 EMA on the latest candle?">Crossover</th>
+        </tr></thead>
+        <tbody>{shown.map(r => <tr key={r.symbol} onClick={() => onPick(r)} className={picked === r.symbol ? 'active' : undefined}>
+          <td><StockLink symbol={r.symbol} company={r.company} className="strong" /><TopTag symbol={r.symbol} /></td>
+          <td className="muted">{r.sector}</td>
+          <td className="num">{fmtNum(r.ltp)}</td>
+          <td className={'num ' + (r.pct_prev > 0 ? 'up' : r.pct_prev < 0 ? 'down' : '')}>{isNum(r.pct_prev) ? (r.pct_prev > 0 ? '+' : '') + r.pct_prev.toFixed(2) + '%' : '—'}</td>
+          <td className="num">{n2(r.e9)}</td>
+          <td className="num muted">{n2(r.e21)}</td>
+          <td className={'num ' + (r.gap > 0 ? 'up' : r.gap < 0 ? 'down' : '')}>{isNum(r.gap) ? (r.gap > 0 ? '+' : '') + r.gap.toFixed(2) + '%' : '—'}</td>
+          <td className={'num strong ' + (side === 'bull' ? 'up' : 'down')}>{fmtNum(r.rsi, 1)}</td>
+          <td>{r.cross ? <span className={'cp-pill ' + (r.cross === 'up' ? 'bull' : 'bear')}>{r.cross === 'up' ? 'Crossed up now' : 'Crossed down now'}</span> : <span className="muted small">earlier</span>}</td>
+        </tr>)}</tbody>
+      </table>
+      {!shown.length && <Empty>No F&amp;O stock meets these conditions on the {tfName} chart right now.</Empty>}
+    </div>
+    <p className="muted small">EMA 9 / 21 and RSI(14, Wilder) on Yahoo Finance candles (15-minute and 1-hour on NSE's 09:15 clock, daily with today's NSE candle). Condition screen: it shows where the averages and momentum line up, not when to buy or sell. A fresh crossover is the earliest and least proven; RSI far above 70 or below 30 means the move is already stretched.</p>
+  </>
+}
+

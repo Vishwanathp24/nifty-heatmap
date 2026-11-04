@@ -3,7 +3,7 @@ plus Bullish Intraday, Bearish Intraday and BTST condition scans (daily + 1-hour
 
 Indicators (standard settings, as on TradingView):
   VWAP           session VWAP from today's candles (typical price x volume)
-  EMA 5, EMA 9   exponential moving averages of close
+  EMA 5, 9, 21   exponential moving averages of close (9/21 also on the previous candle, for crossovers)
   Supertrend     ATR 10, multiplier 3
   RSI 14         Wilder smoothing
   ADX / DI+ / DI-  14, Wilder smoothing
@@ -117,6 +117,7 @@ def indicators(c):
     adx, dip, dim = _adx(c)
     r = lambda v, d=2: round(v, d) if v is not None else None
     return {"close": r(closes[-1]), "vwap": r(_vwap(c)), "ema5": r(_ema(closes, 5)), "ema9": r(_ema(closes, 9)),
+            "ema21": r(_ema(closes, 21)), "ema9_p": r(_ema(closes[:-1], 9)), "ema21_p": r(_ema(closes[:-1], 21)),
             "st": r(st), "st_dir": sd, "rsi": r(_rsi(closes), 1), "adx": r(adx, 1), "dip": r(dip, 1), "dim": r(dim, 1),
             "candle": c[-1]["t"], "bars": len(c)}
 
@@ -183,6 +184,7 @@ def daily_metrics(d):
     prev5 = d[-6:-1]
     return {"date": d[-1]["d"], "close": r(c[-1]), "open": r(d[-1]["o"]), "prev_open": r(d[-2]["o"]),
             "prev_close": r(c[-2]), "sma20": r(_sma(c, 20)), "rsi": r(_rsi(c), 1),
+            "ema9": r(_ema(c, 9)), "ema21": r(_ema(c, 21)), "ema9_p": r(_ema(c[:-1], 9)), "ema21_p": r(_ema(c[:-1], 21)),
             "hi5": r(max(b["h"] for b in prev5)), "lo5": r(min(b["l"] for b in prev5)),
             "vol": d[-1]["v"], "vol_sma5": r(_sma([b["v"] for b in d], 5), 0),
             "high250": r(max(b["h"] for b in d[-250:])), "days": len(d)}

@@ -23,6 +23,7 @@ import sources
 import push
 import seo
 import yearhl
+import candlepat
 from config import CLOSE_MIN, OPEN_MIN
 from engine import Engine
 from store import Store
@@ -226,6 +227,20 @@ def orb_candles(symbol: str, tf: int = 15, confirm: int = 1, orm: int = 60):
     if tf not in (5, 15) or orm not in (5, 15, 30, 60):
         raise HTTPException(status_code=400, detail="tf must be 5 or 15; orm must be 5, 15, 30 or 60")
     return engine.candles(symbol.strip().upper(), tf, confirm if confirm in (0, 1, 2) else 1, orm)
+
+
+_cp_cache = [0.0, None]
+
+
+@app.get("/api/candle-patterns")
+def candle_patterns():
+    """Intraday Scanner -> Candlestick: daily candlestick patterns on the F&O stocks (today's candle live)."""
+    if _cp_cache[1] is None or time.time() - _cp_cache[0] > 30:
+        data = engine.live(market_status())
+        if data is None:
+            raise HTTPException(status_code=503, detail=engine.poll_err or "Loading NSE data — first snapshot in progress.")
+        _cp_cache[:] = [time.time(), candlepat.scan(data)]
+    return _cp_cache[1]
 
 
 @app.get("/api/sector")
