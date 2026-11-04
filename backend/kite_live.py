@@ -95,10 +95,15 @@ class KiteLive:
         return f"{LOGIN}?" + urlencode({"v": 3, "api_key": c["api_key"], "redirect_params": urlencode({"state": st})})
 
     def finish_login(self, request_token, state):
-        if not state or self.states.pop(state, None) is None:
-            raise KiteError("This login link has expired. Start the Kite login again from the Kite view.")
+        # The state check is a convenience, not the lock: a Kite token can only be turned into a session with our
+        # API secret, and a Personal app logs in only its own Zerodha client ID. So a login started from Kite itself
+        # (or one that spanned a server restart, which forgets the state) is accepted too.
+        if state:
+            self.states.pop(state, None)
         c = self.config()
-        if not c or not request_token:
+        if not c:
+            raise KiteError("The Kite API key and secret are not saved on this site yet. Open the Kite view, save them, then log in.")
+        if not request_token:
             raise KiteError("Kite did not send a login token.")
         r = requests.post(API + "/session/token", headers=HDR, timeout=20, data={
             "api_key": c["api_key"], "request_token": request_token,
