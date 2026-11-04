@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react'
 import { AdChips, AdText, BreadthBar, Empty, IndexLink, Pct, Section, StockLink } from './components.jsx'
 import { OiChange, useOiChange } from './Pcr.jsx'
 import { PageGuide } from './guides.jsx'
+import MarketOutlook from './Outlook.jsx'
 import { api, fmtCr, fmtNum, fmtPct, fmtRatio, fmtSigned, fmtVol, istDate, istTime, isNum, nseTs, tone, tvStock, tvSymbol, useClock, usePoll } from './lib.js'
 
 const biasClass = l => l === 'BULLISH' ? 'bull' : l === 'BEARISH' ? 'bear' : 'neutral'
@@ -180,6 +181,7 @@ const HOW_TO = [
   ['📱', 'On a phone', 'The small cards at the top show the short version: Market Bias, Nifty OI Change, Nifty PCR, Expected Move, the up/down counts and FII / DII. Each card has its name on top and its value below. Green = good sign, red = bad sign, amber = mixed. Want every number? Turn on the Full data switch at the top to see the big panels instead.'],
   ['🧮', 'Breadth (Nifty 50 and F&O)', 'Counts how many stocks went up and how many went down. Like a class test: if most students scored better, the class did well. If only the toppers did well, it was not a good day for everyone.'],
   ['🧭', 'Market Bias', 'A vote of 5 simple checks (Nifty, fear meter, and three up/down counts). Each check gives +1 or −1. Bullish = most checks are happy. Bearish = most checks are sad. Neutral = mixed.'],
+  ['🔭', 'Market Outlook', 'The short box gives the plain answer: good, weak or mixed, and the one level to watch. Tap See details for everything behind it. On a phone it is a small card: the lean, the likely open and the one level to watch. After the close it reads the next session (during market hours, the rest of today) from the signals on this page: Market Bias, breadth, India VIX, FII buying or selling, GIFT Nifty, US markets and what option writers did. Each signal counts as positive, negative or neutral, and the box says which way most of them lean. The levels come from the option chain: resistance where the most calls are written, support where the most puts are written, max pain, and the usual one-day range. It is a weather report, not a prediction, and never a buy or sell signal.'],
   ['⚖️', 'Nifty PCR (OI)', 'Compares two kinds of option bets on Nifty. Around 1 = balanced. Very high (above 1.5) = everyone is too sure the market will go up, so it may cool down. Very low (below 0.7) = everyone is too scared, so it may bounce back. It counts the 10 strikes on each side of the current Nifty level (the same strikes as the OI Change panel and most option-chain sites); the line under it also shows the figure for all strikes.'],
   ['🧱', 'Nifty OI Change', 'Where big option traders put new money today. More new puts = they are building a "floor" under Nifty (Bullish). More new calls = they are building a "ceiling" over Nifty (Bearish).'],
   ['🚀', 'Top Movers', 'The stocks that went up the most, went down the most, and were traded the most today.'],
@@ -246,6 +248,7 @@ export default function Overview({ live, ctx }) {
       </div></FiiDii>
     </div>
     <Section title="Indian Markets" subtitle="Pre-open, India VIX and indices · change vs previous close" className="idx-section"><SummaryCards live={live} /></Section>
+    <MarketOutlook live={live} ctx={ctx} />
     <div className="bias-row oi c-hide">  {/* compact phone view: Market Bias and OI Change are in the small cards at the top */}
       <MarketBias bias={live.bias} />
       <OiChange nifty={live.indices.nifty50} />

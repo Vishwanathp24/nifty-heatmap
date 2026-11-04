@@ -1622,3 +1622,39 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
   .hdr-nav a, .nav-menu > button { padding: 0 6px; font-size: 12px }
   .hdr-status .hdr-upd { display: none }
 }
+
+/* Market Outlook (Market Overview) */
+.ol-grid { display: grid; grid-template-columns: minmax(180px, .8fr) minmax(0, 1.6fr) minmax(0, 1.1fr) minmax(0, 1.5fr); gap: 12px; align-items: start }
+.ol-grid > div { border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; background: var(--panel) }
+.ol-grid ul, .ol-grid ol { margin: 6px 0 10px 18px; padding: 0; line-height: 1.5; font-size: 13px }
+.ol-grid li { margin-bottom: 3px }
+.ol-lean { border-left: 3px solid var(--amber) !important }
+.ol-lean.bull { border-left-color: var(--up) !important } .ol-lean.bear { border-left-color: var(--down) !important }
+.ol-lean .k { font-size: 12px; color: var(--muted) }
+.ol-lean-v { font-size: 26px; font-weight: 800; margin: 2px 0; color: var(--amber) }
+.ol-lean.bull .ol-lean-v { color: var(--up) } .ol-lean.bear .ol-lean-v { color: var(--down) }
+.ol-score { font-size: 12.5px; color: var(--ink-2, var(--ink)) }
+.ol-gap { margin-top: 10px; font-size: 13px }
+.ol-tbl { width: 100%; margin-top: 6px } .ol-tbl td { padding: 4px 6px }
+.ol-note { margin: 10px 0 0 }
+@media (max-width: 1300px) { .ol-grid { grid-template-columns: minmax(180px, .7fr) minmax(0, 1.5fr) minmax(0, 1fr) } .ol-scen { grid-column: 1 / -1 } }
+@media (max-width: 900px) { .ol-grid { grid-template-columns: 1fr 1fr } .ol-sig, .ol-scen { grid-column: 1 / -1 } }
+@media (max-width: 600px) { .ol-grid { grid-template-columns: 1fr } .ol-lean-v { font-size: 22px } }
+.ol-grid > div { min-width: 0 } .ol-tbl { table-layout: auto } .ol-tbl td { white-space: normal; vertical-align: top } .ol-tbl td.num { white-space: nowrap }
+.ol-simple { display: flex; gap: 12px; align-items: flex-start; border: 1px solid var(--border); border-left: 4px solid var(--amber); border-radius: 8px; padding: 12px 14px; background: var(--panel); margin-bottom: 12px }
+.ol-simple.bull { border-left-color: var(--up) } .ol-simple.bear { border-left-color: var(--down) }
+.ol-simple p { margin: 0 0 4px; font-size: 15px; line-height: 1.45 } .ol-simple p:first-child { font-weight: 700 } .ol-simple p:last-child { font-size: 12.5px; color: var(--muted); margin: 4px 0 0 }
+.ol-emoji { font-size: 22px; line-height: 1.2 }
+/* Market Outlook as a small card in the phone / tablet view */
+.ol-card { border: 1px solid var(--border); border-left: 4px solid var(--amber); border-radius: 10px; padding: 10px 12px; background: var(--panel) }
+.ol-card.bull { border-left-color: var(--up) } .ol-card.bear { border-left-color: var(--down) }
+.ol-card-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px }
+.ol-pill { font-weight: 800; font-size: 15px; color: var(--amber) } .ol-pill.bull { color: var(--up) } .ol-pill.bear { color: var(--down) }
+.ol-card-n { font-size: 12px; color: var(--muted) }
+.ol-card-l { font-size: 13.5px; line-height: 1.5 }
+@media (max-width: 600px), (pointer: coarse) and (max-width: 1366px) {
+  .app:not(.full-data) .ol-card.c-only { display: block !important }
+  .app:not(.full-data) .outlook .section-head .sub { display: none }
+  .app:not(.full-data) .outlook .ol-grid { margin-top: 10px }
+}
+.ol-dot { margin-right: 6px; font-size: 13px } @media (max-width: 600px), (pointer: coarse) and (max-width: 1366px) { .app:not(.full-data) .outlook h2 span.c-hide { display: none !important } }
