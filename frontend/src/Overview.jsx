@@ -57,7 +57,7 @@ function PreOpenCard({ res, which, label, short }) {
     title={g ? `${label} pre-open ${d.at} IST · top gainers: ${list(g.gainers)} · losers: ${list(g.losers)}.${nse ? ' Value as published by NSE (the index opens at this price).' : ' Estimate only: the real open can differ.'}` : undefined}>
     <div className="card-k"><span className="ck-t">Pre-Open {short ? <><span className="c-hide">{label}</span><span className="c-only">{short}</span></> : label}</span>{gap && <span className={'vix-tag ' + gap[1]}>{gap[0]}</span>}</div>
     {nse ? <>
-      <div className={'card-v ' + tone(p)}>{fmtNum(g.value)}</div>
+      <div className="card-v">{fmtNum(g.value)}</div>
       <div className={'card-d ' + tone(p)}>{fmtSigned(g.change)} <span>({fmtPct(p)})</span></div>
       <AdChips className="c-hide" up={g.up} down={g.down} unch={g.unchanged} />
     </> : <>

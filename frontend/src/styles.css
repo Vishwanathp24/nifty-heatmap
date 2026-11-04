@@ -1334,10 +1334,8 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
 /* Phones, Sector Heatmap: the top cards repeat the status pills shown above the page, so hide them */
 /* Phones and tablets (incl. a phone held sideways): Nifty PCR card without the long explanation */
 @media (max-width: 1024px) { .pcr-card .card-n, .pcr-meter .pcr-text { display: none } }
-/* Global Cues and index cards tinted by direction, like Market Bias / Nifty OI Change */
-.card.tinted { border-left: 4px solid var(--border-strong) }
-.card.tinted.up { background: var(--up-bg); border-color: #bfe3cd; border-left-color: var(--up) }
-.card.tinted.down { background: var(--down-bg); border-color: #efc6c6; border-left-color: var(--down) }
+/* Global Cues, Indian Markets and Pre-Open cards: plain white cards, colour only on the change (as in the first version) */
+.card.tinted { border-left-width: 1px; color: var(--ink) }  /* the up / down class colours only the change line */
 /* Global Cues cards stretch to the height of the FII / DII box beside it */
 .two-col > .section.cues { display: flex; flex-direction: column }
 .two-col > .section.cues > .cards.six { flex: 1; grid-auto-rows: 1fr }
@@ -1406,8 +1404,8 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
 .pcr-row .pcr-meter { margin: 0 }
 .pcr-row > .pcr-meter { margin-top: 10px }
 .pcr-two { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 10px }
-.pcr-meter.tinted.up { background: var(--up-bg) } .pcr-meter.tinted.down { background: var(--down-bg) } .pcr-meter.tinted.amber { background: var(--amber-bg) }
-.pcr-meter.em { border-left-color: var(--accent); background: rgba(37, 99, 235, .07) }
+/* white cards; the coloured left edge and the pill carry the reading (as in the first version) */
+.pcr-meter.em { border-left-color: var(--accent) }
 .pcr-meter.em .pcr-pill.em-pill { background: rgba(37, 99, 235, .14); color: var(--accent) }
 .pcr-sub { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 12px; margin-top: 4px }
 /* Phones: top strip as small cards (MiniCards in Pcr.jsx); the desktop pill strip keeps only the Journal slot */
