@@ -70,11 +70,6 @@ function TabBar({ pages, page, setPage, badges }) {
   </>
 }
 
-// Icons on the Basic / Advanced switch (larger screens only; phones keep the short text buttons).
-const MODE_ICON = { basic: 'M4 5h16v14H4z M4 10h16', advanced: 'M4 4h7v7H4z M13 4h7v7h-7z M4 13h7v7H4z M13 13h7v7h-7z' }
-const ModeIcon = ({ id }) => <svg className="mode-ic d-only" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
-  strokeWidth="2" strokeLinejoin="round" aria-hidden="true"><path d={MODE_ICON[id]} /></svg>
-
 // Advanced top menu: these pages sit under one "Learn & Track" dropdown instead of their own links.
 const MENU_IDS = ['learning', 'journal']
 function NavMenu({ pages, page, go }) {
@@ -213,7 +208,7 @@ function StatusBar({ live, auto, setAuto, crypto = false }) {
     <span className="hdr-clock" title={`${istDate(now)} · Indian Standard Time`}><span className="hdr-date">{istDate(now)}</span> {istTime(now)} <small>IST</small></span>
     {delayed || live.data?.poll_error
       ? <span className="hdr-delayed" title={`Data delayed — last successful update ${istTime(live.data?.as_of || live.lastOk)} IST · ${live.error || live.data?.poll_error}`}><i className="dot amber" />Delayed · {hhmm(live.data?.as_of || live.lastOk)}</span>
-      : <span className="hdr-upd" title={`Last updated ${live.data?.as_of ? istTime(live.data.as_of) : '…'} IST`}><i className={'dot ' + (ok && auto ? 'green' : 'grey')} />Updated {live.data?.as_of ? hhmm(live.data.as_of) : '…'}</span>}
+      : <span className="hdr-upd" title={`Last updated ${live.data?.as_of ? istTime(live.data.as_of) : '…'} IST`}><i className={'dot ' + (ok && auto ? 'green' : 'grey')} /><span className="hdr-upd-k">Updated </span>{live.data?.as_of ? hhmm(live.data.as_of) : '…'}</span>}
     <button className={'hdr-auto' + (auto ? ' on' : '')} onClick={() => setAuto(a => !a)} title={auto ? 'Auto refresh is ON (every 10 seconds) — click to pause' : 'Auto refresh is OFF — click to resume'}>
       {auto ? 'Auto ✓ 10s' : 'Auto off'}</button>
     {!crypto && <BiasAlertToggle on={alertOn} setOn={setAlertOn} setPushed={setPushed} />}
@@ -303,7 +298,7 @@ function App() {
         <span>NSE Sector Heatmap</span></button>
       <div className="seg mode-switch" role="group" aria-label="Site version">
         {[['basic', 'Basic'], ['advanced', 'Advanced']].map(([v, l]) => <button key={v} className={mode === v ? 'on' : ''} onClick={() => setMode(v)}
-          title={v === 'basic' ? 'Simple view: Market Overview, Sector Heatmap and ORB Scanner only' : 'Full view: every scanner, chart and tool'}><ModeIcon id={v} />{l}</button>)}
+          title={v === 'basic' ? 'Simple view: Market Overview, Sector Heatmap and ORB Scanner only' : 'Full view: every scanner, chart and tool'}>{l}</button>)}
       </div>
       <button className={'full-toggle' + (fullData ? ' on' : '')} role="switch" aria-checked={fullData} onClick={() => setFullData(f => !f)}
         title="Phones and tablets: show the full data panels (as in the first version) instead of the small cards"><i />Full data</button>

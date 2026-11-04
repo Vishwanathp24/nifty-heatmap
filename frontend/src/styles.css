@@ -1603,4 +1603,22 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
 .kt-tbl tr.kt-closed td { opacity: .6 }
 .kt-sum { grid-template-columns: repeat(auto-fit, minmax(min(160px, 100%), 1fr)); margin-bottom: 12px }
 .fy-nomarket { margin: 4px 0 14px }
-.mode-switch button { display: inline-flex; align-items: center; gap: 6px } .mode-ic { flex: none }
+
+/* Desktop: brand, switch, menu and status in ONE row. The status bar drops the date (kept in the clock's tooltip)
+   and the "Updated" word, and the menu tightens a little on narrower desktops. */
+@media (min-width: 1280px) {
+  .hdr { flex-wrap: nowrap }
+  .hdr-status { flex-wrap: nowrap; margin-left: auto; min-height: 0 }
+  .hdr-status .hdr-date, .hdr-status .hdr-upd-k { display: none }
+}
+@media (min-width: 1280px) and (max-width: 1500px) {
+  .hdr { gap: 10px; padding: 0 12px }
+  .hdr-nav a, .nav-menu > button { padding: 0 9px; font-size: 12.5px }
+  .hdr-status { gap: 8px }
+  .hdr-status .mkt { font-size: 10px }
+}
+@media (min-width: 1280px) and (max-width: 1300px) {
+  .hdr { gap: 8px }
+  .hdr-nav a, .nav-menu > button { padding: 0 6px; font-size: 12px }
+  .hdr-status .hdr-upd { display: none }
+}
