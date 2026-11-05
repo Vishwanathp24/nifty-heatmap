@@ -170,7 +170,7 @@ function VolumeSpike({ vol, stocks, list, setList, onPick, picked }) {
   </>
 }
 
-const ALL_TABS = [['setup', 'Trade Setup'], ['iopt', 'Index Options'], ['fno', 'F&O Stocks'], ['trend', 'Trending Stocks'], ['bull', 'Bullish Intraday'], ['bear', 'Bearish Intraday'], ['btst', 'BTST Stocks'], ['vol', 'Volume Spike'], ['ema', 'EMA 9/21 + RSI'], ['candle', 'Candlestick'], ['common', 'Common Stocks'], ['chart', 'Live Chart']]
+const ALL_TABS = [['setup', 'Trade Setup'], ['iopt', 'Index Options'], ['fno', 'F&O Stocks'], ['osell', 'Option Selling'], ['trend', 'Trending Stocks'], ['bull', 'Bullish Intraday'], ['bear', 'Bearish Intraday'], ['btst', 'BTST Stocks'], ['vol', 'Volume Spike'], ['ema', 'EMA 9/21 + RSI'], ['candle', 'Candlestick'], ['common', 'Common Stocks'], ['chart', 'Live Chart']]
 // Extra scanners: hidden unless "More scanners" is switched on (remembered in this browser)
 const HIDDEN_TABS = ['iopt', 'btst', 'vol', 'ema', 'candle']
 const BASE_TABS = ALL_TABS.filter(([v]) => !HIDDEN_TABS.includes(v))
@@ -329,6 +329,7 @@ export default function Scans({ trend: trendRaw, live, selected, setSelected, ch
     </div>
     {tab === 'iopt' ? <OptionsBoard market={INDIA} bias={live?.bias} />
       : tab === 'fno' ? <FnoStocks key={'f' + resetKey} stocks={live?.stocks || []} selected={selected} bias={live?.bias} trendRows={data?.rows} />
+      : tab === 'osell' ? (!data ? <Empty>{trend.error || 'Loading scan data…'}</Empty> : <OptionSelling key={'os' + resetKey} data={data} live={live} />)
       : tab === 'setup' ? (!data ? <Empty>{trend.error || 'Loading scan data…'}</Empty> : <TradeSetup key={'ts' + resetKey} data={data} live={live} {...pp} />)
       : tab === 'vol' ? <VolumeSpike key={'v' + resetKey} vol={vol} stocks={live?.stocks} list={volList} setList={setVolList} {...pp} />
       : tab === 'ema' ? (!data ? <Empty>{trend.error || 'Loading scan data…'}</Empty> : <EmaRsi key={'e' + resetKey} data={data} {...pp} />)
@@ -497,11 +498,15 @@ export const fnoSide = (s, t) => {
   if (s.pct_prev < 0 && lt(t.close, t.vwap) && lt(t.ema9, t.ema21)) return 'bear'
   return null
 }
-const sideFromBias = b => b === 'BULLISH' ? 'bull' : b === 'BEARISH' ? 'bear' : 'all'
+// Market Bias -> side: Bullish / Bearish, and a Neutral reading that still leans (score +2 / -2) counts too.
+const sideFromBias = b => b?.label === 'BULLISH' || (isNum(b?.score) && b.score >= 2) ? 'bull'
+  : b?.label === 'BEARISH' || (isNum(b?.score) && b.score <= -2) ? 'bear' : 'all'
+const biasNote = b => !b?.label ? '…' : b.label === 'NEUTRAL' && isNum(b.score) && Math.abs(b.score) >= 2
+  ? `neutral, leaning ${b.score > 0 ? 'bullish' : 'bearish'} ${b.score > 0 ? '+' : ''}${b.score}` : b.label.toLowerCase()
 function FnoStocks({ stocks, selected, bias, trendRows }) {
   const lots = usePoll(() => api('/api/fo-lots'), 3600000, [])
   const [manual, setManual] = useSessionState('fno.sideManual', null)  // follows Market Bias until the user picks a side
-  const side = manual || sideFromBias(bias?.label)
+  const side = manual || sideFromBias(bias)
   const T = useMemo(() => Object.fromEntries((trendRows || []).map(r => [r.symbol, r.tf15])), [trendRows])
   const [sym, setSym] = useSessionState('fno.sym', '')
   const [search, setSearch] = useState('')
@@ -525,7 +530,7 @@ function FnoStocks({ stocks, selected, bias, trendRows }) {
     <div className="toolbar">
       <Seg value={side} onChange={setManual} options={[{ value: 'all', label: <>All <span className="count">{nSide('all')}</span></> },
         { value: 'bull', label: <>Bullish <span className="count">{nSide('bull')}</span></>, tone: 'up' }, { value: 'bear', label: <>Bearish <span className="count">{nSide('bear')}</span></>, tone: 'down' }]} />
-      {!manual && bias?.label && <span className="muted small" title="Opens on the side that matches Market Bias; pick another to override">follows Market Bias ({bias.label.toLowerCase()})</span>}
+      {!manual && bias?.label && <span className="muted small" title="Opens on the side that matches Market Bias (a Neutral bias of +2 or more leans bullish, −2 or less bearish); pick another to override">follows Market Bias ({biasNote(bias)})</span>}
       <TopFilter />
       <input className="search" placeholder="Search F&O stock" value={search} onChange={e => setSearch(e.target.value)} />
       <span className="muted small">Tap a stock to open its option chain analysis.</span>
@@ -648,20 +653,26 @@ const isFresh = hhmm => {  // joined within the last 30 minutes (IST)
   const [h, mm] = hhmm.split(':').map(Number)
   return now - (h * 60 + mm) <= 30 && now - (h * 60 + mm) >= 0
 }
+// The indicator rows carry no volume ratio, and their price can lag: take price, change and volume
+// ratio from the live NSE feed for each stock.
+const withLive = (rows, live) => {
+  const L = Object.fromEntries((live?.stocks || []).map(s => [s.symbol, s]))
+  return (rows || []).map(r => { const s = L[r.symbol]; return s ? { ...r, ltp: s.ltp ?? r.ltp, pct_prev: s.pct_prev ?? r.pct_prev, vol_ratio: s.vol_ratio } : r })
+}
 function TradeSetup({ data, live, onPick, picked }) {
   const [manual, setManual] = useSessionState('setup.sideManual', null)
-  const side = manual || (live?.bias?.label === 'BEARISH' ? 'bear' : 'bull')
+  const side = manual || (sideFromBias(live?.bias) === 'bear' ? 'bear' : 'bull')
   const [minScore, setMinScore] = usePersistentState('setup.min', 6)
   const [risk, setRisk] = usePersistentState('setup.risk', 1000)
   const [sort, setSort] = useState({ key: 'score', dir: 'desc' })
   const topPass = useTopPass()
   const m = { bias: live?.bias?.label, nifty: live?.indices?.nifty50?.pct_prev }
-  const scored = useMemo(() => (data.rows || []).filter(r => r.fo && r.tf15).map(r => {
+  const scored = useMemo(() => withLive(data.rows, live).filter(r => r.fo && r.tf15).map(r => {
     const x = { ...r, t: r.tf15 }
     const res = SETUP_CHECKS[side].map(([, , f]) => !!f(x, m))
     const score = res.filter(Boolean).length
     return { ...x, res, score, lv: setupLevels(x, side, Number(risk)), since: score >= minScore ? setupSince(x, side, res, minScore) : null }
-  }), [data, side, m.bias, m.nifty, risk, minScore])
+  }), [data, live, side, m.bias, m.nifty, risk, minScore])
   const pass = scored.filter(r => r.score >= minScore && r.lv)
   const shown = topPass(sortRows(pass.map(r => ({ ...r, entry: r.lv.entry, riskPct: r.lv.riskPct })), sort.key, sort.dir))
   const sp = { sort, setSort }
@@ -670,7 +681,7 @@ function TradeSetup({ data, live, onPick, picked }) {
   return <>
     <div className="toolbar">
       <Seg value={side} onChange={setManual} options={[{ value: 'bull', label: 'Long setups', tone: 'up' }, { value: 'bear', label: 'Short setups', tone: 'down' }]} />
-      {!manual && <span className="muted small">follows Market Bias ({(m.bias || '…').toLowerCase()})</span>}
+      {!manual && <span className="muted small">follows Market Bias ({biasNote(live?.bias)})</span>}
       <label className="check-label">Min score <select value={minScore} onChange={e => setMinScore(Number(e.target.value))}>{[5, 6, 7, 8].map(v => <option key={v} value={v}>{v} of 8</option>)}</select></label>
       <label className="check-label" title="How much you are willing to lose on one trade if the stop is hit (₹). Quantity = this ÷ the distance to the stop.">Risk per trade ₹<input className="search setup-risk" type="number" min="100" step="100" value={risk} onChange={e => setRisk(e.target.value)} /></label>
       <TopFilter />
@@ -739,3 +750,173 @@ function TradeSetup({ data, live, onPick, picked }) {
     <p className="muted small">Indicators on Yahoo Finance 15-minute candles (the latest one is still forming); prices and volume from NSE. Levels are rule-based calculations to help you plan, not a recommendation to buy or sell. Trading involves risk of loss.</p>
   </>
 }
+
+// Option Selling: which F&O stocks suit a defined-risk option-selling trade now, which structure fits
+// the stock's regime, and (on click) rule-based strikes from its option chain. Planning numbers, not advice.
+const OS_KIND = {
+  range: { label: 'Range-bound', strat: 'Iron Condor', tone: 'neutral', what: 'Sell an OTM call spread above and an OTM put spread below: profits if the stock stays between the short strikes.' },
+  bull: { label: 'Bullish', strat: 'Bull Put Spread', tone: 'up', what: 'Sell an OTM put below support and buy a lower put: profits if the stock stays above the short put.' },
+  bear: { label: 'Bearish', strat: 'Bear Call Spread', tone: 'down', what: 'Sell an OTM call above resistance and buy a higher call: profits if the stock stays below the short call.' },
+}
+function osRegime(r) {
+  const d = r.daily || {}, h = r.tf60 || {}
+  if (!isNum(d.rsi) || !isNum(h.adx)) return null
+  const move = Math.abs(r.pct_prev ?? 0)
+  if (h.adx < 20 && d.rsi >= 40 && d.rsi <= 60 && move < 1.5) return 'range'
+  if (gt(d.close, d.sma20) && gt(h.ema9, h.ema21) && d.rsi >= 50 && d.rsi <= 70 && (r.pct_prev ?? 0) > -0.5) return 'bull'
+  if (lt(d.close, d.sma20) && lt(h.ema9, h.ema21) && d.rsi >= 30 && d.rsi <= 50 && (r.pct_prev ?? 0) < 0.5) return 'bear'
+  return null
+}
+const OS_CHECKS = [
+  ['Regime', 'A clear regime: range-bound, or a steady up / down trend', (r, k) => !!k],
+  ['Liquid', 'Volume at least 0.8× its 5-day average (options easier to enter and exit)', r => isNum(r.vol_ratio) && r.vol_ratio >= 0.8],
+  ['Calm', 'Moved less than 2% today: no shock or news move in progress', r => isNum(r.pct_prev) && Math.abs(r.pct_prev) < 2],
+  ['Not stretched', 'Daily RSI between 30 and 70: not at an extreme that could snap back', r => isNum(r.daily?.rsi) && r.daily.rsi >= 30 && r.daily.rsi <= 70],
+  ['Trend fits', 'Hourly ADX fits the structure: under 20 for a range, 20+ for a trend', (r, k) => isNum(r.tf60?.adx) && (k === 'range' ? r.tf60.adx < 20 : r.tf60.adx >= 20)],
+  ['Supertrend', 'Hourly Supertrend agrees (up for bullish, down for bearish; any for a range)', (r, k) => k === 'range' || (k === 'bull' ? r.tf60?.st_dir === 1 : r.tf60?.st_dir === -1)],
+]
+const mid = o => isNum(o?.bid) && isNum(o?.ask) && o.bid > 0 && o.ask > 0 ? (o.bid + o.ask) / 2 : isNum(o?.mark) ? o.mark : null
+function osPlan(d, kind, lot) {
+  const exps = (d?.expiries || []).filter(e => e.chain?.length)
+  const e = exps.find(x => x.days >= 5) || exps[0]
+  if (!e) return null
+  const spot = d.spot, move = e.move, ch = e.chain
+  const ks = ch.map(r => r.k)
+  const above = ch.filter(r => r.k > spot), below = ch.filter(r => r.k < spot)
+  const cWall = above.reduce((a, r) => (r.call?.oi || 0) > (a?.call?.oi || 0) ? r : a, null)?.k
+  const pWall = below.reduce((a, r) => (r.put?.oi || 0) > (a?.put?.oi || 0) ? r : a, null)?.k
+  const at = k => ch.find(r => r.k === k)
+  const legs = []
+  const call = () => {
+    const lim = Math.max(spot + (move || 0), cWall || 0)
+    const sk = ks.find(k => k >= lim); if (!isNum(sk)) return null
+    const bk = ks.find(k => k > sk); if (!isNum(bk)) return null
+    const cr = (mid(at(sk)?.call) ?? NaN) - (mid(at(bk)?.call) ?? NaN)
+    return { side: 'call', sell: sk, buy: bk, width: bk - sk, credit: cr, sellOi: at(sk)?.call?.oi, sellBid: at(sk)?.call?.bid }
+  }
+  const put = () => {
+    const lim = Math.min(spot - (move || 0), pWall || Infinity)
+    const sk = [...ks].reverse().find(k => k <= lim); if (!isNum(sk)) return null
+    const bk = [...ks].reverse().find(k => k < sk); if (!isNum(bk)) return null
+    const cr = (mid(at(sk)?.put) ?? NaN) - (mid(at(bk)?.put) ?? NaN)
+    return { side: 'put', sell: sk, buy: bk, width: sk - bk, credit: cr, sellOi: at(sk)?.put?.oi, sellBid: at(sk)?.put?.bid }
+  }
+  if (kind !== 'bull') legs.push(call())
+  if (kind !== 'bear') legs.push(put())
+  if (legs.some(l => !l)) return { e, spot, move, cWall, pWall, legs: [], err: 'Not enough strikes in the chain for this structure.' }
+  const credit = legs.reduce((a, l) => a + l.credit, 0)
+  const width = Math.max(...legs.map(l => l.width))
+  const ok = isNum(credit) && credit > 0
+  return { e, spot, move, cWall, pWall, legs, credit, width, lot,
+    maxProfit: ok && lot ? credit * lot : null, maxLoss: ok && lot ? (width - credit) * lot : null,
+    beUp: legs.find(l => l.side === 'call') ? legs.find(l => l.side === 'call').sell + credit : null,
+    beDn: legs.find(l => l.side === 'put') ? legs.find(l => l.side === 'put').sell - credit : null,
+    thin: legs.some(l => !(l.sellBid > 0) || !(l.sellOi >= 100)), low: ok && credit < width * 0.15 }
+}
+function OsPlan({ r, kind, lot }) {
+  const res = usePoll(() => api('/api/index-options?symbol=' + encodeURIComponent(r.symbol)), 120000, [r.symbol])
+  const p = res.data ? osPlan(res.data, kind, lot) : null
+  const K = OS_KIND[kind], f = v => fmtNum(v, 2), rs = v => isNum(v) ? '₹' + Math.round(v).toLocaleString('en-IN') : '—'
+  if (!res.data) return <div className="os-plan muted">{res.error || `Loading ${r.symbol} option chain…`}</div>
+  if (!p || p.err) return <div className="os-plan muted">{p?.err || 'No option chain for this stock.'}</div>
+  return <div className="os-plan">
+    <div className="os-plan-h"><b className={K.tone === 'up' ? 'up' : K.tone === 'down' ? 'down' : 'amber'}>{K.strat}</b> on {r.symbol} · expiry <b>{p.e.expiry_ist.split(',')[0]}</b> ({Math.round(p.e.days)} days) · spot {f(p.spot)} · expected move ±{f(p.move)} ({p.e.move_pct?.toFixed(1)}%) · ATM IV {p.e.atm_iv ?? '—'}% · PCR {p.e.pcr_oi ?? '—'} · call wall {p.cWall ?? '—'} · put wall {p.pWall ?? '—'}</div>
+    <table className="tbl compact os-legs"><thead><tr><th>Leg</th><th className="num">Strike</th><th className="num">Premium (mid)</th><th className="num">Short-strike OI</th></tr></thead><tbody>
+      {p.legs.flatMap(l => [
+        <tr key={l.side + 's'}><td className="down">Sell {l.side === 'call' ? 'Call (CE)' : 'Put (PE)'}</td><td className="num"><b>{l.sell}</b></td><td className="num">{f(mid(p.e.chain.find(x => x.k === l.sell)?.[l.side]))}</td><td className="num muted">{fmtVol(l.sellOi)}</td></tr>,
+        <tr key={l.side + 'b'}><td className="up">Buy {l.side === 'call' ? 'Call (CE)' : 'Put (PE)'} (protection)</td><td className="num">{l.buy}</td><td className="num">{f(mid(p.e.chain.find(x => x.k === l.buy)?.[l.side]))}</td><td className="num muted">—</td></tr>])}
+    </tbody></table>
+    <div className="os-nums">
+      <span>Net credit <b>{f(p.credit)}</b>/share</span>
+      <span>Lot <b>{p.lot ?? '—'}</b></span>
+      <span>Max profit <b className="up">{rs(p.maxProfit)}</b></span>
+      <span>Max loss <b className="down">{rs(p.maxLoss)}</b></span>
+      <span>Breakeven {p.beDn ? <b>{f(p.beDn)}</b> : null}{p.beDn && p.beUp ? ' – ' : ''}{p.beUp ? <b>{f(p.beUp)}</b> : null}</span>
+      <span>Reward : risk <b>{isNum(p.maxProfit) && p.maxLoss > 0 ? '1 : ' + (p.maxLoss / p.maxProfit).toFixed(1) : '—'}</b></span>
+    </div>
+    {(p.thin || p.low || !(p.credit > 0)) && <div className="note-box">{!(p.credit > 0) ? 'No usable credit at these strikes (quotes missing or crossed): skip or check the live chain. '
+      : p.low ? 'The credit is under 15% of the spread width: the reward is small for the risk. Consider skipping. ' : ''}{p.thin ? 'Thin market at a short strike (no bid, or under 100 contracts of open interest): fills may be poor and exits hard. ' : ''}</div>}
+    <div className="os-exit"><b>Exit plan (rules):</b> take profit when the spread can be bought back for 30–50% of the credit (₹{isNum(p.credit) ? (p.credit * 0.5).toFixed(2) : '—'}–{isNum(p.credit) ? (p.credit * 0.3).toFixed(2) : '—'}/share);
+      exit if the stock closes beyond a short strike ({p.legs.map(l => l.sell).join(' / ')}) or the spread's value doubles (loss ≈ the credit); close by 2 days before expiry to avoid expiry-day swings.</div>
+  </div>
+}
+function OptionSelling({ data, live }) {
+  const lots = usePoll(() => api('/api/fo-lots'), 3600000, [])
+  const b = live?.bias?.label
+  const [manual, setManual] = useSessionState('os.kindManual', null)
+  const lean = sideFromBias(live?.bias)
+  const kind = manual || (lean === 'bull' ? 'bull' : lean === 'bear' ? 'bear' : 'range')
+  const [open, setOpen] = useSessionState('os.open', '')
+  const [minScore, setMinScore] = usePersistentState('os.min', 5)
+  const [sort, setSort] = useState({ key: 'score', dir: 'desc' })
+  const topPass = useTopPass()
+  const L = lots.data?.lots || {}
+  const all = useMemo(() => withLive(data.rows, live).filter(r => r.fo && r.daily && r.tf60).map(r => {
+    const k = osRegime(r), res = OS_CHECKS.map(([, , f]) => !!f(r, k))
+    return { ...r, kind: k, res, score: res.filter(Boolean).length, lot: L[r.symbol] ?? null, drsi: r.daily?.rsi, hadx: r.tf60?.adx }
+  }), [data, live, L])
+  const n = k => topPass(all.filter(r => r.kind === k && r.score >= minScore)).length
+  const shown = topPass(sortRows(all.filter(r => r.kind === kind && r.score >= minScore), sort.key, sort.dir))
+  const sp = { sort, setSort }
+  const K = OS_KIND[kind]
+  return <>
+    <div className="toolbar">
+      <Seg value={kind} onChange={setManual} options={['range', 'bull', 'bear'].map(k => ({ value: k, tone: OS_KIND[k].tone === 'neutral' ? undefined : OS_KIND[k].tone,
+        label: <>{OS_KIND[k].strat} <span className="count">{n(k)}</span></> }))} />
+      {!manual && <span className="muted small">follows Market Bias ({biasNote(live?.bias)})</span>}
+      <label className="check-label">Min score <select value={minScore} onChange={e => setMinScore(Number(e.target.value))}>{[4, 5, 6].map(v => <option key={v} value={v}>{v} of 6</option>)}</select></label>
+      <TopFilter />
+    </div>
+    <p className="muted small qualify-line"><b>{shown.length}</b> F&amp;O stocks look <b>{K.label.toLowerCase()}</b> and pass at least {minScore} of 6 option-selling checks → <b>{K.strat}</b>: {K.what} Click a stock for its strike plan.</p>
+    <div className="tbl-wrap panel trend-wrap">
+      <table className="tbl trend-tbl pickable setup-tbl">
+        <thead><tr>
+          <SortTh label="Symbol" k="symbol" {...sp} defaultDir="asc" />
+          <SortTh label="LTP" k="ltp" {...sp} num />
+          <SortTh label="Chg %" k="pct_prev" {...sp} num />
+          <SortTh label="Score" k="score" {...sp} num title="How many of the 6 option-selling checks pass" />
+          <SortTh label="Daily RSI" k="drsi" {...sp} num />
+          <SortTh label="1H ADX" k="hadx" {...sp} num title="Hourly trend strength: under 20 = sideways" />
+          <SortTh label="Lot" k="lot" {...sp} num />
+          <th>Structure</th>
+          <th />
+        </tr></thead>
+        <tbody>{shown.map(r => [<tr key={r.symbol} onClick={() => setOpen(open === r.symbol ? '' : r.symbol)} className={open === r.symbol ? 'active' : undefined}>
+          <td><StockLink symbol={r.symbol} company={r.company} className="strong" /><TopTag symbol={r.symbol} />
+            <span className="setup-dots">{OS_CHECKS.map(([k, d], i) => <i key={k} className={r.res[i] ? 'ok' : ''} title={(r.res[i] ? '✓ ' : '✗ ') + d} />)}</span></td>
+          <td className="num">{fmtNum(r.ltp)}</td>
+          <td className={'num ' + (r.pct_prev > 0 ? 'up' : r.pct_prev < 0 ? 'down' : '')}>{isNum(r.pct_prev) ? (r.pct_prev > 0 ? '+' : '') + r.pct_prev.toFixed(2) + '%' : '—'}</td>
+          <td className="num strong">{r.score}/6</td>
+          <td className="num">{fmtNum(r.drsi, 1)}</td>
+          <td className="num">{fmtNum(r.hadx, 1)}</td>
+          <td className="num">{r.lot ?? '—'}</td>
+          <td><span className={'cp-pill ' + (K.tone === 'up' ? 'bull' : K.tone === 'down' ? 'bear' : '')}>{K.strat}</span></td>
+          <td className="muted small">{open === r.symbol ? '▲ hide plan' : '▼ strike plan'}</td>
+        </tr>, open === r.symbol && <tr key={r.symbol + '-plan'} className="os-plan-row"><td colSpan={9}><OsPlan r={r} kind={kind} lot={r.lot} /></td></tr>])}</tbody>
+      </table>
+      {!shown.length && <Empty>No F&amp;O stock fits a {K.strat.toLowerCase()} with {minScore}+ checks right now.</Empty>}
+    </div>
+    <details className="panel cp-help setup-checks" open><summary><b>The 6 checks</b> <span className="muted small">(dots next to each stock, left to right)</span></summary>
+      <ol>{OS_CHECKS.map(([k, d], i) => <li key={k}><span className="setup-ck"><i className="ok" />{i + 1}. {k}</span> {d}.</li>)}</ol>
+      <p className="muted small"><b>Regime:</b> Range-bound = hourly ADX under 20, daily RSI 40–60, less than 1.5% move today. Bullish = daily close above its 20-day average, hourly 9 EMA above 21 EMA, daily RSI 50–70. Bearish = the mirror. Anything else: no clear regime, so no trade.</p>
+    </details>
+    <details className="panel cp-help" open><summary><b>How the strikes are chosen</b></summary><ul>
+      <li><b>Expiry:</b> the nearest monthly expiry with at least 5 days left (time decay works for the seller, but the last days carry sharp swings).</li>
+      <li><b>Short strike:</b> beyond <b>both</b> the expected move to expiry (from option prices) <b>and</b> the biggest open-interest wall (where option writers defend): above for calls, below for puts.</li>
+      <li><b>Protection:</b> the next strike further out is bought, so the worst case is capped: max loss = (strike gap − credit) × lot.</li>
+      <li><b>Credit check:</b> under 15% of the strike gap is flagged as too little reward; a short strike with no bid or no OI is flagged as thin.</li>
+    </ul></details>
+    <details className="panel cp-help"><summary><b>Option-selling checklist (read before every trade)</b></summary><ul>
+      <li><b>Defined risk only:</b> naked (unhedged) selling has unlimited loss and needs ₹1–2 lakh+ margin per lot. Spreads cap the loss and need far less margin.</li>
+      <li><b>No events inside the expiry:</b> check results dates, AGMs, dividends and big news before selling. A results gap can blow through any strike. (This screen cannot see the corporate calendar.)</li>
+      <li><b>Size by max loss:</b> keep the max loss of one trade under 1–2% of your capital, and total open risk under 5–6%.</li>
+      <li><b>Sell when premiums are rich:</b> higher implied volatility (IV) = more credit for the same distance. Compare the stock's ATM IV with its usual level and with India VIX.</li>
+      <li><b>Take profit early:</b> booking 50–70% of the credit and moving on is how sellers keep a high win rate.</li>
+      <li><b>Respect the stop:</b> if the stock closes beyond the short strike or the spread doubles, exit. One unmanaged loss can wipe out many small wins.</li>
+      <li><b>Mind costs:</b> four legs mean four sets of brokerage, STT and slippage. Small credits can disappear in costs.</li>
+      <li><b>Learn on paper first:</b> run the plan for a few expiries without money to see how it behaves.</li>
+    </ul></details>
+    <p className="muted small">Regime from Yahoo Finance daily and hourly candles; option chain, lot sizes and quotes from NSE. Strikes and P&amp;L are rule-based estimates from mid prices before costs, not a recommendation to trade. Options can lose more than expected if the stock gaps.</p>
+  </>
+}
+

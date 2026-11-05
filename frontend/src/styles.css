@@ -1686,3 +1686,9 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
 .setup-since { font-variant-numeric: tabular-nums } .setup-since.fresh { color: var(--up); font-weight: 700 }
 .scan-tabs .scan-more { font-style: normal; color: var(--accent); border-style: dashed !important; font-weight: 600 }
 .scan-tabs .scan-more.on { color: var(--muted) }
+/* Option Selling */
+.os-plan-row > td { background: var(--panel-2); padding: 10px 12px !important; white-space: normal !important }
+.os-plan-h { font-size: 13px; margin-bottom: 8px; line-height: 1.6 }
+.os-legs { max-width: 560px; margin: 4px 0 8px }
+.os-nums { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; margin: 6px 0 }
+.os-exit { font-size: 12.5px; margin-top: 6px; line-height: 1.5 }
