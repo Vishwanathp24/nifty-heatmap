@@ -1668,3 +1668,21 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
 .ichart .ema-line.ema9 { stroke: #F59E0B } .ichart .ema-line.ema21 { stroke: #8B5CF6 }
 .ema9-t { fill: #D97706; color: #D97706 } .ema21-t { fill: #7C3AED; color: #7C3AED }
 .ichart .ema-x { font-size: 11px; font-weight: 700 } .ichart .ema-x.up { fill: var(--up) } .ichart .ema-x.down { fill: var(--down) }
+.fno-chain { padding: 12px 14px; margin-bottom: 14px }
+.fno-chain-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 15px }
+.fno-chain-head .btn { margin-left: auto }
+/* Trade Setup screener */
+.setup-dots { display: inline-flex; gap: 3px; margin-left: 8px; vertical-align: middle } .setup-dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--border); cursor: help } .setup-dots i.ok { background: var(--up) }
+.setup-tbl td .muted.small { font-size: 11px; font-weight: 400 }
+.setup-risk { width: 90px !important; margin-left: 6px }
+
+.setup-tbl td, .setup-tbl th { white-space: nowrap }
+.setup-tag { display: inline-block; font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 10px; background: var(--panel-2); border: 1px solid var(--border); color: var(--muted) }
+.setup-tag.amber { color: var(--amber); background: var(--amber-bg); border-color: #f0dcb3 }
+.setup-checks ol { list-style: none; margin: 8px 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr)); gap: 6px 18px }
+.setup-checks li { font-size: 13px; line-height: 1.45 }
+.setup-ck { display: inline-flex; align-items: center; gap: 5px; font-weight: 700; font-size: 12px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 0 7px; margin-right: 4px }
+.setup-ck i { width: 8px; height: 8px; border-radius: 50%; background: var(--up) }
+.setup-since { font-variant-numeric: tabular-nums } .setup-since.fresh { color: var(--up); font-weight: 700 }
+.scan-tabs .scan-more { font-style: normal; color: var(--accent); border-style: dashed !important; font-weight: 600 }
+.scan-tabs .scan-more.on { color: var(--muted) }

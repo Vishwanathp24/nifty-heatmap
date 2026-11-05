@@ -118,6 +118,8 @@ def indicators(c):
     r = lambda v, d=2: round(v, d) if v is not None else None
     return {"close": r(closes[-1]), "vwap": r(_vwap(c)), "ema5": r(_ema(closes, 5)), "ema9": r(_ema(closes, 9)),
             "ema21": r(_ema(closes, 21)), "ema9_p": r(_ema(closes[:-1], 9)), "ema21_p": r(_ema(closes[:-1], 21)),
+            "atr": r((_wilder(_true_ranges(c), 14) or [None])[-1]),  # ATR 14 (Wilder): the stock's normal candle range
+            "prev_hi": r(c[-2]["h"]), "prev_lo": r(c[-2]["l"]), "day_hi": r(max(b["h"] for b in c if b.get("d") == c[-1].get("d")) if c[-1].get("d") else None),
             "st": r(st), "st_dir": sd, "rsi": r(_rsi(closes), 1), "adx": r(adx, 1), "dip": r(dip, 1), "dim": r(dim, 1),
             "candle": c[-1]["t"], "bars": len(c)}
 
@@ -278,7 +280,7 @@ def radar_times(c15, daily, now_min):
     return since
 
 
-STEP_KEYS = ("close", "vwap", "ema5", "ema9", "st_dir", "rsi", "adx", "dip", "dim")
+STEP_KEYS = ("close", "vwap", "ema5", "ema9", "st_dir", "rsi", "adx", "dip", "dim", "ema21")  # new keys go at the end (the page reads by position)
 
 
 def fill_tail(c15, day_bars, session):

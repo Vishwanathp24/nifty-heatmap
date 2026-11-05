@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { BiasPill, Empty, Seg, SortTh, StockLink, TopFilter, TopTag, useTopPass } from './components.jsx'
-import { api, fmtNum, fmtVol, hhmmTo12, isNum, istTime, setSessionValue, sortRows, usePoll, useSessionState } from './lib.js'
+import { api, fmtNum, fmtVol, hhmmTo12, isNum, istTime, setSessionValue, sortRows, usePersistentState, usePoll, useSessionState } from './lib.js'
 import Trend, { trendNeed, trendRows, useTrendSettings } from './Trend.jsx'
 import { SectorMulti, StockDrawer } from './Scanner.jsx'
 import { INDIA, OptionsBoard } from './CryptoOptions.jsx'
@@ -170,7 +170,10 @@ function VolumeSpike({ vol, stocks, list, setList, onPick, picked }) {
   </>
 }
 
-const TABS = [['iopt', 'Index Options'], ['trend', 'Trending Stocks'], ['bull', 'Bullish Intraday'], ['bear', 'Bearish Intraday'], ['btst', 'BTST Stocks'], ['vol', 'Volume Spike'], ['ema', 'EMA 9/21 + RSI'], ['candle', 'Candlestick'], ['common', 'Common Stocks'], ['chart', 'Live Chart']]
+const ALL_TABS = [['setup', 'Trade Setup'], ['iopt', 'Index Options'], ['fno', 'F&O Stocks'], ['trend', 'Trending Stocks'], ['bull', 'Bullish Intraday'], ['bear', 'Bearish Intraday'], ['btst', 'BTST Stocks'], ['vol', 'Volume Spike'], ['ema', 'EMA 9/21 + RSI'], ['candle', 'Candlestick'], ['common', 'Common Stocks'], ['chart', 'Live Chart']]
+// Extra scanners: hidden unless "More scanners" is switched on (remembered in this browser)
+const HIDDEN_TABS = ['iopt', 'btst', 'vol', 'ema', 'candle']
+const BASE_TABS = ALL_TABS.filter(([v]) => !HIDDEN_TABS.includes(v))
 
 // Live Chart: NSE stock candles (Yahoo) on 1m ... 1M with the indicator table; the stock list
 // follows the sector filter.
@@ -263,7 +266,10 @@ export function BiasBanner({ bias, onPick }) {
 }
 
 export default function Scans({ trend: trendRaw, live, selected, setSelected, chartReq = 0, orbLists = {} }) {
-  const [tab, setTab] = useSessionState('scans.tab', 'iopt')  // Index Options is the first tab
+  const [more, setMore] = usePersistentState('scans.more', false)  // show BTST, Index Options, Volume Spike, EMA 9/21 + RSI, Candlestick
+  const TABS = more ? ALL_TABS : BASE_TABS
+  const [tabRaw, setTab] = useSessionState('scans.tab', 'setup')  // Trade Setup is the first tab
+  const tab = TABS.some(([v]) => v === tabRaw) ? tabRaw : 'setup'  // a hidden tab remembered from before opens Trade Setup
   useEffect(() => { if (chartReq) setTab('chart') }, [chartReq])  // chart icon clicked on a stock
   const base = useTrendSettings()
   // Bullish/Bearish follows the Market Bias until the user picks one by hand
@@ -317,8 +323,13 @@ export default function Scans({ trend: trendRaw, live, selected, setSelected, ch
     <div className="orb-switch learn-cats scan-tabs" role="tablist" aria-label="Scan">
       {TABS.map(([v, label]) => <button key={v} role="tab" aria-selected={tab === v} className={tab === v ? 'on' : ''} onClick={() => setTab(v)}>
         {label}{tabCounts[v] != null && <span className="count">{tabCounts[v]}</span>}</button>)}
+      <button className={'scan-more' + (more ? ' on' : '')} onClick={() => setMore(m => !m)} aria-pressed={more}
+        title={more ? 'Hide BTST, Index Options, Volume Spike, EMA 9/21 + RSI and Candlestick' : 'Show BTST, Index Options, Volume Spike, EMA 9/21 + RSI and Candlestick'}>
+        {more ? '− Fewer scanners' : `+ More scanners (${HIDDEN_TABS.length})`}</button>
     </div>
     {tab === 'iopt' ? <OptionsBoard market={INDIA} bias={live?.bias} />
+      : tab === 'fno' ? <FnoStocks key={'f' + resetKey} stocks={live?.stocks || []} selected={selected} bias={live?.bias} trendRows={data?.rows} />
+      : tab === 'setup' ? (!data ? <Empty>{trend.error || 'Loading scan data…'}</Empty> : <TradeSetup key={'ts' + resetKey} data={data} live={live} {...pp} />)
       : tab === 'vol' ? <VolumeSpike key={'v' + resetKey} vol={vol} stocks={live?.stocks} list={volList} setList={setVolList} {...pp} />
       : tab === 'ema' ? (!data ? <Empty>{trend.error || 'Loading scan data…'}</Empty> : <EmaRsi key={'e' + resetKey} data={data} {...pp} />)
       : tab === 'candle' ? <CandleScan key={'cs' + resetKey} res={cp} rows={cpRows} {...pp} />
@@ -473,3 +484,258 @@ function EmaRsi({ data, onPick, picked }) {
   </>
 }
 
+// F&O Stocks tab: every stock with futures & options on NSE (lot size, contract value), and the option
+// chain analysis for the one you pick (PCR, max pain, OI walls, IV, expected move, OI change by strike).
+function stockMarket(sym, lot) {
+  return { ...INDIA, key: 'sopt.' + sym, symbols: [[sym, sym]], spotNote: 'NSE stock', ivBands: {},
+    oiNote: 'Open interest in contracts for strikes within ±20% of the stock price.', expiryNote: 'NSE stock options are monthly contracts; each expires at 3:30 PM IST on the date shown.',
+    lot: lot || null, pnl: lot ? { [sym]: lot } : null }
+}
+export const fnoSide = (s, t) => {
+  if (!t || !isNum(s.pct_prev)) return null
+  if (s.pct_prev > 0 && gt(t.close, t.vwap) && gt(t.ema9, t.ema21)) return 'bull'
+  if (s.pct_prev < 0 && lt(t.close, t.vwap) && lt(t.ema9, t.ema21)) return 'bear'
+  return null
+}
+const sideFromBias = b => b === 'BULLISH' ? 'bull' : b === 'BEARISH' ? 'bear' : 'all'
+function FnoStocks({ stocks, selected, bias, trendRows }) {
+  const lots = usePoll(() => api('/api/fo-lots'), 3600000, [])
+  const [manual, setManual] = useSessionState('fno.sideManual', null)  // follows Market Bias until the user picks a side
+  const side = manual || sideFromBias(bias?.label)
+  const T = useMemo(() => Object.fromEntries((trendRows || []).map(r => [r.symbol, r.tf15])), [trendRows])
+  const [sym, setSym] = useSessionState('fno.sym', '')
+  const [search, setSearch] = useState('')
+  const [sort, setSort] = useState({ key: 'turn', dir: 'desc' })
+  const topPass = useTopPass()
+  const L = lots.data?.lots || {}
+  const q = search.trim().toUpperCase()
+  const rows = useMemo(() => stocks.filter(s => s.fo).map(s => ({ ...s, lot: L[s.symbol] ?? null, value: L[s.symbol] && s.ltp ? L[s.symbol] * s.ltp : null, turn: (s.ltp || 0) * (s.volume || 0), side: fnoSide(s, T[s.symbol]) })), [stocks, L, T])
+  const nSide = k => topPass(rows.filter(r => k === 'all' || r.side === k)).length
+  const base = rows.filter(r => (side === 'all' || r.side === side) && (!selected.length || (r.sectors || []).some(x => selected.includes(x))) && (!q || r.symbol.includes(q) || (r.company || '').toUpperCase().includes(q)))
+  const shown = topPass(sortRows(base, sort.key, sort.dir))
+  const sp = { sort, setSort }
+  const pick = rows.find(r => r.symbol === sym)
+  return <>
+    {pick && <div className="panel fno-chain">
+      <div className="fno-chain-head"><b>{pick.symbol}</b> <span className="muted">{pick.company}</span>
+        <span className="muted small"> · lot {pick.lot ?? '—'} · LTP {fmtNum(pick.ltp)} <span className={pick.pct_prev >= 0 ? 'up' : 'down'}>{isNum(pick.pct_prev) ? (pick.pct_prev > 0 ? '+' : '') + pick.pct_prev.toFixed(2) + '%' : ''}</span></span>
+        <button className="btn ghost sm" onClick={() => setSym('')}>✕ Close option chain</button></div>
+      <OptionsBoard key={pick.symbol} market={stockMarket(pick.symbol, pick.lot)} bias={bias} />
+    </div>}
+    <div className="toolbar">
+      <Seg value={side} onChange={setManual} options={[{ value: 'all', label: <>All <span className="count">{nSide('all')}</span></> },
+        { value: 'bull', label: <>Bullish <span className="count">{nSide('bull')}</span></>, tone: 'up' }, { value: 'bear', label: <>Bearish <span className="count">{nSide('bear')}</span></>, tone: 'down' }]} />
+      {!manual && bias?.label && <span className="muted small" title="Opens on the side that matches Market Bias; pick another to override">follows Market Bias ({bias.label.toLowerCase()})</span>}
+      <TopFilter />
+      <input className="search" placeholder="Search F&O stock" value={search} onChange={e => setSearch(e.target.value)} />
+      <span className="muted small">Tap a stock to open its option chain analysis.</span>
+    </div>
+    <p className="muted small qualify-line"><b>{shown.length}</b> of {rows.length} stocks with futures &amp; options on NSE{side === 'bull' ? ' that are bullish now (up on the day, above VWAP, 9 EMA above 21 EMA on 15-min candles)' : side === 'bear' ? ' that are bearish now (down on the day, below VWAP, 9 EMA below 21 EMA on 15-min candles)' : ''}{lots.data ? '' : ' (loading lot sizes…)'}. Contract value = lot size × price: roughly what one futures lot controls.</p>
+    <div className="tbl-wrap panel trend-wrap">
+      <table className="tbl trend-tbl pickable">
+        <thead><tr>
+          <SortTh label="Symbol" k="symbol" {...sp} defaultDir="asc" />
+          <SortTh label="Sector" k="sector" {...sp} defaultDir="asc" />
+          <SortTh label="LTP" k="ltp" {...sp} num />
+          <SortTh label="Chg %" k="pct_prev" {...sp} num />
+          <SortTh label="Lot size" k="lot" {...sp} num title="Shares per F&O contract this month (NSE)" />
+          <SortTh label="Contract value" k="value" {...sp} num title="Lot size × LTP, in ₹" />
+          <SortTh label="Volume" k="volume" {...sp} num />
+          <SortTh label="Vol vs 5D" k="vol_ratio" {...sp} num title="Today's volume ÷ the 5-day average" />
+        </tr></thead>
+        <tbody>{shown.map(r => <tr key={r.symbol} onClick={() => { setSym(r.symbol); window.scrollTo({ top: 0, behavior: 'smooth' }) }} className={sym === r.symbol ? 'active' : undefined}>
+          <td><StockLink symbol={r.symbol} company={r.company} className="strong" /><TopTag symbol={r.symbol} /></td>
+          <td className="muted">{r.sector}</td>
+          <td className="num">{fmtNum(r.ltp)}</td>
+          <td className={'num ' + (r.pct_prev > 0 ? 'up' : r.pct_prev < 0 ? 'down' : '')}>{isNum(r.pct_prev) ? (r.pct_prev > 0 ? '+' : '') + r.pct_prev.toFixed(2) + '%' : '—'}</td>
+          <td className="num">{r.lot ?? '—'}</td>
+          <td className="num">{isNum(r.value) ? '₹' + Math.round(r.value).toLocaleString('en-IN') : '—'}</td>
+          <td className="num muted">{fmtVol(r.volume)}</td>
+          <td className={'num ' + (r.vol_ratio >= 1.5 ? 'up strong' : 'muted')}>{isNum(r.vol_ratio) ? r.vol_ratio.toFixed(2) + '×' : '—'}</td>
+        </tr>)}</tbody>
+      </table>
+      {!shown.length && <Empty>No F&amp;O stock matches.</Empty>}
+    </div>
+  </>
+}
+
+
+// Trade Setup: an intraday checklist on 15-minute candles for the F&O stocks, with mechanical levels.
+// Each stock is scored on 8 checks; for the ones that pass enough, the levels come from fixed rules:
+// entry = a break of the last completed 15-min candle, stop = the 15-min Supertrend (or 1.5 × ATR),
+// targets = 1R and 2R, trail = the Supertrend after T1. Rules, not advice: the trader decides.
+const SETUP_CHECKS = {
+  bull: [
+    ['Market', 'Market Bias is Bullish', (r, m) => m.bias === 'BULLISH'],
+    ['Strength', 'Stock up more than Nifty today (relative strength)', (r, m) => gt(r.pct_prev, m.nifty)],
+    ['VWAP', 'Price above VWAP (buyers in control today)', r => gt(r.t.close, r.t.vwap)],
+    ['EMA', '9 EMA above 21 EMA (short-term uptrend)', r => gt(r.t.ema9, r.t.ema21)],
+    ['Supertrend', 'Supertrend (10, 3) is up', r => r.t.st_dir === 1],
+    ['RSI', 'RSI(14) between 55 and 75: strong, not yet overbought', r => isNum(r.t.rsi) && r.t.rsi >= 55 && r.t.rsi <= 75],
+    ['ADX', 'ADX(14) at least 20 with DI+ above DI−: a real trend', r => isNum(r.t.adx) && r.t.adx >= 20 && gt(r.t.dip, r.t.dim)],
+    ['Volume', 'Volume at least 1.2× the 5-day average', r => isNum(r.vol_ratio) && r.vol_ratio >= 1.2],
+  ],
+  bear: [
+    ['Market', 'Market Bias is Bearish', (r, m) => m.bias === 'BEARISH'],
+    ['Weakness', 'Stock down more than Nifty today (relative weakness)', (r, m) => lt(r.pct_prev, m.nifty)],
+    ['VWAP', 'Price below VWAP (sellers in control today)', r => lt(r.t.close, r.t.vwap)],
+    ['EMA', '9 EMA below 21 EMA (short-term downtrend)', r => lt(r.t.ema9, r.t.ema21)],
+    ['Supertrend', 'Supertrend (10, 3) is down', r => r.t.st_dir === -1],
+    ['RSI', 'RSI(14) between 25 and 45: weak, not yet oversold', r => isNum(r.t.rsi) && r.t.rsi >= 25 && r.t.rsi <= 45],
+    ['ADX', 'ADX(14) at least 20 with DI− above DI+: a real trend', r => isNum(r.t.adx) && r.t.adx >= 20 && gt(r.t.dim, r.t.dip)],
+    ['Volume', 'Volume at least 1.2× the 5-day average', r => isNum(r.vol_ratio) && r.vol_ratio >= 1.2],
+  ],
+}
+// Why each check matters, in plain words (shown under the Trade Setup table, same order as the dots).
+const SETUP_WHY = {
+  bull: [
+    'Most stocks follow the market. Long trades work better on days when the whole market is rising.',
+    'If the stock is rising more than Nifty, buyers prefer it today. Leaders keep leading more often than laggards catch up.',
+    'VWAP is the average price everyone paid today. Above it, today’s buyers are in profit and tend to defend the price.',
+    'The 9 EMA (fast average) above the 21 EMA (slow average) means recent prices are rising faster: a short-term uptrend.',
+    'Supertrend is a trend line that flips when the trend changes. Up = the trend is still up, and the line doubles as a stop level.',
+    'RSI measures momentum from 0 to 100. Above 55 = buyers are strong; above 75 the move is often stretched and may pause.',
+    'ADX measures how strong a trend is, not its direction. 20+ = a real trend, not sideways noise; DI+ above DI− says the trend is up.',
+    'Higher volume than usual means big players are active. Moves on high volume are more likely to continue.',
+  ],
+  bear: [
+    'Most stocks follow the market. Short trades work better on days when the whole market is falling.',
+    'If the stock is falling more than Nifty, sellers prefer it today. Laggards keep lagging more often than they recover.',
+    'VWAP is the average price everyone paid today. Below it, today’s buyers are at a loss and often sell into rises.',
+    'The 9 EMA (fast average) below the 21 EMA (slow average) means recent prices are falling faster: a short-term downtrend.',
+    'Supertrend is a trend line that flips when the trend changes. Down = the trend is still down, and the line doubles as a stop level.',
+    'RSI measures momentum from 0 to 100. Below 45 = sellers are strong; below 25 the fall is often stretched and may bounce.',
+    'ADX measures how strong a trend is, not its direction. 20+ = a real trend, not sideways noise; DI− above DI+ says the trend is down.',
+    'Higher volume than usual means big players are active. Moves on high volume are more likely to continue.',
+  ],
+}
+
+// When did the stock's current run in the list begin? Replays today's 15-minute candles (r.steps:
+// [time, [close, vwap, ema5, ema9, st_dir, rsi, adx, dip, dim, ema21], ...]) for the five candle checks;
+// Market Bias, strength vs Nifty and volume use their current values (they are not kept per candle).
+function setupSince(r, side, res, minScore) {
+  const fixed = [0, 1, 7].filter(i => res[i]).length
+  const long = side === 'bull'
+  let since = null
+  for (const [t, a] of r.steps || []) {
+    if (!a) { since = null; continue }
+    const [close, vwap, , e9, st, rsi, adx, dip, dim, e21] = a
+    const ok = [long ? gt(close, vwap) : lt(close, vwap), long ? gt(e9, e21) : lt(e9, e21), st === (long ? 1 : -1),
+      isNum(rsi) && (long ? rsi >= 55 && rsi <= 75 : rsi >= 25 && rsi <= 45), isNum(adx) && adx >= 20 && (long ? gt(dip, dim) : gt(dim, dip))]
+    if (fixed + ok.filter(Boolean).length >= minScore) since = since || t
+    else since = null
+  }
+  return since
+}
+
+function setupLevels(r, side, risk) {
+  const t = r.t, ltp = r.ltp ?? t.close, atr = t.atr
+  if (!isNum(ltp) || !isNum(atr) || atr <= 0) return null
+  const long = side === 'bull'
+  const trig = long ? t.prev_hi : t.prev_lo
+  const already = isNum(trig) && (long ? ltp > trig : ltp < trig)
+  const entry = isNum(trig) && !already ? trig : ltp
+  const stOk = isNum(t.st) && (long ? t.st < entry : t.st > entry) && Math.abs(entry - t.st) >= 0.25 * atr && Math.abs(entry - t.st) <= 3 * atr
+  const stop = stOk ? t.st : long ? entry - 1.5 * atr : entry + 1.5 * atr
+  const R = Math.abs(entry - stop)
+  if (!R) return null
+  const qty = isNum(risk) && risk > 0 ? Math.floor(risk / R) : null
+  return { entry, trig, already, stop, stopBy: stOk ? 'Supertrend' : '1.5 × ATR', R, t1: long ? entry + R : entry - R, t2: long ? entry + 2 * R : entry - 2 * R,
+    riskPct: R / entry * 100, qty, capital: qty ? qty * entry : null, trail: t.st }
+}
+const isFresh = hhmm => {  // joined within the last 30 minutes (IST)
+  const n = new Date(Date.now() + 330 * 60000), now = n.getUTCHours() * 60 + n.getUTCMinutes()
+  const [h, mm] = hhmm.split(':').map(Number)
+  return now - (h * 60 + mm) <= 30 && now - (h * 60 + mm) >= 0
+}
+function TradeSetup({ data, live, onPick, picked }) {
+  const [manual, setManual] = useSessionState('setup.sideManual', null)
+  const side = manual || (live?.bias?.label === 'BEARISH' ? 'bear' : 'bull')
+  const [minScore, setMinScore] = usePersistentState('setup.min', 6)
+  const [risk, setRisk] = usePersistentState('setup.risk', 1000)
+  const [sort, setSort] = useState({ key: 'score', dir: 'desc' })
+  const topPass = useTopPass()
+  const m = { bias: live?.bias?.label, nifty: live?.indices?.nifty50?.pct_prev }
+  const scored = useMemo(() => (data.rows || []).filter(r => r.fo && r.tf15).map(r => {
+    const x = { ...r, t: r.tf15 }
+    const res = SETUP_CHECKS[side].map(([, , f]) => !!f(x, m))
+    const score = res.filter(Boolean).length
+    return { ...x, res, score, lv: setupLevels(x, side, Number(risk)), since: score >= minScore ? setupSince(x, side, res, minScore) : null }
+  }), [data, side, m.bias, m.nifty, risk, minScore])
+  const pass = scored.filter(r => r.score >= minScore && r.lv)
+  const shown = topPass(sortRows(pass.map(r => ({ ...r, entry: r.lv.entry, riskPct: r.lv.riskPct })), sort.key, sort.dir))
+  const sp = { sort, setSort }
+  const checks = SETUP_CHECKS[side]
+  const f2 = v => fmtNum(v, 2)
+  return <>
+    <div className="toolbar">
+      <Seg value={side} onChange={setManual} options={[{ value: 'bull', label: 'Long setups', tone: 'up' }, { value: 'bear', label: 'Short setups', tone: 'down' }]} />
+      {!manual && <span className="muted small">follows Market Bias ({(m.bias || '…').toLowerCase()})</span>}
+      <label className="check-label">Min score <select value={minScore} onChange={e => setMinScore(Number(e.target.value))}>{[5, 6, 7, 8].map(v => <option key={v} value={v}>{v} of 8</option>)}</select></label>
+      <label className="check-label" title="How much you are willing to lose on one trade if the stop is hit (₹). Quantity = this ÷ the distance to the stop.">Risk per trade ₹<input className="search setup-risk" type="number" min="100" step="100" value={risk} onChange={e => setRisk(e.target.value)} /></label>
+      <TopFilter />
+    </div>
+    <p className="muted small qualify-line"><b className={side === 'bull' ? 'up' : 'down'}>{shown.length}</b> F&amp;O stocks pass at least <b>{minScore} of 8</b> {side === 'bull' ? 'long' : 'short'} checks on 15-minute candles. Hover the dots to see which checks passed. Levels follow fixed rules (see “How the levels are worked out” below).</p>
+    <div className="tbl-wrap panel trend-wrap">
+      <table className="tbl trend-tbl pickable setup-tbl">
+        <thead><tr>
+          <SortTh label="Symbol" k="symbol" {...sp} defaultDir="asc" />
+          <SortTh label="LTP" k="ltp" {...sp} num />
+          <SortTh label="Chg %" k="pct_prev" {...sp} num />
+          <SortTh label="Score" k="score" {...sp} num title="How many of the 8 checks pass" />
+          <SortTh label="In list since" k="since" {...sp} title="When the stock's current run in this list began (close time of the first 15-minute candle that qualified, IST). Market Bias, strength vs Nifty and volume use their current values." />
+          <th className="num" title="Entry trigger: a break of the last completed 15-minute candle's high (long) or low (short)">Entry</th>
+          <th title="On break = waiting for the price to cross the last 15-min candle; Chasing = the price is already past it, so the entry is the current price">Entry type</th>
+          <th className="num" title="Initial stop-loss: the 15-minute Supertrend line (ST), or 1.5 × ATR when Supertrend is too close or too far">Stop</th>
+          <th className="num" title="Target 1 = 1 × risk (R) from entry">T1</th>
+          <th className="num" title="Target 2 = 2 × risk (R) from entry">T2</th>
+          <th title="Trailing stop now: the 15-minute Supertrend line. Raise (long) / lower (short) the stop to it as it moves; after T1, at least to the entry price">Trail now</th>
+          <SortTh label="Risk %" k="riskPct" {...sp} num title="Distance from entry to stop, in % of the entry price" />
+          <th className="num" title="Shares so that hitting the stop loses about your risk per trade (before costs)">Qty</th>
+          <th className="num" title="Qty × entry: the money the position needs (intraday margin is usually lower)">Value</th>
+        </tr></thead>
+        <tbody>{shown.map(r => { const v = r.lv; return <tr key={r.symbol} onClick={() => onPick(r)} className={picked === r.symbol ? 'active' : undefined}>
+          <td><StockLink symbol={r.symbol} company={r.company} className="strong" /><TopTag symbol={r.symbol} />
+            <span className="setup-dots">{checks.map(([k, d], i) => <i key={k} className={r.res[i] ? 'ok' : ''} title={(r.res[i] ? '✓ ' : '✗ ') + d} />)}</span></td>
+          <td className="num">{fmtNum(r.ltp)}</td>
+          <td className={'num ' + (r.pct_prev > 0 ? 'up' : r.pct_prev < 0 ? 'down' : '')}>{isNum(r.pct_prev) ? (r.pct_prev > 0 ? '+' : '') + r.pct_prev.toFixed(2) + '%' : '—'}</td>
+          <td className={'num strong ' + (r.score >= 7 ? (side === 'bull' ? 'up' : 'down') : '')}>{r.score}/8</td>
+          <td className="num">{r.since ? <span className={'setup-since' + (isFresh(r.since) ? ' fresh' : '')} title={isFresh(r.since) ? 'Joined the list in the last 30 minutes' : undefined}>{hhmmTo12(r.since)}</span> : <span className="muted">—</span>}</td>
+          <td className="num"><b>{f2(v.entry)}</b></td>
+          <td>{v.already ? <span className="setup-tag amber" title={`Already ${side === 'bull' ? 'above' : 'below'} the last 15-min ${side === 'bull' ? 'high' : 'low'} (${f2(v.trig)})`}>Chasing</span>
+            : <span className="setup-tag" title={`Waiting for a ${side === 'bull' ? 'break above' : 'break below'} ${f2(v.trig)}`}>On break</span>}</td>
+          <td className="num down"><b>{f2(v.stop)}</b> <span className="muted small">{v.stopBy === 'Supertrend' ? 'ST' : '1.5 ATR'}</span></td>
+          <td className={'num ' + (side === 'bull' ? 'up' : 'down')}>{f2(v.t1)}</td>
+          <td className={'num ' + (side === 'bull' ? 'up' : 'down')}>{f2(v.t2)}</td>
+          <td className="num">{f2(v.trail)}</td>
+          <td className={'num ' + (v.riskPct > 2 ? 'amber' : 'muted')}>{v.riskPct.toFixed(2)}%</td>
+          <td className="num"><b>{v.qty ?? '—'}</b></td>
+          <td className="num muted">{v.capital ? '₹' + Math.round(v.capital).toLocaleString('en-IN') : '—'}</td>
+        </tr> })}</tbody>
+      </table>
+      {!shown.length && <Empty>No F&amp;O stock passes {minScore} of 8 {side === 'bull' ? 'long' : 'short'} checks right now. That is information too: on a mixed day, fewer clean setups is normal.</Empty>}
+    </div>
+    <details className="panel cp-help setup-checks" open><summary><b>The 8 checks behind the score</b> <span className="muted small">(the dots next to each stock, left to right · green = passed)</span></summary>
+      <ol>{checks.map(([k, d], i) => <li key={k}><span className="setup-ck"><i className="ok" />{i + 1}. {k}</span> <b>{d}.</b> <span className="muted">{SETUP_WHY[side][i]}</span></li>)}</ol>
+      <p className="muted small"><b>In list since</b> = when the stock’s current run in this list began: the close time of the first 15-minute candle today from which it has qualified without a break (green when it joined in the last 30 minutes). An early time means the setup has held for a while; a fresh one is new and less proven. Score = how many of the 8 pass. 8/8 = everything lines up; 6/8 = most do. No single check is enough on its own: the idea is that several independent signs agree. Change the minimum with “Min score”.</p>
+    </details>
+    <details className="panel cp-help" open><summary><b>How the levels are worked out</b></summary><ul>
+      <li><b>Entry:</b> a break of the last completed 15-minute candle’s {side === 'bull' ? 'high' : 'low'}. If the price is already beyond it, the entry shown is the current price, which means chasing: the risk to the stop is bigger.</li>
+      <li><b>Stop:</b> the 15-minute Supertrend (10, 3) line, the level where the short-term trend would turn. If that line is very close (under ¼ ATR) or very far (over 3 ATR), 1.5 × ATR(14) from the entry instead.</li>
+      <li><b>Targets:</b> R = entry − stop. T1 = 1R, T2 = 2R from the entry. A common way to manage it: book part at T1, then move the stop on the rest to the entry (no-loss trade).</li>
+      <li><b>Trailing exit:</b> follow the 15-minute Supertrend (“Trail now”): {side === 'bull' ? 'raise' : 'lower'} the stop to it as it moves and exit when a 15-minute candle closes {side === 'bull' ? 'below' : 'above'} it. Exit everything by 3:15 PM in an intraday trade.</li>
+      <li><b>Quantity:</b> risk per trade ÷ R, so a stop-out costs about the amount you set (plus brokerage, taxes and slippage).</li>
+    </ul></details>
+    <details className="panel cp-help"><summary><b>Rules most consistently profitable traders follow</b></summary><ul>
+      <li><b>Risk small:</b> 0.5–1% of your trading capital per trade. With ₹1,00,000, that is ₹500–1,000 a trade.</li>
+      <li><b>Stop for the day:</b> after 2–3 losing trades or a loss of 2–3% of capital, stop trading that day.</li>
+      <li><b>Trade with the market:</b> long setups on bullish days, short setups on bearish days (this screen follows Market Bias for that reason).</li>
+      <li><b>Only take trades where T2 makes sense:</b> if a resistance (or support) sits before T2, the trade has little room.</li>
+      <li><b>Don’t chase:</b> when the entry says “already above”, waiting for a pull-back often gives a smaller stop.</li>
+      <li><b>Avoid the first 15 minutes</b> and news hours (results, RBI policy): spreads and swings are widest then.</li>
+      <li><b>Keep a journal</b> (Learn &amp; Track → Journal): write the reason, entry, stop and result of every trade. Your own numbers show what works for you.</li>
+      <li><b>Win rate is not everything:</b> with 2R targets, being right 40% of the time is already profitable before costs; cutting losses at the stop is what makes that true.</li>
+    </ul></details>
+    <p className="muted small">Indicators on Yahoo Finance 15-minute candles (the latest one is still forming); prices and volume from NSE. Levels are rule-based calculations to help you plan, not a recommendation to buy or sell. Trading involves risk of loss.</p>
+  </>
+}

@@ -432,6 +432,15 @@ def index_options(symbol: str = "NIFTY"):
         raise HTTPException(status_code=502, detail=f"NSE option chain unavailable ({exc}).")
 
 
+@app.get("/api/fo-lots")
+def fo_lots():
+    """F&O Stocks tab: this month's lot size for every F&O symbol (NSE fo_mktlots.csv, cached 6 h)."""
+    import index_options
+
+    index_options.lot_size("NIFTY")  # loads / refreshes the whole table
+    return {"lots": index_options._LOTS["map"], "at": index_options._LOTS["at"]}
+
+
 _accounts = None
 
 

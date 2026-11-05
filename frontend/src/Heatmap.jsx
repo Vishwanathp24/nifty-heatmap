@@ -160,7 +160,7 @@ export default function Heatmap({ live, selected, setSelected, toggle, goto }) {
   // Selection cleared elsewhere (ORB / Intraday Scanner "Clear"): show all sectors again.
   useEffect(() => { if (!selected.length && view !== 'all') setView('all') }, [selected.length])
   const [sort, setSort] = useSessionState('hm.sort', 'desc')
-  const [dayBasis, setBasis] = useSessionState('hm.basis', 'open')
+  const [dayBasis, setBasis] = useSessionState('hm.basis2', 'prev')  // vs previous close by default, as on NSE's own heatmap
   const [period, setPeriod] = useSessionState('hm.period', 'day')
   const basis = period === 'day' ? dayBasis : period  // what colours / sorts the tiles
   const [detail, setDetail] = useState(null)
@@ -199,7 +199,7 @@ export default function Heatmap({ live, selected, setSelected, toggle, goto }) {
         <option value="desc">% Change High → Low</option><option value="asc">% Change Low → High</option><option value="alpha">Alphabetical</option>
       </select>
       <Seg value={period} onChange={setPeriod} options={[{ value: 'day', label: 'Daily', title: "Today's move" }, { value: 'week', label: 'Weekly', title: 'Change over the last week (vs the close one week ago)' }, { value: 'month', label: 'Monthly', title: 'Change over the last month (vs the close ~30 days ago)' }]} />
-      {period === 'day' && <Seg value={dayBasis} onChange={setBasis} options={[{ value: 'open', label: 'vs Open', title: "Colour and sort by change vs today's open" }, { value: 'prev', label: 'vs Prev Close', title: 'Colour and sort by change vs previous close' }]} />}
+      {period === 'day' && <Seg value={dayBasis} onChange={setBasis} options={[{ value: 'prev', label: 'vs Prev Close', title: "Colour and sort by change vs yesterday's close (as on NSE's heatmap)" }, { value: 'open', label: 'vs Open', title: "Colour and sort by change since today's 9:15 AM open" }]} />}
       {period !== 'day' && (() => { const d = sectors.find(x => x.quote?.[period + '_date'])?.quote?.[period + '_date']; return d && <span className="muted small">since the close on {d} · NSE</span> })()}
     </div>
     <div className="toolbar sel-bar">
