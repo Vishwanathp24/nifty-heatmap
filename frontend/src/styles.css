@@ -1703,3 +1703,5 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
 .opt-grid { grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)) !important }
 .ol-simple.neutral { border-left-color: var(--amber) }
 .linkish { border: 0; background: none; padding: 0; color: var(--accent); cursor: pointer; font: inherit; text-decoration: underline }
+.setup-tag.orb-with { color: var(--up); background: var(--up-bg); border-color: #bfe3cd }
+.setup-tag.orb-against { color: var(--down); background: var(--down-bg, #fdecec); border-color: #f3c7c7 }

@@ -119,7 +119,8 @@ def indicators(c):
     return {"close": r(closes[-1]), "vwap": r(_vwap(c)), "ema5": r(_ema(closes, 5)), "ema9": r(_ema(closes, 9)),
             "ema21": r(_ema(closes, 21)), "ema9_p": r(_ema(closes[:-1], 9)), "ema21_p": r(_ema(closes[:-1], 21)),
             "atr": r((_wilder(_true_ranges(c), 14) or [None])[-1]),  # ATR 14 (Wilder): the stock's normal candle range
-            "prev_hi": r(c[-2]["h"]), "prev_lo": r(c[-2]["l"]), "day_hi": r(max(b["h"] for b in c if b.get("d") == c[-1].get("d")) if c[-1].get("d") else None),
+            "prev_hi": r(c[-2]["h"]), "prev_lo": r(c[-2]["l"]),
+            "open": r(c[-1]["o"]), "high": r(c[-1]["h"]), "prev_open": r(c[-2]["o"]), "prev_close": r(c[-2]["c"]),  # latest and previous candle "day_hi": r(max(b["h"] for b in c if b.get("d") == c[-1].get("d")) if c[-1].get("d") else None),
             "st": r(st), "st_dir": sd, "rsi": r(_rsi(closes), 1), "adx": r(adx, 1), "dip": r(dip, 1), "dim": r(dim, 1),
             "candle": c[-1]["t"], "bars": len(c)}
 
@@ -177,6 +178,48 @@ def _sma(vals, n):
     return sum(vals[-n:]) / n if len(vals) >= n else None
 
 
+def _ema_series(vals, n):
+    if len(vals) < n:
+        return []
+    e = sum(vals[:n]) / n
+    out = [e]
+    k = 2 / (n + 1)
+    for v in vals[n:]:
+        e = v * k + e * (1 - k)
+        out.append(e)
+    return out
+
+
+def _momentum(d):
+    """High Momentum scan values (Chartink): MACD (12, 26, 9), CCI 20, MFI 14, SMA / EMA 200 and
+    whether today's RSI is above each of the 3 sessions before it."""
+    c = [b["c"] for b in d]
+    out = {}
+    fast, slow = _ema_series(c, 12), _ema_series(c, 26)
+    if slow:
+        macd = [f - s for f, s in zip(fast[len(fast) - len(slow):], slow)]
+        sig = _ema_series(macd, 9)
+        if sig:
+            out["macd"], out["macd_sig"] = macd[-1], sig[-1]
+    if len(d) >= 20:
+        tp = [(b["h"] + b["l"] + b["c"]) / 3 for b in d[-20:]]
+        m = sum(tp) / 20
+        md = sum(abs(x - m) for x in tp) / 20
+        out["cci20"] = (tp[-1] - m) / (0.015 * md) if md else 0.0
+    if len(d) >= 15:
+        tp = [(b["h"] + b["l"] + b["c"]) / 3 for b in d[-15:]]
+        pos = sum(tp[i] * d[-15 + i]["v"] for i in range(1, 15) if tp[i] > tp[i - 1])
+        neg = sum(tp[i] * d[-15 + i]["v"] for i in range(1, 15) if tp[i] < tp[i - 1])
+        out["mfi14"] = 100.0 if neg == 0 else 100 - 100 / (1 + pos / neg)
+    if len(c) >= 200:
+        out["sma200"] = _sma(c, 200)
+        out["ema200"] = _ema(c, 200)
+    rs = [_rsi(c[:len(c) - i]) for i in range(1, 4)]
+    if all(v is not None for v in rs):
+        out["rsi_max3"] = max(rs)
+    return out
+
+
 def daily_metrics(d):
     """Values for the Chartink-style daily conditions (latest bar = today)."""
     if len(d) < 25:
@@ -189,7 +232,8 @@ def daily_metrics(d):
             "ema9": r(_ema(c, 9)), "ema21": r(_ema(c, 21)), "ema9_p": r(_ema(c[:-1], 9)), "ema21_p": r(_ema(c[:-1], 21)),
             "hi5": r(max(b["h"] for b in prev5)), "lo5": r(min(b["l"] for b in prev5)),
             "vol": d[-1]["v"], "vol_sma5": r(_sma([b["v"] for b in d], 5), 0),
-            "high250": r(max(b["h"] for b in d[-250:])), "days": len(d)}
+            "high250": r(max(b["h"] for b in d[-250:])), "days": len(d),
+            **{k: r(v, 2) for k, v in _momentum(d).items()}}
 
 
 def hourly_metrics(h):
