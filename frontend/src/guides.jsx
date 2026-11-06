@@ -21,8 +21,7 @@ export function Disclaimer({ crypto = false }) {
   </div>
 }
 
-// Phones and touch tablets: the guide starts closed (just the heading and a Show button; the disclaimer always shows).
-// Desktop always shows it open.
+// The guide starts closed on every screen (just the heading and a Show button; the disclaimer always shows).
 export function PageGuide({ items, steps, stepsTitle = 'How to use this page, step by step', note, crypto, children }) {
   const [open, setOpen] = useState(false)
   return <Section title="How to read this page" subtitle="A simple guide: what each part means and how to use it" className={'howto' + (open ? '' : ' collapsed')}
