@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react'
 import { Section } from './components.jsx'
 import { useOiChange } from './Pcr.jsx'
-import { isNum, istTime } from './lib.js'
+import { api, isNum, istTime, usePoll } from './lib.js'
+import { IndexSellCards } from './OptSell.jsx'
 
 // Market Outlook on Market Overview: a rule-based read of the next session (after the close) or of the
 // rest of today (during market hours), worked out live from the data already on this page: Market Bias,
@@ -163,3 +164,96 @@ function build(live, ctx, d, e, s) {
   }
 }
 
+
+// ---- Option Selling Outlook (Market Overview) ------------------------------------------------
+// Which option-selling structure the market's state fits for Nifty, from the same rules as
+// Intraday Scanner → Option Selling: trend (daily close vs 20-day average, hourly 9/21 EMA and
+// Supertrend), strength (hourly ADX), stretch (daily RSI), India VIX and the Nifty option chain.
+// It says what fits and why, never what to trade.
+const STRUCT = {
+  bull: { name: 'Bull Put Spread', tone: 'bull', what: 'sell an OTM put below support, buy a lower put' },
+  bear: { name: 'Bear Call Spread', tone: 'bear', what: 'sell an OTM call above resistance, buy a higher call' },
+  range: { name: 'Iron Condor', tone: 'neutral', what: 'sell an OTM call spread above and a put spread below' },
+}
+export function OptionOutlook({ live, onOpen }) {
+  const reg = usePoll(() => api('/api/index-regime'), 300000, [])
+  const opt = usePoll(() => api('/api/index-options?symbol=NIFTY'), 120000, [])
+  const lots = usePoll(() => api('/api/fo-lots'), 3600000, [])
+  const [more, setMore] = useState(false)
+  const o = useMemo(() => buildOpt(live, reg.data?.NIFTY, opt.data), [live, reg.data, opt.data])
+  if (!o) return null
+  const S = STRUCT[o.lean]
+  return <Section title={<>Option Selling<span className="c-hide"> Outlook</span> · Nifty</>} subtitle="Which option-selling structure today's market fits (Nifty, Bank Nifty, Sensex), from the Option Selling rules — not advice"
+    className="outlook opt-outlook" right={<button className="btn ghost sm" onClick={() => setMore(m => !m)} aria-expanded={more}>{more ? 'Hide details' : 'See details'}</button>}>
+    <div className={'ol-simple ' + (o.clean ? S.tone : 'neutral')}>
+      <span className="ol-emoji" aria-hidden="true">{o.clean ? (o.lean === 'bull' ? '🟢' : o.lean === 'bear' ? '🔴' : '🟡') : '⏸️'}</span>
+      <div>
+        <p>{o.clean ? `${S.name} fits today's market: ${o.why}.` : `Sentiment points to a ${S.name}, but it is not clean yet: ${o.blockers.join('; ')}.`}</p>
+        <p>{o.clean ? `Plan around the ${o.exp} expiry, short strike ${o.strikeTxt}.` : `It fits once ${o.fixes.join(', ')}. Until then the rules say wait (or trade smaller).`}</p>
+        <p>A guide from fixed rules, not a recommendation. Option selling can lose much more than the credit.</p>
+      </div>
+    </div>
+    <IndexSellCards live={live} lots={lots.data?.lots || {}} fallback={o.lean} />
+    {more && <div className="ol-grid opt-grid">
+      <div className="ol-sig"><b>Today's readings (Nifty)</b><ul>{o.readings.map(x => <li key={x}>{x}</li>)}</ul></div>
+      <div className="ol-sig"><b>How each structure fits</b><ul>{['bull', 'bear', 'range'].map(x => <li key={x}>
+        <span className={'cp-pill ' + (o.fit[x].ok ? STRUCT[x].tone : '')}>{STRUCT[x].name}</span> <b className={o.fit[x].ok ? 'up' : 'muted'}>{o.fit[x].ok ? 'fits' : x === o.lean ? 'matches sentiment, not clean' : 'does not fit'}</b>: {o.fit[x].why}</li>)}</ul></div>
+      <div className="ol-sig"><b>If you plan the {S.name}</b><ul>
+        <li>Expiry: <b>{o.exp}</b> ({o.days} days){o.skipped ? ` — ${o.skipped} skipped (under 5 days left: fast moves hit sellers hardest)` : ''}.</li>
+        <li>Short strike {o.strikeTxt}: beyond the expected move (±{k(o.move)}) and the OI wall{o.lean === 'range' ? 's' : ''}.</li>
+        <li>Full plan with credit, max loss and exits: <button className="linkish" onClick={onOpen}>Intraday Scanner → Option Selling</button>.</li>
+        {o.weekend && <li><b>Weekend gap risk:</b> a position opened now carries weekend news into Monday's open.</li>}
+      </ul></div>
+    </div>}
+  </Section>
+}
+
+function buildOpt(live, g, ch) {
+  const n = live?.indices?.nifty50, vix = live?.indices?.indiavix
+  if (!n || !g?.daily || !g?.tf60) return null
+  const d = g.daily, h = g.tf60, rsi = d.rsi, adx = h.adx, stretch = d.sma20 ? (d.close / d.sma20 - 1) * 100 : null
+  const vixJump = isNum(vix?.pct_prev) && vix.pct_prev >= 8
+  const up = d.close > d.sma20 && h.ema9 > h.ema21 && h.st_dir === 1
+  const dn = d.close < d.sma20 && h.ema9 < h.ema21 && h.st_dir === -1
+  const b = live.bias, lean = b?.label === 'BULLISH' || b?.score >= 2 || (!b && up) ? 'bull' : b?.label === 'BEARISH' || b?.score <= -2 ? 'bear' : up ? 'bull' : dn ? 'bear' : 'range'
+  const fit = {
+    bull: up && rsi >= 50 && rsi <= 70 && !vixJump ? { ok: true, why: 'uptrend, RSI 50–70, VIX steady' }
+      : { ok: false, why: !up ? 'no uptrend on the daily and hourly checks' : rsi > 70 ? `overbought (RSI ${rsi.toFixed(1)})` : vixJump ? `VIX jumped ${vix.pct_prev.toFixed(1)}%` : `momentum weak (RSI ${rsi.toFixed(1)})` },
+    bear: dn && rsi >= 30 && rsi <= 50 && !vixJump ? { ok: true, why: 'downtrend, RSI 30–50, VIX steady' }
+      : { ok: false, why: !dn ? (up ? 'it would bet against the uptrend' : 'no downtrend on the daily and hourly checks') : rsi < 30 ? `oversold (RSI ${rsi.toFixed(1)})` : vixJump ? `VIX jumped ${vix.pct_prev.toFixed(1)}%` : `momentum weak (RSI ${rsi.toFixed(1)})` },
+    range: adx < 20 && rsi >= 40 && rsi <= 60 && Math.abs(n.pct_prev ?? 0) < 1 && !vixJump ? { ok: true, why: 'sideways (ADX under 20), calm day' }
+      : { ok: false, why: adx >= 20 ? `Nifty is trending (ADX ${adx.toFixed(0)}), not sideways` : Math.abs(n.pct_prev ?? 0) >= 1 ? `a ${Math.abs(n.pct_prev).toFixed(1)}% day is not calm` : vixJump ? `VIX jumped ${vix.pct_prev.toFixed(1)}%` : `RSI ${rsi.toFixed(1)} is outside 40–60` },
+  }
+  const blockers = [], fixes = []
+  if (lean === 'bull' && !up) { blockers.push('the trend checks are not all up'); fixes.push('the daily and hourly trend line up') }
+  if (lean === 'bear' && !dn) { blockers.push('the trend checks are not all down'); fixes.push('the daily and hourly trend line up') }
+  if (lean !== 'range' && rsi > 70) { blockers.push(`Nifty is overbought (RSI ${rsi.toFixed(1)}, ${stretch?.toFixed(1)}% above its 20-day average)`); fixes.push('RSI cools below 70') }
+  if (lean !== 'range' && rsi < 30) { blockers.push(`Nifty is oversold (RSI ${rsi.toFixed(1)})`); fixes.push('RSI recovers above 30') }
+  if (lean === 'range' && adx >= 20) { blockers.push(`Nifty is trending (ADX ${adx.toFixed(0)})`); fixes.push('the trend fades (ADX under 20)') }
+  if (vixJump) { blockers.push(`India VIX jumped ${vix.pct_prev.toFixed(1)}% (bigger swings priced in)`); fixes.push('VIX settles') }
+  // expiry and strike area from the Nifty chain
+  const exps = (ch?.expiries || []).filter(e => e.strikes?.length)
+  const e = exps.find(x => x.days >= 5) || exps[0]
+  let strikeTxt = '—', move = e?.move
+  if (e) {
+    const spot = ch.spot, st = e.strikes
+    const cWall = st.filter(r => r.k > spot).reduce((a, r) => r.c > (a?.c || 0) ? r : a, null)?.k
+    const pWall = st.filter(r => r.k < spot).reduce((a, r) => r.p > (a?.p || 0) ? r : a, null)?.k
+    const ks = st.map(r => r.k)
+    const callK = ks.find(x => x >= Math.max(spot + move, cWall || 0)), putK = [...ks].reverse().find(x => x <= Math.min(spot - move, pWall || Infinity))
+    strikeTxt = lean === 'bull' ? `around ${k(putK)} or lower (put)` : lean === 'bear' ? `around ${k(callK)} or higher (call)` : `around ${k(putK)} (put) and ${k(callK)} (call)`
+  }
+  const nowIst = new Date(Date.now() + 330 * 60000), dow = nowIst.getUTCDay(), mins = nowIst.getUTCHours() * 60 + nowIst.getUTCMinutes()
+  const weekend = dow === 6 || dow === 0 || (dow === 5 && mins >= 15 * 60)
+  const readings = [
+    `Market Bias ${b?.label || '—'} (${b?.score > 0 ? '+' : ''}${b?.score ?? '—'} / 5), Nifty ${n.pct_prev > 0 ? '+' : ''}${n.pct_prev?.toFixed(2)}% today`,
+    `Trend: ${up ? 'up' : dn ? 'down' : 'mixed'} (daily close ${d.close > d.sma20 ? 'above' : 'below'} its 20-day average, hourly 9 EMA ${h.ema9 > h.ema21 ? 'above' : 'below'} 21 EMA, Supertrend ${h.st_dir === 1 ? 'up' : 'down'})`,
+    `Trend strength: hourly ADX ${adx.toFixed(1)} (${adx >= 25 ? 'strong' : adx >= 20 ? 'moderate' : 'weak / sideways'})`,
+    `Stretch: daily RSI ${rsi.toFixed(1)}, ${stretch > 0 ? '+' : ''}${stretch?.toFixed(1)}% vs the 20-day average`,
+    `India VIX ${vix?.ltp?.toFixed(2) ?? '—'} (${vix?.pct_prev > 0 ? '+' : ''}${vix?.pct_prev?.toFixed(1) ?? '—'}%)`,
+    e ? `Option chain (${e.expiry_ist.split(',')[0]}): PCR ${e.pcr_oi}, max pain ${k(e.max_pain)}, expected move ±${k(e.move)}` : 'Option chain loading…',
+  ]
+  const clean = fit[lean].ok
+  return { lean, clean, fit, blockers, fixes, why: fit[lean].why, exp: e ? e.expiry_ist.split(',')[0] : '—', days: e ? Math.round(e.days) : '—',
+    skipped: e && exps[0] !== e ? exps[0].expiry_ist.split(',')[0] : null, strikeTxt, move, weekend, readings }
+}

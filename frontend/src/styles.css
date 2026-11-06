@@ -1692,3 +1692,16 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
 .os-legs { max-width: 560px; margin: 4px 0 8px }
 .os-nums { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; margin: 6px 0 }
 .os-exit { font-size: 12.5px; margin-top: 6px; line-height: 1.5 }
+.os-sub { margin: 10px 0 6px }
+.os-idx { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 10px; margin-bottom: 8px; align-items: start }
+.os-idx-card { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; background: var(--panel) }
+.os-idx-card.open { grid-column: 1 / -1 }
+.os-idx-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 14px }
+.os-idx-top .setup-dots { margin-left: auto }
+.os-idx-mid { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 6px 0 }
+.os-idx-act { display: flex; gap: 8px; align-items: center }
+.os-idx-act select { height: 28px; border: 1px solid var(--line, var(--border)); border-radius: 6px; padding: 0 6px; font: inherit; font-size: 12.5px; background: var(--panel) }
+.os-idx-card .os-plan { margin-top: 10px }
+.opt-grid { grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)) !important }
+.ol-simple.neutral { border-left-color: var(--amber) }
+.linkish { border: 0; background: none; padding: 0; color: var(--accent); cursor: pointer; font: inherit; text-decoration: underline }

@@ -432,6 +432,14 @@ def index_options(symbol: str = "NIFTY"):
         raise HTTPException(status_code=502, detail=f"NSE option chain unavailable ({exc}).")
 
 
+@app.get("/api/index-regime")
+def index_regime_api():
+    """Option Selling tab: daily / hourly trend readings for Nifty, Bank Nifty and Sensex."""
+    import index_regime
+
+    return index_regime.regime()
+
+
 @app.get("/api/fo-lots")
 def fo_lots():
     """F&O Stocks tab: this month's lot size for every F&O symbol (NSE fo_mktlots.csv, cached 6 h)."""
