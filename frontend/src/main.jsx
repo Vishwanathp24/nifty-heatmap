@@ -12,11 +12,24 @@ import { PageHowTo } from './guides.jsx'
 import InfoPage, { INFO_PAGES, InfoLinks } from './Legal.jsx'
 import InstallPrompt, { openInstall, useCanInstall } from './InstallPrompt.jsx'
 // Pages loaded only when opened (smaller first download)
-const Crypto = lazy(() => import('./Crypto.jsx'))
-const Ipo = lazy(() => import('./Ipo.jsx'))
-const Learning = lazy(() => import('./Learning.jsx'))
-const Journal = lazy(() => import('./Journal.jsx'))
-const Scans = lazy(() => import('./Scans.jsx'))  // Intraday Scanner: charts, option chain, payoff tools - loaded when opened
+// Pages loaded on demand. A tab left open across a site update still asks for the previous version's file
+// names, which no longer exist after a deploy: instead of a blank page, reload once to get the latest version
+// (at most once a minute, so a real outage does not loop).
+const lazyPage = load => lazy(() => load().catch(err => {
+  let last = 0
+  try { last = Number(sessionStorage.getItem('nseid:chunkReload')) || 0 } catch { /* private mode */ }
+  if (Date.now() - last > 60000) {
+    try { sessionStorage.setItem('nseid:chunkReload', String(Date.now())); sessionStorage.setItem('nseid:chunkPage', window.location.pathname) } catch { /* private mode */ }
+    window.location.reload()
+    return new Promise(() => {})  // keep showing "Updating…" until the reload happens
+  }
+  throw err
+}))
+const Crypto = lazyPage(() => import('./Crypto.jsx'))
+const Ipo = lazyPage(() => import('./Ipo.jsx'))
+const Learning = lazyPage(() => import('./Learning.jsx'))
+const Journal = lazyPage(() => import('./Journal.jsx'))
+const Scans = lazyPage(() => import('./Scans.jsx'))  // Intraday Scanner: charts, option chain, payoff tools - loaded when opened
 
 const REFRESH_MS = 10000
 const PAGES = [
@@ -215,12 +228,29 @@ function StatusBar({ live, auto, setAuto, crypto = false }) {
   </div>
 }
 
+// If a page still fails to load (offline, or the reload above already happened), show a message and a
+// Reload button instead of a blank page.
+class PageBoundary extends React.Component {
+  constructor(p) { super(p); this.state = { err: null } }
+  static getDerivedStateFromError(err) { return { err } }
+  componentDidUpdate(prev) { if (prev.page !== this.props.page && this.state.err) this.setState({ err: null }) }
+  render() {
+    return this.state.err
+      ? <div className="empty">This page could not load (a newer version of the site may be available, or the connection dropped).
+        <div style={{ marginTop: 10 }}><button className="btn primary" onClick={() => window.location.reload()}>Reload</button></div></div>
+      : this.props.children
+  }
+}
+
 function App() {
   // Every visit opens on Market Overview, whatever page address it was opened with (bookmark, home-screen app,
   // shared link). Exceptions: the info pages (About, Privacy, Terms…) and search-engine bots, which need the
   // page their address names.
   const [page, setPageState] = useState(() => {
     const p = pageFromPath(window.location.pathname)
+    let back = null  // after an update reload (lazyPage), go back to the page that was being opened
+    try { back = sessionStorage.getItem('nseid:chunkPage'); sessionStorage.removeItem('nseid:chunkPage') } catch { /* private mode */ }
+    if (back) return pageFromPath(back)
     return AUTOMATED || INFO_IDS.includes(p) ? p : 'overview'
   })
   useEffect(() => { if (page === 'overview' && window.location.pathname !== '/') window.history.replaceState(null, '', '/') }, [])
@@ -328,14 +358,14 @@ function App() {
       {page === 'overview' && <div className="c-hide"><PcrMeter noPcr /></div>}  {/* full PCR + Expected Move cards on Market Overview (compact view uses the small cards) */}
       {page === 'overview' && <Overview live={live.data} ctx={ctx.data} openOptionSelling={() => { setSessionValue('scans.tab', 'osell'); setMode('advanced'); setPage('trend'); window.scrollTo({ top: 0 }) }} />}
       {page === 'heatmap' && <Heatmap live={live.data} selected={selected} setSelected={setSelected} toggle={toggleSector} goto={setPage} />}
-      <Suspense fallback={<div className="empty">Loading…</div>}>
+      <PageBoundary page={page}><Suspense fallback={<div className="empty">Loading… (updating to the latest version if the site was just updated)</div>}>
         {page === 'trend' && <Scans basic={basic} trend={trend} live={live.data} selected={selected} setSelected={setSelected} chartReq={chartReq} orbLists={orbLists} />}
         {page === 'crypto' && <Crypto crypto={crypto} />}
         {INFO_IDS.includes(page) && <InfoPage id={page} />}
         {page === 'ipo' && <Ipo ipo={ipo} />}
         {page === 'learning' && <Learning />}
         {page === 'journal' && <Journal live={live.data} />}
-      </Suspense>
+      </Suspense></PageBoundary>
       {page === 'scanner' && <>
         <div className="orb-switch" role="tablist" aria-label="Opening range">
           {[[5, '5 Min ORB', '09:15–09:20', orb5Count], [15, '15 Min ORB', '09:15–09:30', orb15Count], [30, '30 Min ORB', '09:15–09:45', orb30Count], [60, '1 Hour ORB', '09:15–10:15', orbCount]].map(([v, label, range, n]) =>
