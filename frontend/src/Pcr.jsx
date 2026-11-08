@@ -142,8 +142,11 @@ export function MiniCards({ bias, breadth, fiiDii, always = false }) {
   const em = e && isNum(e.move) && isNum(d.spot)
   const b = bias?.label
   const sign = n => n > 0 ? 'up' : n < 0 ? 'down' : 'amber'
-  const card = (key, tone, label, value, title) => <div key={key} className={'mcard ' + (tone || '')} title={title}>
-    <div className="mk">{label}</div><div className="mv">{value}</div></div>
+  const card = (key, tone, label, value, title, side) => <div key={key} className={'mcard ' + (tone || '')} title={title}>
+    <div className="mk">{label}</div>{side ? <div className="mv mv-side"><span>{value}</span><span className="mside">{side}</span></div> : <div className="mv">{value}</div>}</div>
+  // calls / puts as "a/b" with one unit when both share it (3.68Cr/3.64Cr -> 3.68/3.64Cr)
+  const pair = (a, b, sg) => { const f = v => (sg && v > 0 ? '+' : '') + shares(v), x = f(a), y = f(b), ua = x.replace(/[−+\d.,]/g, ''), ub = y.replace(/[−+\d.,]/g, '')
+    return ua && ua === ub ? x.slice(0, -ua.length) + '/' + y : x + '/' + y }
   const breadthCard = (label, x) => x && card(label, !isNum(x.ad_ratio) ? 'amber' : sign(x.ad_ratio - 1), label + ' Breadth',
     <AdChips up={x.up} down={x.down} />,
     `${label} breadth vs previous close: ${x.up} advancing, ${x.down} declining, ${x.unchanged} unchanged · A/D ratio ${isNum(x.ad_ratio) ? x.ad_ratio.toFixed(2) : 'N/A'}`)
@@ -154,7 +157,9 @@ export function MiniCards({ bias, breadth, fiiDii, always = false }) {
     {card('bias', b === 'BULLISH' ? 'up' : b === 'BEARISH' ? 'down' : 'amber', 'Market Bias',
       <>{b || 'N/A'} {isNum(bias?.score) && <small>{bias.score > 0 ? '+' : ''}{bias.score} / 5</small>}</>)}
     {card('oi', s && { bull: 'up', bear: 'down' }[s.sent.key] || (s ? 'amber' : ''), 'Nifty OI Change',
-      <>{s ? s.sent.label : '—'} {s && isNum(s.sent.pct) && <small>{s.sent.key === 'bear' ? 'calls' : 'puts'} {s.sent.pct}%</small>}</>, s?.sent.why)}
+      <>{s ? s.sent.label : '—'}</>,
+      s && `${s.sent.why}${isNum(s.sent.pct) ? ` (${s.sent.key === 'bear' ? 'calls' : 'puts'} ${s.sent.pct}% of fresh OI)` : ''}\nOI change today: calls ${s.cc > 0 ? '+' : ''}${shares(s.cc)}, puts ${s.pc > 0 ? '+' : ''}${shares(s.pc)}\nTotal OI: calls ${shares(s.co)}, puts ${shares(s.po)}\nStrikes ${s.lo.toLocaleString('en-IN')}–${s.hi.toLocaleString('en-IN')}, OI in shares.`,
+      s && <><span><b>Chg</b> {pair(s.cc, s.pc, true)}</span><span><b>OI</b> {pair(s.co, s.po)}</span></>)}
     {card('pcr', z?.tone, 'Nifty PCR (OI)', <>{z ? v.toFixed(2) : '—'} {z && <small>{z.label.split(' / ')[0]}</small>}</>, z ? `${z.label}: ${z.text} (${spanText(s)}; all strikes ${isNum(e.pcr_oi) ? e.pcr_oi.toFixed(2) : '—'})` : undefined)}
     {card('em', 'em', 'Expected Move', em ? <>±{k(e.move)} <small>{k(d.spot - e.move)}–{k(d.spot + e.move)}</small></> : '—',
       'From option prices (at-the-money implied volatility): about a 2-in-3 chance Nifty ends this expiry inside the range. Not a prediction.')}

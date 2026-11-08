@@ -1705,3 +1705,7 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
 .linkish { border: 0; background: none; padding: 0; color: var(--accent); cursor: pointer; font: inherit; text-decoration: underline }
 .setup-tag.orb-with { color: var(--up); background: var(--up-bg); border-color: #bfe3cd }
 .setup-tag.orb-against { color: var(--down); background: var(--down-bg, #fdecec); border-color: #f3c7c7 }
+/* Nifty OI Change small card: OI change and total OI as a tiny 2-line block beside the reading (card keeps its 2-line height) */
+.mcard .mv.mv-side { display: flex !important; flex-wrap: nowrap !important; align-items: center; justify-content: space-between; gap: 6px }
+.mcard .mside { display: flex; flex-direction: column; align-items: flex-end; font-size: 9.5px; font-weight: 600; line-height: 1.02; margin: -1px 0; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; min-width: 0 }
+.mcard .mside b { font-weight: 700; color: var(--ink-2, var(--ink)); margin-right: 2px }
