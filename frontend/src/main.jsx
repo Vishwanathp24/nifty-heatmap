@@ -216,7 +216,14 @@ function StatusBar({ live, auto, setAuto, crypto = false }) {
 }
 
 function App() {
-  const [page, setPageState] = useState(() => pageFromPath(window.location.pathname))  // the homepage URL starts on Market Overview
+  // Every visit opens on Market Overview, whatever page address it was opened with (bookmark, home-screen app,
+  // shared link). Exceptions: the info pages (About, Privacy, Terms…) and search-engine bots, which need the
+  // page their address names.
+  const [page, setPageState] = useState(() => {
+    const p = pageFromPath(window.location.pathname)
+    return AUTOMATED || INFO_IDS.includes(p) ? p : 'overview'
+  })
+  useEffect(() => { if (page === 'overview' && window.location.pathname !== '/') window.history.replaceState(null, '', '/') }, [])
   const setPage = useCallback(id => {
     setPageState(id)
     if (window.location.pathname !== PATHS[id]) window.history.pushState(null, '', PATHS[id])
@@ -316,9 +323,9 @@ function App() {
       {live.error && !live.data && <div className="alert">{live.error}</div>}
       {/* Market Bias, OI Change, PCR, Expected Move, breadth and FII / DII as small cards on every page except Crypto;
           on Overview / Heatmap only in the phone / tablet views (desktop has the full panels) */}
-      {page !== 'crypto' && !INFO_IDS.includes(page) && <MiniCards always={page !== 'overview' && page !== 'heatmap' ? true : fullData && 'full'} bias={live.data?.bias} breadth={live.data?.breadth} fiiDii={ctx.data?.fii_dii?.data} nifty={live.data?.indices?.nifty50} />}
+      {page !== 'crypto' && !INFO_IDS.includes(page) && <MiniCards always={page !== 'heatmap' ? true : fullData && 'full'} bias={live.data?.bias} breadth={live.data?.breadth} fiiDii={ctx.data?.fii_dii?.data} nifty={live.data?.indices?.nifty50} />}
       {page === 'journal' && <div className="mini-strip"><div id="journal-account-slot" className="mini-slot" /></div>}  {/* Journal puts its sign-in / saved status here */}
-      {page === 'overview' && <div className="c-hide"><PcrMeter /></div>}  {/* full PCR + Expected Move cards on Market Overview (compact view uses the small cards) */}
+      {page === 'overview' && <div className="c-hide"><PcrMeter noPcr /></div>}  {/* full PCR + Expected Move cards on Market Overview (compact view uses the small cards) */}
       {page === 'overview' && <Overview live={live.data} ctx={ctx.data} openOptionSelling={() => { setSessionValue('scans.tab', 'osell'); setMode('advanced'); setPage('trend'); window.scrollTo({ top: 0 }) }} />}
       {page === 'heatmap' && <Heatmap live={live.data} selected={selected} setSelected={setSelected} toggle={toggleSector} goto={setPage} />}
       <Suspense fallback={<div className="empty">Loading…</div>}>

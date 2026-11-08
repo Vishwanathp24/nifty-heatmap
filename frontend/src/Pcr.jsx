@@ -93,7 +93,7 @@ export function PcrDecision({ p }) {
 }
 
 // Meter shown on every page except Crypto: Nifty PCR for the nearest expiry, zone bar and meaning.
-export function PcrMeter({ compact = false }) {
+export function PcrMeter({ compact = false, noPcr = false }) {
   const { d, e, s } = useOiChange()
   const [open, setOpen] = useState(false)
   const v = s?.pcr
@@ -106,8 +106,8 @@ export function PcrMeter({ compact = false }) {
   const k = n => Math.round(n).toLocaleString('en-IN')
   const ok = isNum(e.move) && isNum(d.spot)
   return <div className="pcr-row">
-    <div className="pcr-two">
-      <div className={'pcr-meter tinted ' + z.tone}>
+    <div className={'pcr-two' + (noPcr ? ' em-only' : '')}>
+      {!noPcr && <div className={'pcr-meter tinted ' + z.tone}>
         <div className="pcr-main">
           <span className="pcr-k">Nifty PCR (OI)</span>
           <b className="pcr-v">{v.toFixed(2)}</b>
@@ -119,7 +119,7 @@ export function PcrMeter({ compact = false }) {
         </div>
         <div className="pcr-sub"><span className="pcr-text muted small">{z.text}</span>
           <span className="muted small">Expiry {e.expiry_ist.split(',')[0]} · {spanText(s)} · all strikes {isNum(e.pcr_oi) ? e.pcr_oi.toFixed(2) : '—'} · all expiries {isNum(d.pcr_oi) ? d.pcr_oi.toFixed(2) : '—'} · {istTime(d.fetched_at)} IST</span></div>
-      </div>
+      </div>}
       <div className="pcr-meter tinted em" title="From option prices (at-the-money implied volatility): about a 2-in-3 chance Nifty ends this expiry inside the range. Not a prediction.">
         <div className="pcr-main"><span className="pcr-k">Expected Move</span>
           <b className="pcr-v">{ok ? '±' + k(e.move) : '—'}</b>
@@ -128,7 +128,33 @@ export function PcrMeter({ compact = false }) {
           <span className="muted small">Nifty range to expiry {e.expiry_ist.split(',')[0]} (options)</span></div>
       </div>
     </div>
-    {open && <div className={'pcr-meter ' + z.tone}><PcrGuide /><PcrDecision p={{ v, ...levels(d, e), expiry: e.expiry_ist.split(',')[0] }} /></div>}
+    {open && !noPcr && <div className={'pcr-meter ' + z.tone}><PcrGuide /><PcrDecision p={{ v, ...levels(d, e), expiry: e.expiry_ist.split(',')[0] }} /></div>}
+  </div>
+}
+
+// Nifty PCR inside the Market Bias panel (Market Overview): reading, zone, bar, meaning and the
+// support / resistance status, with "What is PCR?" opening the guide and decision table.
+export function PcrInBias() {
+  const { d, e, s } = useOiChange()
+  const [open, setOpen] = useState(false)
+  const v = s?.pcr, z = pcrZone(v)
+  if (!d || !z) return null
+  const pos = Math.max(0, Math.min(100, (v - 0.4) / (1.9 - 0.4) * 100))
+  const p = { v, ...levels(d, e), expiry: e.expiry_ist.split(',')[0] }, c = pcrCheck(p)
+  return <div className={'pcr-in-bias pcr-meter tinted ' + z.tone}>
+    <div className="pcr-main">
+      <span className="pcr-k">Nifty PCR (OI)</span>
+      <b className="pcr-v">{v.toFixed(2)}</b>
+      <span className={'pcr-pill ' + z.tone}>{z.label}</span>
+      <span className="pcr-bar" title="< 0.7 oversold · 0.7–1.0 bearish→neutral · 1.0–1.3 healthy bullish · 1.3–1.5 strong · > 1.5 overbought">
+        {[0.7, 1.0, 1.3, 1.5].map(t => <i key={t} className="pcr-tick" style={{ left: (t - 0.4) / 1.5 * 100 + '%' }} />)}
+        <i className="pcr-mark" style={{ left: pos + '%' }} /></span>
+      <button className="btn sm" onClick={() => setOpen(o => !o)}>{open ? 'Hide' : 'What is PCR?'}</button>
+    </div>
+    <div className="pcr-sub"><span className="pcr-text muted small">{z.text}</span></div>
+    <div className={'pcr-dec-status small ' + c.state}>{c.status}</div>
+    <div className="muted small">Expiry {p.expiry} · {spanText(s)} · all strikes {isNum(e.pcr_oi) ? e.pcr_oi.toFixed(2) : '—'} · {istTime(d.fetched_at)} IST</div>
+    {open && <><PcrGuide /><PcrDecision p={p} /></>}
   </div>
 }
 

@@ -1717,3 +1717,16 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
 .mcard .mk .oi-lean { margin-left: 4px }
 .oi-lean-row { font-size: 12.5px; margin: 6px 0 2px } .oi-lean-row .oi-lean { font-size: 11.5px; padding: 1px 8px }
 @media (max-width: 600px) { .mcard .mk-long { display: none } }
+/* Market Bias: each component on one line */
+.tbl.bias-table td, .tbl.bias-table th { white-space: nowrap; overflow-wrap: normal; vertical-align: middle }
+.tbl.bias-table td { padding-top: 6px; padding-bottom: 6px; font-size: 12.5px }
+.bias-section .bias-table .ad-chips { flex-wrap: nowrap }
+@media (min-width: 1301px) { .bias-row.oi { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.6fr) } .bias-row.oi .bias-grid { grid-template-columns: 160px 1fr } }  /* Market Bias a bit wider so its one-line readings fit */
+.mcard .mside i { font-style: normal } .mcard .pcr-t.up { color: var(--up) } .mcard .pcr-t.down { color: var(--down) } .mcard .pcr-t.amber { color: var(--amber) }
+/* Sector Heatmap top cards: breadth numbers (incl. F&O Total + A/D Ratio) on one row */
+.hm-cards .breadth-stats { flex-wrap: nowrap; justify-content: space-between; gap: 10px }
+.hm-cards .breadth-stats > div { min-width: 0 }
+.hm-cards .breadth-stats .k { white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+/* Nifty PCR inside the Market Bias panel; Expected Move alone in the top row on Market Overview */
+.pcr-in-bias { margin-top: 12px; display: grid; gap: 6px }
+.pcr-two.em-only { grid-template-columns: 1fr !important }
