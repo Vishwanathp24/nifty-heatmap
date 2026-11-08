@@ -316,7 +316,7 @@ function App() {
       {live.error && !live.data && <div className="alert">{live.error}</div>}
       {/* Market Bias, OI Change, PCR, Expected Move, breadth and FII / DII as small cards on every page except Crypto;
           on Overview / Heatmap only in the phone / tablet views (desktop has the full panels) */}
-      {page !== 'crypto' && !INFO_IDS.includes(page) && <MiniCards always={page !== 'overview' && page !== 'heatmap' ? true : fullData && 'full'} bias={live.data?.bias} breadth={live.data?.breadth} fiiDii={ctx.data?.fii_dii?.data} />}
+      {page !== 'crypto' && !INFO_IDS.includes(page) && <MiniCards always={page !== 'overview' && page !== 'heatmap' ? true : fullData && 'full'} bias={live.data?.bias} breadth={live.data?.breadth} fiiDii={ctx.data?.fii_dii?.data} nifty={live.data?.indices?.nifty50} />}
       {page === 'journal' && <div className="mini-strip"><div id="journal-account-slot" className="mini-slot" /></div>}  {/* Journal puts its sign-in / saved status here */}
       {page === 'overview' && <div className="c-hide"><PcrMeter /></div>}  {/* full PCR + Expected Move cards on Market Overview (compact view uses the small cards) */}
       {page === 'overview' && <Overview live={live.data} ctx={ctx.data} openOptionSelling={() => { setSessionValue('scans.tab', 'osell'); setMode('advanced'); setPage('trend'); window.scrollTo({ top: 0 }) }} />}

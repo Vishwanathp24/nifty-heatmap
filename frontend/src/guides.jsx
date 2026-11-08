@@ -49,7 +49,7 @@ export function PageNote({ children }) {
 const GUIDES = {
   heatmap: {
     items: [
-      ['🧭', 'Top cards', 'Market Bias (the overall mood), Nifty OI Change (what big option traders did), Nifty PCR (balance of option bets) and the two Breadth boxes (how many stocks went up vs down). The same as on Market Overview.'],
+      ['🧭', 'Top cards', 'Market Bias (the overall mood), Nifty OI Change (what big option traders did; its tag CE side / PE side / Wait shows which side the fresh OI favours when price agrees), Nifty PCR (balance of option bets) and the two Breadth boxes (how many stocks went up vs down). The same as on Market Overview.'],
       ['🟩', 'Sector tiles', 'Each tile is one group of companies, like IT, Banks or Pharma. Green = the group went up. Red = it went down. The darker the colour, the bigger the move.'],
       ['🔁', 'vs Prev Close / vs Open', '"vs Prev Close" (the default, as on NSE\'s own heatmap) compares with yesterday\'s last price. "vs Open" compares with the price at 9:15 this morning: on a gap-up day a sector can be up vs yesterday but down since the open, so the two views can show different colours. Daily / Weekly / Monthly changes how far back you look.'],
       ['👆', 'Click a tile', 'Opens the stocks inside that sector with their price, change and how far they are from their 1-year high and 1-year low.'],

@@ -147,7 +147,7 @@ function TopCards({ live }) {
       <div className={'card-v ' + bTone}>{bias?.label || '—'} {isNum(bias?.score) && <small>({bias.score > 0 ? '+' : ''}{bias.score})</small>}</div>
       <div className="hm-chips">{(bias?.components || []).map(c => <span key={c.key || c.label} className={c.points > 0 ? 'up' : c.points < 0 ? 'down' : 'muted'} title={c.detail}>{c.label} {c.points > 0 ? '+1' : c.points < 0 ? '−1' : '0'}</span>)}</div>
     </div>
-    <OiCard />
+    <OiCard nifty={live?.indices?.nifty50} bias={live?.bias} />
     <PcrCard />
     {b.nifty50 && <BreadthPanel title="Nifty 50 Breadth" subtitle="Advance / decline vs previous close (NSE convention)" b={b.nifty50} alt={b.nifty50_open} rows={(live.stocks || []).filter(s => s.n50)} noStocks />}
     {b.fo && <BreadthPanel title="F&O Universe Breadth" subtitle="NSE stocks with F&O contracts · vs previous close" b={b.fo} alt={b.fo_open} rows={(live.stocks || []).filter(s => s.fo)} showTotal noStocks />}

@@ -134,7 +134,7 @@ export function PcrMeter({ compact = false }) {
 
 // Top strip as small 2-line cards (name, then value), 2 per row: Market Bias, Nifty OI
 // Change, Nifty PCR (OI), Expected Move, Nifty 50 and F&O breadth, FII and DII net (last data date).
-export function MiniCards({ bias, breadth, fiiDii, always = false }) {
+export function MiniCards({ bias, breadth, fiiDii, nifty, always = false }) {
   const res = usePoll(() => api('/api/index-options?symbol=NIFTY'), 30000, [])
   const { s } = useOiChange()
   const d = res.data, e = d?.expiries?.[0], v = s?.pcr, z = pcrZone(v)
@@ -156,9 +156,9 @@ export function MiniCards({ bias, breadth, fiiDii, always = false }) {
   return <div className={'mini-cards ' + (always === 'full' ? 'always f-only' : always ? 'always' : 'c-only')}>  {/* f-only: Full data view on phones / tablets */}
     {card('bias', b === 'BULLISH' ? 'up' : b === 'BEARISH' ? 'down' : 'amber', 'Market Bias',
       <>{b || 'N/A'} {isNum(bias?.score) && <small>{bias.score > 0 ? '+' : ''}{bias.score} / 5</small>}</>)}
-    {card('oi', s && { bull: 'up', bear: 'down' }[s.sent.key] || (s ? 'amber' : ''), 'Nifty OI Change',
+    {card('oi', s && { bull: 'up', bear: 'down' }[s.sent.key] || (s ? 'amber' : ''), <>Nifty OI<span className="mk-long"> Change</span> <LeanTag l={oiLean(s, nifty, bias)} /></>,
       <>{s ? s.sent.label : '—'}</>,
-      s && `${s.sent.why}${isNum(s.sent.pct) ? ` (${s.sent.key === 'bear' ? 'calls' : 'puts'} ${s.sent.pct}% of fresh OI)` : ''}\nOI change today: calls ${s.cc > 0 ? '+' : ''}${shares(s.cc)}, puts ${s.pc > 0 ? '+' : ''}${shares(s.pc)}\nTotal OI: calls ${shares(s.co)}, puts ${shares(s.po)}\nStrikes ${s.lo.toLocaleString('en-IN')}–${s.hi.toLocaleString('en-IN')}, OI in shares.`,
+      s && `${oiLean(s, nifty, bias)?.why}\n\n${s.sent.why}${isNum(s.sent.pct) ? ` (${s.sent.key === 'bear' ? 'calls' : 'puts'} ${s.sent.pct}% of fresh OI)` : ''}\nOI change today: calls ${s.cc > 0 ? '+' : ''}${shares(s.cc)}, puts ${s.pc > 0 ? '+' : ''}${shares(s.pc)}\nTotal OI: calls ${shares(s.co)}, puts ${shares(s.po)}\nStrikes ${s.lo.toLocaleString('en-IN')}–${s.hi.toLocaleString('en-IN')}, OI in shares.`,
       s && <><span><b>Chg</b> {pair(s.cc, s.pc, true)}</span><span><b>OI</b> {pair(s.co, s.po)}</span></>)}
     {card('pcr', z?.tone, 'Nifty PCR (OI)', <>{z ? v.toFixed(2) : '—'} {z && <small>{z.label.split(' / ')[0]}</small>}</>, z ? `${z.label}: ${z.text} (${spanText(s)}; all strikes ${isNum(e.pcr_oi) ? e.pcr_oi.toFixed(2) : '—'})` : undefined)}
     {card('em', 'em', 'Expected Move', em ? <>±{k(e.move)} <small>{k(d.spot - e.move)}–{k(d.spot + e.move)}</small></> : '—',
@@ -202,6 +202,25 @@ export function oiSentiment(cc, pc) {
   return { key: 'neutral', label: 'Neutral', pct: Math.round(share * 100), why: `Fresh OI is close to even (puts ${Math.round(share * 100)}%) — no clear side.` }
 }
 
+// OI lean: which option side today's open-interest change favours, confirmed by price. Option writers' fresh
+// positions are read as support (puts written) or resistance (calls written); a lean is shown only when the
+// OI is one-sided (60%+ of fresh OI), Nifty is not moving against it since the open and Market Bias does not
+// point the other way. A reading, not a trade.
+export function oiLean(s, nifty, bias) {
+  if (!s) return null
+  const mv = nifty?.pct_open, b = bias?.label
+  if (s.sent.key === 'bull' && b === 'BEARISH') return { key: 'wait', tag: 'Wait', why: 'Put writers lead the fresh OI, but Market Bias is Bearish: the signals disagree, so no side is favoured.' }
+  if (s.sent.key === 'bear' && b === 'BULLISH') return { key: 'wait', tag: 'Wait', why: 'Call writers lead the fresh OI, but Market Bias is Bullish: the signals disagree, so no side is favoured.' }
+  if (s.sent.key === 'bull') return isNum(mv) && mv < -0.2
+    ? { key: 'wait', tag: 'Wait', why: `Put writers lead the fresh OI (support building), but Nifty is ${mv.toFixed(2)}% since the open: wait for price to agree.` }
+    : { key: 'ce', tag: 'CE side ▲', why: 'Put writers lead the fresh OI (support building below) and Nifty is not falling: the OI favours the upside (CE side). Confirm with price before acting.' }
+  if (s.sent.key === 'bear') return isNum(mv) && mv > 0.2
+    ? { key: 'wait', tag: 'Wait', why: `Call writers lead the fresh OI (resistance building), but Nifty is +${mv.toFixed(2)}% since the open: wait for price to agree.` }
+    : { key: 'pe', tag: 'PE side ▼', why: 'Call writers lead the fresh OI (resistance building above) and Nifty is not rising: the OI favours the downside (PE side). Confirm with price before acting.' }
+  return { key: 'wait', tag: 'Wait', why: 'Fresh call and put OI are close to even: the OI does not favour either side yet.' }
+}
+const LeanTag = ({ l }) => l && <span className={'oi-lean ' + l.key} title={l.why}>{l.tag}</span>
+
 export function OiBars({ title, c, p, signed }) {
   const max = Math.max(Math.abs(c), Math.abs(p)) || 1
   return <div className="oi-bars">
@@ -244,12 +263,12 @@ export function OiPill() {
 }
 
 // Compact card for the Sector Heatmap top row (beside Market Bias).
-export function OiCard() {
+export function OiCard({ nifty, bias }) {
   const { e, s, range } = useOiChange()
   const tone = s ? { bull: 'up', bear: 'down', neutral: 'amber' }[s.sent.key] : ''
   const max = s ? Math.max(Math.abs(s.cc), Math.abs(s.pc)) || 1 : 1
   return <div className={'card hm-card oi-card ' + tone} title={s ? s.sent.why : ''}>
-    <div className="card-k">Nifty OI Change</div>
+    <div className="card-k">Nifty OI Change <LeanTag l={oiLean(s, nifty, bias)} /></div>
     <div className={'card-v ' + tone}>{s ? s.sent.label : '—'} {isNum(s?.sent.pct) && <small>({s.sent.key === 'bear' ? 'calls' : 'puts'} {s.sent.pct}%)</small>}</div>
     {s ? <>
       {[['Call', s.cc, 'call'], ['Put', s.pc, 'put']].map(([l, v, k]) => <div key={k} className="oi-hbar">
@@ -260,7 +279,7 @@ export function OiCard() {
   </div>
 }
 
-export function OiChange({ nifty }) {
+export function OiChange({ nifty, bias }) {
   const { res, d, e, s, range, setRange } = useOiChange()
   const move = nifty?.pct_prev
   const verb = !isNum(move) ? '' : move > 0.1 ? 'up' : move < -0.1 ? 'down' : 'flat'
@@ -275,6 +294,7 @@ export function OiChange({ nifty }) {
         <div className="k">Market Sentiment (OI)</div>
         <div className="bias-label">{s.sent.label}</div>
         {isNum(s.sent.pct) && <div className="bias-score">{s.sent.key === 'bear' ? 'Calls' : 'Puts'} {s.sent.pct}% of fresh OI</div>}
+        <div className="oi-lean-row">OI lean <LeanTag l={oiLean(s, nifty, bias)} /></div>
         <div className="oi-pcr">PCR <b>{s.pcr?.toFixed(2) ?? '—'}</b>{pcrDelta(s)}
           <br />PCR OI change <b>{s.chgRatio ? s.chgRatio.toFixed(2) : '—'}</b></div>
       </div>
@@ -285,6 +305,7 @@ export function OiChange({ nifty }) {
         <p>Calls {s.cc > 0 ? '+' : ''}{shares(s.cc)}, puts {s.pc > 0 ? '+' : ''}{shares(s.pc)} since the previous close. {s.sent.why}</p>
         {priceRead && <p>{isNum(move) && <>Nifty {move > 0 ? '+' : ''}{move.toFixed(2)}%: </>}{priceRead}</p>}
         {isNum(s.open) && <p>PCR moved from {s.open.toFixed(2)} at the open to {s.pcr.toFixed(2)}.</p>}
+        <p><b>OI lean: {oiLean(s, nifty, bias).tag}.</b> {oiLean(s, nifty, bias).why}</p>
         <p className="muted small">PCR OI change = put OI change ÷ call OI change. OI in shares (contracts × lot {d.lot}). A positioning read, not a buy/sell signal.</p>
       </div>
     </div>}

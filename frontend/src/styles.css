@@ -1709,3 +1709,11 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
 .mcard .mv.mv-side { display: flex !important; flex-wrap: nowrap !important; align-items: center; justify-content: space-between; gap: 6px }
 .mcard .mside { display: flex; flex-direction: column; align-items: flex-end; font-size: 9.5px; font-weight: 600; line-height: 1.02; margin: -1px 0; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; min-width: 0 }
 .mcard .mside b { font-weight: 700; color: var(--ink-2, var(--ink)); margin-right: 2px }
+/* OI lean tag (Nifty OI Change): CE side / PE side / Wait */
+.oi-lean { display: inline-block; font-size: 9px; font-weight: 800; letter-spacing: .02em; padding: 0 5px; border-radius: 8px; vertical-align: 1px; text-transform: none; border: 1px solid var(--border); background: var(--panel-2); color: var(--muted); cursor: help; line-height: 1.2 }
+.oi-lean.ce { color: var(--up); background: var(--up-bg); border-color: #bfe3cd }
+.oi-lean.pe { color: var(--down); background: var(--down-bg, #fdecec); border-color: #f3c7c7 }
+.oi-lean.wait { color: var(--amber); background: var(--amber-bg); border-color: #f0dcb3 }
+.mcard .mk .oi-lean { margin-left: 4px }
+.oi-lean-row { font-size: 12.5px; margin: 6px 0 2px } .oi-lean-row .oi-lean { font-size: 11.5px; padding: 1px 8px }
+@media (max-width: 600px) { .mcard .mk-long { display: none } }
