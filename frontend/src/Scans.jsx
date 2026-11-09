@@ -176,7 +176,7 @@ const ALL_TABS = [['setup', 'Trade Setup'], ['iopt', 'Index Options'], ['fno', '
 const HIDDEN_TABS = ['iopt', 'btst', 'vol', 'ema', 'candle']
 const BASE_TABS = ALL_TABS.filter(([v]) => !HIDDEN_TABS.includes(v))
 // Basic mode: just these four scans
-const BASIC_TABS = [['bull', 'Bullish Intraday'], ['bear', 'Bearish Intraday'], ['t15', '15 Min Trend'], ['vol5', 'Volume > 5 Days']]
+const BASIC_TABS = [['bull', 'Bullish Intraday'], ['bear', 'Bearish Intraday'], ['vol5', 'Volume > 5 Days']]
 
 // Live Chart: NSE stock candles (Yahoo) on 1m ... 1M with the indicator table; the stock list
 // follows the sector filter.

@@ -105,7 +105,7 @@ function NavMenu({ pages, page, go }) {
 }
 
 // Basic site (header switch): only these pages, exactly as in Advanced.
-const BASIC_PAGES = ['overview', 'heatmap', 'scanner', 'trend']  // Intraday Scanner in Basic shows 4 scans only (Scans.jsx BASIC_TABS)
+const BASIC_PAGES = ['overview', 'heatmap', 'scanner', 'trend']  // Intraday Scanner in Basic shows 3 scans only (Scans.jsx BASIC_TABS)
 
 // One real URL per page, so each can be linked, indexed and shared. The server serves the same app for these paths.
 const PATHS = { overview: '/', heatmap: '/heatmap', scanner: '/orb-scanner', trend: '/intraday-scanner', crypto: '/crypto', ipo: '/ipo', learning: '/learning', journal: '/journal',
@@ -335,7 +335,7 @@ function App() {
         <span>NSE Sector Heatmap</span></button>
       <div className="seg mode-switch" role="group" aria-label="Site version">
         {[['basic', 'Basic'], ['advanced', 'Advanced']].map(([v, l]) => <button key={v} className={mode === v ? 'on' : ''} onClick={() => setMode(v)}
-          title={v === 'basic' ? 'Simple view: Market Overview, Sector Heatmap, ORB Scanner and 4 intraday scans' : 'Full view: every scanner, chart and tool'}>{l}</button>)}
+          title={v === 'basic' ? 'Simple view: Market Overview, Sector Heatmap, ORB Scanner and 3 intraday scans' : 'Full view: every scanner, chart and tool'}>{l}</button>)}
       </div>
       <button className={'full-toggle' + (fullData ? ' on' : '')} role="switch" aria-checked={fullData} onClick={() => setFullData(f => !f)}
         title="Phones and tablets: show the full data panels (as in the first version) instead of the small cards"><i />Full data</button>
