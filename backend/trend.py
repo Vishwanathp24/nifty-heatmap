@@ -232,6 +232,7 @@ def daily_metrics(d):
             "ema9": r(_ema(c, 9)), "ema21": r(_ema(c, 21)), "ema9_p": r(_ema(c[:-1], 9)), "ema21_p": r(_ema(c[:-1], 21)),
             "hi5": r(max(b["h"] for b in prev5)), "lo5": r(min(b["l"] for b in prev5)),
             "vol": d[-1]["v"], "vol_sma5": r(_sma([b["v"] for b in d], 5), 0),
+            "vol_prev5": [b["v"] for b in prev5],  # volumes of the 5 sessions before today (oldest first)
             "high250": r(max(b["h"] for b in d[-250:])), "days": len(d),
             **{k: r(v, 2) for k, v in _momentum(d).items()}}
 

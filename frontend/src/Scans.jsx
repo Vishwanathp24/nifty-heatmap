@@ -171,12 +171,12 @@ function VolumeSpike({ vol, stocks, list, setList, onPick, picked }) {
   </>
 }
 
-const ALL_TABS = [['setup', 'Trade Setup'], ['iopt', 'Index Options'], ['fno', 'F&O Stocks'], ['osell', 'Option Selling'], ['trend', 'Trending Stocks'], ['bull', 'Bullish Intraday'], ['bear', 'Bearish Intraday'], ['btst', 'BTST Stocks'], ['vol', 'Volume Spike'], ['ema', 'EMA 9/21 + RSI'], ['candle', 'Candlestick'], ['common', 'Common Stocks'], ['chart', 'Live Chart']]
+const ALL_TABS = [['setup', 'Trade Setup'], ['iopt', 'Index Options'], ['fno', 'F&O Stocks'], ['osell', 'Option Selling'], ['trend', 'Trending Stocks'], ['bull', 'Bullish Intraday'], ['bear', 'Bearish Intraday'], ['vol5', 'Volume > 5 Days'], ['btst', 'BTST Stocks'], ['vol', 'Volume Spike'], ['ema', 'EMA 9/21 + RSI'], ['candle', 'Candlestick'], ['common', 'Common Stocks'], ['chart', 'Live Chart']]
 // Extra scanners: hidden unless "More scanners" is switched on (remembered in this browser)
 const HIDDEN_TABS = ['iopt', 'btst', 'vol', 'ema', 'candle']
 const BASE_TABS = ALL_TABS.filter(([v]) => !HIDDEN_TABS.includes(v))
 // Basic mode: just these four scans
-const BASIC_TABS = [['bull', 'Bullish Intraday'], ['bear', 'Bearish Intraday'], ['t15', '15 Min Trend']]
+const BASIC_TABS = [['bull', 'Bullish Intraday'], ['bear', 'Bearish Intraday'], ['t15', '15 Min Trend'], ['vol5', 'Volume > 5 Days']]
 
 // Live Chart: NSE stock candles (Yahoo) on 1m ... 1M with the indicator table; the stock list
 // follows the sector filter.
@@ -334,6 +334,7 @@ export default function Scans({ basic = false, trend: trendRaw, live, selected, 
       : tab === 'fno' ? <FnoStocks key={'f' + resetKey} stocks={live?.stocks || []} selected={selected} bias={live?.bias} trendRows={data?.rows} />
       : tab === 't15' ? (!data ? <Empty>{trend.error || 'Loading scan data…'}</Empty> : <Trend15 key={'t15' + resetKey} data={data} live={live} {...pp} />)
       : tab === 'mom' ? (!data ? <Empty>{trend.error || 'Loading scan data…'}</Empty> : <HighMomentum key={'mo' + resetKey} data={data} live={live} {...pp} />)
+      : tab === 'vol5' ? (!data ? <Empty>{trend.error || 'Loading scan data…'}</Empty> : <VolumeUp5 key={'v5' + resetKey} data={data} live={live} {...pp} />)
       : tab === 'osell' ? (!data ? <Empty>{trend.error || 'Loading scan data…'}</Empty> : <OptionSelling key={'os' + resetKey} data={data} live={live} />)
       : tab === 'setup' ? (!data ? <Empty>{trend.error || 'Loading scan data…'}</Empty> : <TradeSetup key={'ts' + resetKey} data={data} live={live} {...pp} />)
       : tab === 'vol' ? <VolumeSpike key={'v' + resetKey} vol={vol} stocks={live?.stocks} list={volList} setList={setVolList} {...pp} />
@@ -987,6 +988,57 @@ function HighMomentum({ data, live, onPick, picked }) {
       {!shown.length && <Empty>No F&amp;O stock passes {push ? 'the momentum rules plus the 15-minute push' : 'the momentum rules'} right now.{push ? ' The 15-minute push (a red candle, then a green one up more than 1%) is rare, so an empty list is common: untick “15-minute conditions” to see the daily rules alone.' : ''}</Empty>}
     </div>
     <p className="muted small">Daily candles from Yahoo Finance with today’s NSE candle; 15-minute candles from Yahoo Finance (the latest one is still forming in market hours). MACD (12, 26, 9), CCI (20), MFI (14), RSI (14, Wilder). Chartink’s “dividend paid” rule is left out (no company fundamentals here). With “+ 15-min push”, “latest close below its open” from your version is left out because it contradicts “close at or above open”. Momentum screen, not a buy / sell signal.</p>
+  </>
+}
+
+// Volume > 5 Days (Chartink): F&O stocks whose daily volume today is higher than each of the 5 sessions before.
+// Today's volume is the NSE running total, so during market hours it is still growing.
+function VolumeUp5({ data, live, onPick, picked }) {
+  const [dir, setDir] = useSessionState('vol5.dir', 'all')
+  const [sort, setSort] = useState({ key: 'x', dir: 'desc' })
+  const topPass = useTopPass()
+  const rows = useMemo(() => withLive(data.rows, live).filter(r => r.fo && r.daily?.vol_prev5?.length === 5).map(r => {
+    const p5 = r.daily.vol_prev5, mx = Math.max(...p5), v = r.daily.vol
+    return { ...r, vol: v, max5: mx, avg5: p5.reduce((a, b) => a + b, 0) / 5, x: mx ? v / mx : null, p5, hit: isNum(v) && p5.every(p => v > p) }
+  }), [data, live])
+  const side = r => dir === 'all' || (dir === 'up' ? r.pct_prev > 0 : r.pct_prev < 0)
+  const hits = rows.filter(r => r.hit)
+  const n = k => topPass(hits.filter(r => k === 'all' || (k === 'up' ? r.pct_prev > 0 : r.pct_prev < 0))).length
+  const shown = topPass(sortRows(hits.filter(side), sort.key, sort.dir))
+  const sp = { sort, setSort }
+  return <>
+    <div className="toolbar">
+      <Seg value={dir} onChange={setDir} options={[{ value: 'all', label: <>All <span className="count">{n('all')}</span></> },
+        { value: 'up', label: <>Price up <span className="count">{n('up')}</span></>, tone: 'up' }, { value: 'down', label: <>Price down <span className="count">{n('down')}</span></>, tone: 'down' }]} />
+      <TopFilter />
+    </div>
+    <p className="muted small qualify-line"><b className="up">{shown.length}</b> F&amp;O stocks with <b>today’s volume higher than each of the last 5 days</b> (Daily Volume &gt; 1, 2, 3, 4 and 5 days ago). During market hours today’s volume is still growing, so more stocks join as the day goes on. Price up / down = change vs yesterday’s close.</p>
+    <div className="tbl-wrap panel trend-wrap">
+      <table className="tbl trend-tbl pickable setup-tbl">
+        <thead><tr>
+          <SortTh label="Symbol" k="symbol" {...sp} defaultDir="asc" />
+          <SortTh label="Sector" k="sector" {...sp} defaultDir="asc" />
+          <SortTh label="LTP" k="ltp" {...sp} num />
+          <SortTh label="Chg %" k="pct_prev" {...sp} num />
+          <SortTh label="Today’s volume" k="vol" {...sp} num />
+          <SortTh label="Highest of last 5" k="max5" {...sp} num title="The biggest daily volume of the 5 sessions before today" />
+          <SortTh label="× that" k="x" {...sp} num title="Today’s volume ÷ the highest of the last 5 days" />
+          <th className="num" title="Volumes of the 5 sessions before today, oldest first">Last 5 days</th>
+        </tr></thead>
+        <tbody>{shown.map(r => <tr key={r.symbol} onClick={() => onPick(r)} className={picked === r.symbol ? 'active' : undefined}>
+          <td><StockLink symbol={r.symbol} company={r.company} className="strong" /><TopTag symbol={r.symbol} /></td>
+          <td className="muted">{r.sector}</td>
+          <td className="num">{fmtNum(r.ltp)}</td>
+          <td className={'num ' + (r.pct_prev > 0 ? 'up' : r.pct_prev < 0 ? 'down' : '')}>{isNum(r.pct_prev) ? (r.pct_prev > 0 ? '+' : '') + r.pct_prev.toFixed(2) + '%' : '—'}</td>
+          <td className="num strong">{fmtVol(r.vol)}</td>
+          <td className="num muted">{fmtVol(r.max5)}</td>
+          <td className="num strong up">{isNum(r.x) ? r.x.toFixed(2) + '×' : '—'}</td>
+          <td className="num muted small">{r.p5.map(v => fmtVol(v)).join(' · ')}</td>
+        </tr>)}</tbody>
+      </table>
+      {!shown.length && <Empty>No F&amp;O stock has more volume today than on each of the last 5 days{dir !== 'all' ? (dir === 'up' ? ' with price up' : ' with price down') : ''} right now.</Empty>}
+    </div>
+    <p className="muted small">Daily volumes: Yahoo Finance history with today’s NSE volume. Rising volume shows big players are active; price up or down tells which way. Condition screen, not a buy / sell signal.</p>
   </>
 }
 
