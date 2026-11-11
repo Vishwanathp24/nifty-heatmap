@@ -72,6 +72,7 @@ function Privacy() {
       <li><b>Notifications (optional).</b> If you turn on alerts, your browser gives us a push subscription address so we can send them. It does not
         identify you by name.</li>
       <li><b>Analytics.</b> We use Google Analytics (through Google Tag Manager) to see how the site is used: pages visited, device and browser type, approximate location and time spent. Google sets cookies for this; it does not tell us who you are. You can block it with the <a href="https://tools.google.com/dlpage/gaoptout" target="_blank" rel="noopener noreferrer">Google Analytics opt-out add-on</a> or your browser's cookie settings.</li>
+      <li><b>Microsoft Clarity.</b> We use Microsoft Clarity to understand how people use the site, through heatmaps and session replays (clicks, scrolls and mouse movement). Clarity hides text you type and other sensitive content by default, and sets its own cookies. See the <a href="https://privacy.microsoft.com/privacystatement" target="_blank" rel="noopener noreferrer">Microsoft Privacy Statement</a>.</li>
       <li><b>Visitor count.</b> The site keeps a random id in your browser to count how many people used it in the last 24 hours. The id is not linked to you.</li>
       <li><b>Settings in your browser.</b> Your choices (for example Basic / Advanced, Full data, filters) are kept in your own browser’s storage, not on our server.</li>
       <li><b>Server logs.</b> Like most websites, our server records technical details of requests (IP address, browser type, page and time) to keep the site
@@ -98,7 +99,7 @@ function Privacy() {
     <p>We do <b>not</b> sell your personal information.</p>
 
     <h2>4. Third-party services</h2>
-    <p>The site uses Google Sign-In (Journal), Google Analytics and Google Tag Manager (usage statistics), Google AdSense (advertising) and links to TradingView charts and other websites. These services have their own
+    <p>The site uses Google Sign-In (Journal), Google Analytics, Google Tag Manager and Microsoft Clarity (usage statistics), Google AdSense (advertising) and links to TradingView charts and other websites. These services have their own
       privacy policies, and we are not responsible for how they handle your data.</p>
 
     <h2>5. Keeping and deleting data</h2>
