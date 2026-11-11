@@ -90,20 +90,22 @@ const CATEGORIES = [
 
 export default function Learning() {
   // Course list; clicking a course opens its player (one at a time).
-  const [open, setOpen] = useState(() => store.get('open', COURSES[0].id))
+  const [open, setOpen] = useState(() => store.get('open', COURSES[0]?.id ?? null))
   const [, bump] = useState(0)  // re-render list progress after a lesson is marked complete
-  const [cat, setCat] = useState(() => store.get('cat', 'buying'))
+  // open on the saved category, or the first one that has courses
+  const [cat, setCat] = useState(() => { const c = store.get('cat', 'buying'); return COURSES.some(x => x.category === c) ? c : (COURSES[0]?.category ?? 'buying') })
   const pick = c => { setCat(c); store.set('cat', c) }
   const shown = COURSES.filter(c => c.category === cat)
   const toggle = id => { const next = open === id ? null : id; setOpen(next); store.set('open', next) }
   return <div className="learning-page">
     <div className="page-title"><h1>Learning</h1>
       <span className="muted small">Free stock market, F&O and options courses from YouTube · {COURSES.length} courses · third-party educational content, not advice</span></div>
-    <div className="orb-switch learn-cats" role="tablist" aria-label="Course category">
+    {COURSES.length > 0 && <div className="orb-switch learn-cats" role="tablist" aria-label="Course category">
       {CATEGORIES.map(([v, label, sub]) =>
         <button key={v} role="tab" aria-selected={cat === v} className={cat === v ? 'on' : ''} onClick={() => pick(v)}>
           {label}{sub && <small>{sub}</small>}<span className="count">{COURSES.filter(c => c.category === v).length}</span></button>)}
-    </div>
+    </div>}
+    {!COURSES.length && <div className="empty">New courses are being added. Check back soon.</div>}
     <div className="learn-grid">
       {shown.map(c => {
         const doneN = store.get('done:' + c.id, []).length

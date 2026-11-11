@@ -27,7 +27,7 @@ function About() {
       <li><b>Sector Heatmap</b>: which NSE sectors and F&O stocks are up or down today.</li>
       <li><b>ORB Scanner</b> and <b>Intraday Scanner</b>: stocks that meet opening range breakout and indicator conditions (VWAP, EMA, Supertrend, RSI, ADX, volume).</li>
       <li><b>IPO</b>: open and upcoming IPOs with price band, lot size, subscription and grey market premium.</li>
-      <li><b>Crypto</b>, a <b>Learning</b> section and a personal <b>Journal</b>.</li>
+      <li><b>Crypto</b> and a <b>Learning</b> section.</li>
     </ul>
     <h2>Our approach</h2>
     <p>The dashboard is a decision-support and learning tool. It shows data and conditions; it never tells you to buy or sell, and it does not

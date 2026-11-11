@@ -760,7 +760,7 @@ function TradeSetup({ data, live, onPick, picked }) {
       <li><b>Only take trades where T2 makes sense:</b> if a resistance (or support) sits before T2, the trade has little room.</li>
       <li><b>Don’t chase:</b> when the entry says “already above”, waiting for a pull-back often gives a smaller stop.</li>
       <li><b>Avoid the first 15 minutes</b> and news hours (results, RBI policy): spreads and swings are widest then.</li>
-      <li><b>Keep a journal</b> (Learn &amp; Track → Journal): write the reason, entry, stop and result of every trade. Your own numbers show what works for you.</li>
+      <li><b>Keep a trading journal</b> (a notebook or a spreadsheet): write the reason, entry, stop and result of every trade. Your own numbers show what works for you.</li>
       <li><b>Win rate is not everything:</b> with 2R targets, being right 40% of the time is already profitable before costs; cutting losses at the stop is what makes that true.</li>
     </ul></details>
     <p className="muted small">Indicators on Yahoo Finance 15-minute candles (the latest one is still forming); prices and volume from NSE. Levels are rule-based calculations to help you plan, not a recommendation to buy or sell. Trading involves risk of loss.</p>

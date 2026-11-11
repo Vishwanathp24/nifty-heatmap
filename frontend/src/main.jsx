@@ -40,7 +40,6 @@ const PAGES = [
   { id: 'crypto', label: 'Crypto', key: '6' },
   { id: 'ipo', label: 'IPO', key: '7' },
   { id: 'learning', label: 'Learning', key: '8' },
-  { id: 'journal', label: 'Journal', key: '9' },
 ].filter(p => !import.meta.env.VITE_PAGES || import.meta.env.VITE_PAGES.split(',').includes(p.id))  // VITE_PAGES: build with only these pages (Netlify copy)
 
 // Phones: app layout with a bottom tab bar (more than 5 pages, as in Advanced: the rest go under "More").
@@ -83,8 +82,9 @@ function TabBar({ pages, page, setPage, badges }) {
   </>
 }
 
-// Advanced top menu: these pages sit under one "Learn & Track" dropdown instead of their own links.
-const MENU_IDS = ['learning', 'journal']
+// Advanced top menu: pages listed here would sit under one dropdown instead of their own links (none now:
+// Journal was removed and Learning is a normal menu item).
+const MENU_IDS = []
 function NavMenu({ pages, page, go }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
@@ -108,7 +108,7 @@ function NavMenu({ pages, page, go }) {
 const BASIC_PAGES = ['overview', 'heatmap', 'scanner', 'trend']  // Intraday Scanner in Basic shows 3 scans only (Scans.jsx BASIC_TABS)
 
 // One real URL per page, so each can be linked, indexed and shared. The server serves the same app for these paths.
-const PATHS = { overview: '/', heatmap: '/heatmap', scanner: '/orb-scanner', trend: '/intraday-scanner', crypto: '/crypto', ipo: '/ipo', learning: '/learning', journal: '/journal',
+const PATHS = { overview: '/', heatmap: '/heatmap', scanner: '/orb-scanner', trend: '/intraday-scanner', crypto: '/crypto', ipo: '/ipo', learning: '/learning',  // /journal (removed) opens Market Overview
   ...Object.fromEntries(INFO_PAGES.map(p => [p.id, p.path])) }  // + About, Contact, Privacy Policy, Terms of Use, Disclaimer (footer links)
 const INFO_IDS = INFO_PAGES.map(p => p.id)
 const pageFromPath = path => Object.keys(PATHS).find(id => PATHS[id] === path.replace(/(.)\/$/, '$1')) || 'overview'
