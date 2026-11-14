@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react'
 import { AdChips, AdText, BreadthBar, Empty, IndexLink, Pct, Section, StockLink } from './components.jsx'
 import { OiChange, PcrInBias, useOiChange } from './Pcr.jsx'
 import { PageGuide } from './guides.jsx'
+import { StockDrawer } from './Scanner.jsx'
 import MarketOutlook, { OptionOutlook } from './Outlook.jsx'
 import { api, fmtCr, fmtNum, fmtPct, fmtRatio, fmtSigned, fmtVol, istDate, istTime, isNum, nseTs, tone, tvStock, tvSymbol, useClock, usePoll } from './lib.js'
 
@@ -108,12 +109,12 @@ export function BreadthPanel({ title, subtitle, b, alt, rows, showTotal, noStock
   </>)
 }
 
-function MoversTable({ title, rows, note }) {
+function MoversTable({ title, rows, note, onOpen, openSym }) {
   return <div className="panel">
     <div className="panel-head"><h3>{title}</h3>{note && <span className="muted small">{note}</span>}</div>
     <div className="tbl-wrap"><table className="tbl compact">
       <thead><tr><th>Symbol</th><th>Sector</th><th className="num">LTP</th><th className="num" title="vs previous close">Chg %</th><th className="num hide-m">Volume</th><th className="num hide-m" title="Volume vs 5-day average: time-adjusted vs recorded sessions during market hours; full day vs NSE bhavcopy 5-day average after the close">Vol vs 5D</th></tr></thead>
-      <tbody>{rows.length ? rows.map(s => <tr key={s.symbol}>
+      <tbody>{rows.length ? rows.map(s => <tr key={s.symbol} className={'clickable' + (openSym === s.symbol ? ' active' : '')} onClick={() => onOpen(s.symbol)} title="Click for chart and details">
         <td><StockLink symbol={s.symbol} company={s.company} className="strong" /></td>
         <td className="muted">{s.sector}</td>
         <td className="num">{fmtNum(s.ltp)}</td>
@@ -130,11 +131,14 @@ function TopMovers({ stocks, baseline }) {
   const byChg = [...fo].sort((a, b) => b.pct_prev - a.pct_prev)
   const haveRatio = fo.some(s => isNum(s.vol_ratio))
   const byVol = [...fo].sort((a, b) => haveRatio ? (b.vol_ratio ?? -1) - (a.vol_ratio ?? -1) : (b.volume ?? 0) - (a.volume ?? 0))
-  return <Section title="Top Movers" subtitle="F&O universe · change vs previous close">
+  const [sym, setSym] = useState(null)
+  const op = { onOpen: setSym, openSym: sym }
+  return <Section title="Top Movers" subtitle="F&O universe · change vs previous close · click a stock for its chart and details">
+    {sym && <StockDrawer stock={stocks.find(x => x.symbol === sym)} onClose={() => setSym(null)} />}
     <div className="movers">
-      <MoversTable title="Top 5 Gainers" rows={byChg.slice(0, 5)} />
-      <MoversTable title="Top 5 Losers" rows={byChg.slice(-5).reverse()} />
-      <MoversTable title="High Volume" rows={byVol.slice(0, 5)}
+      <MoversTable title="Top 5 Gainers" rows={byChg.slice(0, 5)} {...op} />
+      <MoversTable title="Top 5 Losers" rows={byChg.slice(-5).reverse()} {...op} />
+      <MoversTable title="High Volume" rows={byVol.slice(0, 5)} {...op}
         note={haveRatio ? 'ranked by ' + (fo.find(s => isNum(s.vol_ratio))?.vol_basis || 'volume ratio') : 'ranked by raw volume · no time-adjusted baseline recorded yet'} />
     </div>
   </Section>
@@ -186,7 +190,7 @@ const HOW_TO = [
   ['🔭', 'Market Outlook', 'The short box gives the plain answer: good, weak or mixed, and the one level to watch. Tap See details for everything behind it. On a phone it is a small card: the lean, the likely open and the one level to watch. After the close it reads the next session (during market hours, the rest of today) from the signals on this page: Market Bias, breadth, India VIX, FII buying or selling, GIFT Nifty, US markets and what option writers did. Each signal counts as positive, negative or neutral, and the box says which way most of them lean. The levels come from the option chain: resistance where the most calls are written, support where the most puts are written, max pain, and the usual one-day range. It is a weather report, not a prediction, and never a buy or sell signal.'],
   ['⚖️', 'Nifty PCR (OI)', 'Shown inside the Market Bias panel. Compares two kinds of option bets on Nifty. Around 1 = balanced. Very high (above 1.5) = everyone is too sure the market will go up, so it may cool down. Very low (below 0.7) = everyone is too scared, so it may bounce back. It counts the 10 strikes on each side of the current Nifty level (the same strikes as the OI Change panel and most option-chain sites); the line under it also shows the figure for all strikes.'],
   ['🧱', 'Nifty OI Change', 'Where big option traders put new money today. More new puts = they are building a "floor" under Nifty (Bullish). More new calls = they are building a "ceiling" over Nifty (Bearish). OI lean tag: CE side ▲ = put writers lead the fresh OI (60%+) and Nifty is not falling since the open, so the OI favours the upside; PE side ▼ = call writers lead and Nifty is not rising; Wait = close to even, or price or Market Bias points the other way. It is a reading of option writers\' positions, not a buy or sell call: confirm with the price chart.'],
-  ['🚀', 'Top Movers', 'The stocks that went up the most, went down the most, and were traded the most today.'],
+  ['🚀', 'Top Movers', 'The stocks that went up the most, went down the most, and were traded the most today. Click a stock for its chart, 1-day / 1-week / 1-month change and last 30 days.'],
 ]
 
 // Live check for the 3 steps: Market Bias, Nifty OI Change and F&O breadth (most stocks) each read

@@ -214,9 +214,9 @@ th .arrow { font-size: 9px; margin-left: 4px; opacity: .6 }
 .fo-movers { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 4px 0 12px }
 .fo-movers h3.up { color: var(--up) } .fo-movers h3.down { color: var(--down) }
 
-.fo-movers tbody tr.clickable { cursor: pointer }
-.fo-movers tbody tr.clickable:hover { background: #F7F9FC }
-.fo-movers tbody tr.active { background: var(--accent-bg) }
+.fo-movers tbody tr.clickable, .movers tbody tr.clickable, tr.clickable { cursor: pointer }
+.fo-movers tbody tr.clickable:hover, .movers tbody tr.clickable:hover { background: #F7F9FC }
+.fo-movers tbody tr.active, .movers tbody tr.active { background: var(--accent-bg) }
 
 .ipo-status { font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 3px }
 .ipo-status.open { color: var(--up); background: var(--up-bg) } .ipo-status.soon { color: var(--accent); background: var(--accent-bg) } .ipo-status.closed { color: var(--ink-2); background: var(--panel-2) }

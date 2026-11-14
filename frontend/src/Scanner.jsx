@@ -390,7 +390,7 @@ function EngineStatus({ data, eng, error }) {
 
 // Details for any stock (used by the Top 20 Gainers / Losers): live quote,
 // intraday chart, and the stock's 1-hour ORB signal if it has one.
-// Stock pop-up: 1D / 1W / 1M % and the daily % change of the last 30 sessions (oldest → today),
+// Stock pop-up: 1D / 1W / 1M % and the daily % change of the last 30 sessions (today first),
 // from the stock's recent daily closes (Yahoo, cached on the server) and today's live price.
 const isoShift = (iso, days) => { const t = new Date(iso + 'T00:00:00Z'); t.setUTCDate(t.getUTCDate() - days); return t.toISOString().slice(0, 10) }
 const pctCh = (a, b) => a && b ? +((a - b) / b * 100).toFixed(2) : null
@@ -417,9 +417,9 @@ export function StockHistory({ symbol, ltp, pct }) {
   days.push([session, isNum(pct) ? pct : pctCh(ltp, hist[hist.length - 1][1])])
   const stats = [['1D %', days[days.length - 1][1]], ['1W %', pctCh(ltp, before(7))], ['1M %', pctCh(ltp, before(30))]]
   return <>
-    <h4 className="sh-title">Last 30 sessions <span className="muted small">daily % change, oldest → today · green = up, red = down</span></h4>
+    <h4 className="sh-title">Last 30 sessions <span className="muted small">daily % change, today first → older · green = up, red = down</span></h4>
     <div className="sh-stats">{stats.map(([k, v]) => <div key={k}><div className="k">{k}</div><div className="v">{isNum(v) ? <Pct v={v} /> : '—'}</div></div>)}</div>
-    <div className="sh-strip">{days.map(([d, v]) => <div key={d} className={'sh-cell ' + (isNum(v) ? heatClass(v) : '')} title={`${dayLbl(d)}: ${isNum(v) ? fmtPct(v) : 'N/A'}`}>
+    <div className="sh-strip">{[...days].reverse().map(([d, v]) => <div key={d} className={'sh-cell ' + (isNum(v) ? heatClass(v) : '')} title={`${dayLbl(d)}: ${isNum(v) ? fmtPct(v) : 'N/A'}`}>
       <small>{dayLbl(d)}</small>{isNum(v) ? (v > 0 ? '+' : '') + v.toFixed(1) : '—'}</div>)}</div>
   </>
 }
