@@ -8,7 +8,21 @@ export class ApiError extends Error {
   constructor(message, status) { super(message); this.status = status }
 }
 
-export async function api(path, options) {
+// Several panels poll the same endpoint (e.g. the Nifty option chain): identical GETs made at the
+// same moment share one request, and a result is reused for 2 s instead of being fetched again.
+const _inflight = new Map()
+export function api(path, options) {
+  if (options) return _api(path, options)
+  const hit = _inflight.get(path)
+  if (hit && (hit.pending || Date.now() - hit.at < 2000)) return hit.p
+  const entry = { pending: true, at: 0 }
+  entry.p = _api(path).then(d => { entry.pending = false; entry.at = Date.now(); return d },
+    e => { _inflight.delete(path); throw e })
+  _inflight.set(path, entry)
+  return entry.p
+}
+
+async function _api(path, options) {
   let response
   try {
     response = await fetch(API_BASE + path, {

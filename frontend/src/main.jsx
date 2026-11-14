@@ -7,7 +7,7 @@ import { StockChartCtx, TopMoversCtx } from './components.jsx'
 import Overview from './Overview.jsx'
 import Heatmap from './Heatmap.jsx'
 import Scanner, { DEFAULT_FILTERS, filterRows } from './Scanner.jsx'
-import { MiniCards, PcrMeter } from './Pcr.jsx'
+import { MiniCards } from './Pcr.jsx'
 import { PageHowTo } from './guides.jsx'
 import InfoPage, { INFO_PAGES, InfoLinks } from './Legal.jsx'
 import InstallPrompt, { openInstall, useCanInstall } from './InstallPrompt.jsx'
@@ -299,9 +299,11 @@ function App() {
   const orb5 = usePoll(() => api(`/api/orb?tf=${tf5}&confirm=${Number(confirm5)}&orm=5`), orbMs, [orbMs, tf5, confirm5])
   const orb30 = usePoll(() => api(`/api/orb?tf=${tf30}&confirm=${Number(confirm30)}&orm=30`), orbMs, [orbMs, tf30, confirm30])
   const ctx = usePoll(() => api('/api/context'), 60000, [])
-  const trend = usePoll(() => api('/api/trend'), page === 'trend' ? 30000 : 3.6e6, [page === 'trend'])
-  const crypto = usePoll(() => api('/api/crypto'), page === 'crypto' ? 10000 : 3.6e6, [page === 'crypto'])
-  const ipo = usePoll(() => api('/api/ipo'), page === 'ipo' ? 30000 : 300000, [page === 'ipo'])
+  // Data for other pages is prefetched a few seconds after load, so it doesn't slow the page being opened.
+  const later = (on, path) => on ? api(path) : new Promise(r => setTimeout(r, 8000)).then(() => api(path))
+  const trend = usePoll(() => later(page === 'trend', '/api/trend'), page === 'trend' ? 30000 : 3.6e6, [page === 'trend'])
+  const crypto = usePoll(() => later(page === 'crypto', '/api/crypto'), page === 'crypto' ? 10000 : 3.6e6, [page === 'crypto'])
+  const ipo = usePoll(() => later(page === 'ipo', '/api/ipo'), page === 'ipo' ? 30000 : 300000, [page === 'ipo'])
 
   // Today's Top 20 F&O gainers / losers (same ranking as the Sector Heatmap list), tagged in every scanner.
   // Scanners (Basic and Advanced): one on/off button for Top 20 gainers + losers, on by default; tap off to see all stocks
@@ -355,7 +357,6 @@ function App() {
           on Overview / Heatmap only in the phone / tablet views (desktop has the full panels) */}
       {page !== 'crypto' && !INFO_IDS.includes(page) && <MiniCards always={page !== 'heatmap' ? true : fullData && 'full'} bias={live.data?.bias} breadth={live.data?.breadth} fiiDii={ctx.data?.fii_dii?.data} nifty={live.data?.indices?.nifty50} />}
       {page === 'journal' && <div className="mini-strip"><div id="journal-account-slot" className="mini-slot" /></div>}  {/* Journal puts its sign-in / saved status here */}
-      {page === 'overview' && <div className="c-hide"><PcrMeter noPcr /></div>}  {/* full PCR + Expected Move cards on Market Overview (compact view uses the small cards) */}
       {page === 'overview' && <Overview live={live.data} ctx={ctx.data} openOptionSelling={() => { setSessionValue('scans.tab', 'osell'); setMode('advanced'); setPage('trend'); window.scrollTo({ top: 0 }) }} />}
       {page === 'heatmap' && <Heatmap live={live.data} selected={selected} setSelected={setSelected} toggle={toggleSector} goto={setPage} />}
       <PageBoundary page={page}><Suspense fallback={<div className="empty">Loading… (updating to the latest version if the site was just updated)</div>}>
