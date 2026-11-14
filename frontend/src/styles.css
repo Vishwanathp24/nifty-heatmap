@@ -181,7 +181,7 @@ th .arrow { font-size: 9px; margin-left: 4px; opacity: .6 }
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px }
 .sel-bar { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 6px 10px }
 .heatmap { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(178px, 100%), 1fr)); gap: 6px }
-.tile { position: relative; border-radius: var(--radius); padding: 8px 10px; cursor: pointer; border: 2px solid transparent; min-height: 86px; user-select: none; display: flex; flex-direction: column }
+.tile { position: relative; border-radius: var(--radius); padding: 8px 10px; cursor: pointer; border: 2px solid transparent; min-height: 70px; user-select: none; display: flex; flex-direction: column }
 .tile:hover { filter: brightness(.97) }
 .tile.selected { border-color: var(--ink); box-shadow: inset 0 0 0 1px #fff }
 .tile.selected::after { content: ''; position: absolute; inset: 0; background: rgba(255,255,255,.12); border-radius: 4px; pointer-events: none }
@@ -1730,3 +1730,39 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
 /* Nifty PCR inside the Market Bias panel; Expected Move alone in the top row on Market Overview */
 .pcr-in-bias { margin-top: 12px; display: grid; gap: 6px }
 .pcr-two.em-only { grid-template-columns: 1fr !important }
+/* Sector Heatmap -> Sector Rotation */
+.panel.rotation { margin-top: 12px }
+.rot-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(185px, 1fr)); gap: 10px; padding: 12px }
+.rot-card { border-radius: 8px; padding: 8px 10px; min-width: 0; cursor: pointer; outline: 2px solid transparent; transition: outline-color .15s }
+.rot-card:hover, .rot-card.viewing { outline-color: var(--accent, #6366f1) }
+.rot-head { display: flex; align-items: center; gap: 6px }
+.rot-rank { font-weight: 700; font-size: 12px; opacity: .85 }
+.rot-name { font-weight: 600; font-size: 12px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.rot-badge { font-size: 10.5px; font-weight: 700; padding: 1px 6px; border-radius: 10px; white-space: nowrap; background: var(--panel); border: 1px solid var(--border) }
+.rot-badge.up { color: var(--up, #16a34a) } .rot-badge.down { color: var(--down, #dc2626) } .rot-badge.same { opacity: .7 }
+.rot-now { font-size: 15px; font-weight: 700; margin-top: 3px }
+.rot-now small { font-weight: 400; font-size: 10px; opacity: .8 }
+.rot-foot { display: flex; justify-content: space-between; align-items: center; font-size: 11px; opacity: .9; margin-top: 2px; gap: 6px; white-space: nowrap }
+@media (max-width: 600px) { .rot-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 8px } }
+.sp-table td.col-30d { background: color-mix(in srgb, var(--accent, #6366f1) 8%, transparent); font-weight: 600 }
+.d30-wrap { max-height: 420px; overflow: auto; margin: 6px 0 16px }
+.d30 th, .d30 td { white-space: nowrap; padding: 5px 8px; font-size: 11.5px }
+.d30 thead th { position: sticky; top: 0; z-index: 2; background: var(--panel) }
+.d30 td:first-child, .d30 th:first-child { position: sticky; left: 0; z-index: 1; background: var(--panel) }
+.d30 thead th:first-child { z-index: 3 }
+/* Stock pop-up: 1D / 1W / 1M and the last 30 sessions */
+.sh-stats { display: flex; gap: 24px; margin: 6px 0 10px }
+.sh-stats .k { font-size: 11px; color: var(--muted) }
+.sh-stats .v { font-weight: 700; font-size: 15px }
+.sh-strip { display: grid; grid-template-columns: repeat(15, minmax(0, 1fr)); gap: 2px; margin-bottom: 16px }
+.sh-title { margin-top: 18px }
+.sh-cell { text-align: center; padding: 4px 0 6px; font-size: 12px; font-weight: 600; border-radius: 3px }
+.sh-cell small { display: block; font-size: 9.5px; font-weight: 400; opacity: .8 }
+@media (max-width: 600px) { .sh-strip { grid-template-columns: repeat(10, minmax(0, 1fr)) } }
+/* Sector tiles: price and % change on one line */
+.tile-mid { display: flex; align-items: baseline; justify-content: space-between; gap: 2px 6px; flex-wrap: wrap; margin: 4px 0 6px }
+.tile-mid .tile-val { margin-top: 0; font-size: 14px }
+.tile-mid .tile-pct { font-size: 16px; white-space: nowrap }
+.tile-mid .tile-pct small { font-size: 9.5px }
+@media (min-width: 1100px) { .heatmap { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)) } }
+@media (max-width: 600px), (pointer: coarse) and (max-width: 1366px) { .app:not(.full-data) .heatmap .tile-mid { display: contents } }

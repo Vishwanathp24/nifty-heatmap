@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Drawer, Empty, Pct, Seg, SortTh, StockLink, TopFilter, TopTag, useTopPass } from './components.jsx'
 import { PageNote } from './guides.jsx'
-import { api, fmtNum, fmtPct, fmtPrice, fmtRatio, fmtVol, hhmmTo12, isNum, sessionLabel, sortRows, tone, tvStock, useSessionState } from './lib.js'
+import { api, fmtNum, fmtPct, fmtPrice, fmtRatio, fmtVol, heatClass, hhmmTo12, isNum, sessionLabel, sortRows, tone, tvStock, useSessionState } from './lib.js'
 
 // Defaults = the qualification rule: volume-confirmed (> 1.0x) and still
 // beyond the range. Relax either filter to see every stock that broke today.
@@ -390,6 +390,40 @@ function EngineStatus({ data, eng, error }) {
 
 // Details for any stock (used by the Top 20 Gainers / Losers): live quote,
 // intraday chart, and the stock's 1-hour ORB signal if it has one.
+// Stock pop-up: 1D / 1W / 1M % and the daily % change of the last 30 sessions (oldest → today),
+// from the stock's recent daily closes (Yahoo, cached on the server) and today's live price.
+const isoShift = (iso, days) => { const t = new Date(iso + 'T00:00:00Z'); t.setUTCDate(t.getUTCDate() - days); return t.toISOString().slice(0, 10) }
+const pctCh = (a, b) => a && b ? +((a - b) / b * 100).toFixed(2) : null
+const dayLbl = d => { const t = new Date(d + 'T00:00:00'); return isNaN(t) ? d : t.getDate() + ' ' + t.toLocaleString('en-IN', { month: 'short' }) }
+export function StockHistory({ symbol, ltp, pct }) {
+  const [res, setRes] = useState(null)
+  useEffect(() => {
+    let alive = true, t
+    const load = () => api('/api/stock-history?symbols=' + encodeURIComponent(symbol)).then(d => {
+      if (!alive) return
+      setRes(d)
+      if (!(d.closes?.[symbol] || []).length) t = setTimeout(load, 5000)  // not cached yet: the server is fetching it
+    }).catch(() => {})
+    setRes(null); load()
+    return () => { alive = false; clearTimeout(t) }
+  }, [symbol])
+  const session = res?.session
+  const hist = (res?.closes?.[symbol] || []).filter(([d]) => !session || d < session)
+  if (!res) return <div className="muted small">Loading 30-day history…</div>
+  if (!hist.length || !session) return <div className="muted small">30-day history is loading…</div>
+  const before = days => { const cut = isoShift(session, days); const r = hist.filter(([d]) => d <= cut); return r.length ? r[r.length - 1][1] : null }
+  const days = []
+  for (let i = Math.max(hist.length - 29, 1); i < hist.length; i++) days.push([hist[i][0], pctCh(hist[i][1], hist[i - 1][1])])
+  days.push([session, isNum(pct) ? pct : pctCh(ltp, hist[hist.length - 1][1])])
+  const stats = [['1D %', days[days.length - 1][1]], ['1W %', pctCh(ltp, before(7))], ['1M %', pctCh(ltp, before(30))]]
+  return <>
+    <h4 className="sh-title">Last 30 sessions <span className="muted small">daily % change, oldest → today · green = up, red = down</span></h4>
+    <div className="sh-stats">{stats.map(([k, v]) => <div key={k}><div className="k">{k}</div><div className="v">{isNum(v) ? <Pct v={v} /> : '—'}</div></div>)}</div>
+    <div className="sh-strip">{days.map(([d, v]) => <div key={d} className={'sh-cell ' + (isNum(v) ? heatClass(v) : '')} title={`${dayLbl(d)}: ${isNum(v) ? fmtPct(v) : 'N/A'}`}>
+      <small>{dayLbl(d)}</small>{isNum(v) ? (v > 0 ? '+' : '') + v.toFixed(1) : '—'}</div>)}</div>
+  </>
+}
+
 export function StockDrawer({ stock, onClose }) {
   const [data, setData] = useState(null)
   const [sig15, setSig15] = useState(null)
@@ -423,5 +457,6 @@ export function StockDrawer({ stock, onClose }) {
     <h4>Intraday 5-minute chart <span className="muted small">shaded: light blue = 1-hour range (09:15–10:15), pink = 15-min range (09:15–09:30){sig ? ' · green/red dashed = 1-hour OR high / low' : ''}{sig15 ? ' · blue dotted = 15-min OR high / low' : ''} · marker = 1-hour ORB signal · <span className="ema9-t">orange = EMA 9</span>, <span className="ema21-t">purple = EMA 21</span> (▲▼ = crossover)</span></h4>
     {err ? <div className="alert">{err}</div> : data ? <IntradayChart data={data} extra={sig15 ? { or_high: sig15.or_high, or_low: sig15.or_low } : null} /> : <Empty>Loading candles…</Empty>}
     <a className="btn primary" href={tvStock(stock.symbol)} target="_blank" rel="noopener noreferrer">Open TradingView ↗</a>
+    <StockHistory symbol={stock.symbol} ltp={stock.ltp} pct={stock.pct_prev} />
   </Drawer>
 }

@@ -3,7 +3,7 @@ import { AdChips, BreadthBar, ChartIcon, Drawer, Empty, IndexLink, Pct, Seg, Sor
 import { StockDrawer } from './Scanner.jsx'
 import { OiCard, PcrCard } from './Pcr.jsx'
 import { BreadthPanel } from './Overview.jsx'
-import { api, fmtNum, fmtPct, fmtRatio, fmtSigned, fmtVol, heatClass, isNum, istTime, sortRows, tone, useSessionState } from './lib.js'
+import { api, fmtNum, fmtPct, fmtRatio, fmtSigned, fmtVol, heatClass, isNum, istTime, sortRows, tone, usePoll, useSessionState } from './lib.js'
 
 const PCT_KEY = { open: 'pct_open', prev: 'pct_prev', week: 'pct_week', month: 'pct_month' }
 const pctOf = (s, basis) => s.quote?.[PCT_KEY[basis]]
@@ -30,7 +30,25 @@ function useSectorStocks(symbol) {
   return state
 }
 
-function SectorPanel({ sector, basis, selected, toggle }) {
+// Sector Rotation drawer: each stock's daily % change for the last 30 sessions (today first).
+const dayHead = d => { const t = new Date(d + 'T00:00:00'); return isNaN(t) ? d : t.getDate() + ' ' + t.toLocaleString('en-IN', { month: 'short' }) }
+function DailyGrid({ rows, sp }) {
+  const dates = [...new Set(rows.flatMap(s => Object.keys(s.daily || {})))].sort().reverse().slice(0, 30)
+  if (!dates.length) return <div className="muted small">Loading 30-day history…</div>
+  return <>
+    <h4>Daily % change · last {dates.length} sessions <span className="muted small">newest first · scroll sideways for older days · each cell = that day's close vs the day before</span></h4>
+    <div className="tbl-wrap d30-wrap"><table className="tbl compact d30">
+      <thead><tr><SortTh label="Symbol" k="symbol" {...sp} defaultDir="asc" /><SortTh label="1D %" k="pct_prev" {...sp} num title="Today vs previous close" /><SortTh label="1W %" k="pct_1w" {...sp} num title="Price vs the close 1 week ago" /><SortTh label="1M %" k="pct_30d" {...sp} num title="Price vs the close 30 days ago" />{dates.map(d => <th key={d} className="num">{dayHead(d)}</th>)}</tr></thead>
+      <tbody>{rows.map(s => <tr key={s.symbol}>
+        <td><StockLink symbol={s.symbol} company={s.company} className="strong" /></td>
+        {[s.pct_prev, s.pct_1w, s.pct_30d].map((v, i) => <td key={i} className="num">{isNum(v) ? <Pct v={v} /> : '—'}</td>)}
+        {dates.map(d => { const v = s.daily?.[d]; return <td key={d} className={'num ' + (isNum(v) ? heatClass(v) : '')}>{isNum(v) ? (v > 0 ? '+' : '') + v.toFixed(1) : '—'}</td> })}
+      </tr>)}</tbody>
+    </table></div>
+  </>
+}
+
+function SectorPanel({ sector, basis, selected, toggle, from30 }) {
   const live = useSectorStocks(sector.symbol)
   const members = live.data?.stocks || []
   const key = basis === 'open' ? 'pct_open' : 'pct_prev'
@@ -42,6 +60,8 @@ function SectorPanel({ sector, basis, selected, toggle }) {
   const q = sector.quote
   const isSel = selected.includes(sector.symbol)
   const [sort, setSort] = useSessionState('hm.panelSort', { key: key, dir: 'desc' })
+  // Opened from Sector Rotation: sort by the 30-day move first
+  useEffect(() => { if (from30) setSort({ key: 'pct_30d', dir: 'desc' }) }, [from30, sector.symbol])
   const all = sortRows(members, sort.key, sort.dir)
   const sp = { sort, setSort }
   const list = (rows, title) => <div className="mini-list">
@@ -70,12 +90,16 @@ function SectorPanel({ sector, basis, selected, toggle }) {
     <p className="muted small">Constituent advance/decline vs today's open ({b.total} stocks with live quotes). A strong index move with weak breadth means a few heavyweights are carrying it.</p>
     {live.error && <div className="alert">{live.error}{live.data ? ' — showing last data' : ''}</div>}
     {!live.data && !live.error && <div className="muted small">Loading constituents from NSE…</div>}
+    {from30 && <DailyGrid rows={all} sp={sp} />}
+    {!from30 && <>
     <h4>All stocks in {sector.label} <span className="muted small">{members.length} · live from NSE{live.at ? ' · ' + istTime(live.at) : ''} · click a symbol to open TradingView</span></h4>
     <div className="tbl-wrap sp-table"><table className="tbl compact">
       <thead><tr>
         <SortTh label="Symbol" k="symbol" {...sp} defaultDir="asc" />
         <SortTh label="LTP" k="ltp" {...sp} num />
-        <SortTh label="Chg %" k="pct_prev" {...sp} num title="Change vs previous close" />
+        <SortTh label="1D %" k="pct_prev" {...sp} num title="Change vs previous close" />
+        <SortTh label="1W %" k="pct_1w" {...sp} num title="Price vs the close 1 week ago" />
+        <SortTh label="1M %" k="pct_30d" {...sp} num title="Price vs the close 30 days ago" />
         <SortTh label="Open" k="open" {...sp} num title="Today's open price" />
         <SortTh label="Volume" k="volume" {...sp} num />
         <SortTh label="1Y High" k="y_high" {...sp} num title="Highest price of the last 1 year (52 weeks, split / bonus adjusted, includes today)" />
@@ -86,12 +110,14 @@ function SectorPanel({ sector, basis, selected, toggle }) {
       <tbody>{all.map(s => <tr key={s.symbol}>
         <td><StockLink symbol={s.symbol} company={s.company} className="strong" /></td>
         <td className="num">{fmtNum(s.ltp)}</td><td className="num"><Pct v={s.pct_prev} /></td>
+        {[s.pct_1w, s.pct_30d].map((v, i) => <td key={i} className="num">{isNum(v) ? <Pct v={v} /> : <span className="muted">…</span>}</td>)}
         <td className="num">{fmtNum(s.open)}</td><td className="num">{fmtVol(s.volume)}</td>
         <td className="num">{isNum(s.y_high) ? fmtNum(s.y_high) : <span className="muted">…</span>}</td>
         <td className="num" title={isNum(s.y_high) ? '1-year high ' + fmtNum(s.y_high) : 'Loading history…'}>{isNum(s.pct_y_high) ? <PctFar v={s.pct_y_high} /> : <span className="muted">…</span>}</td>
         <td className="num">{isNum(s.y_low) ? fmtNum(s.y_low) : <span className="muted">…</span>}</td>
         <td className="num" title={isNum(s.y_low) ? '1-year low ' + fmtNum(s.y_low) : 'Loading history…'}>{isNum(s.pct_y_low) ? <PctFar v={s.pct_y_low} /> : <span className="muted">…</span>}</td></tr>)}</tbody>
     </table></div>
+    </>}
     <div className="sp-lists">
       {list(byChg.slice(0, 3), 'Top 3 Gainers')}
       {list(byChg.slice(-3).reverse(), 'Top 3 Losers')}
@@ -107,16 +133,30 @@ function SectorPanel({ sector, basis, selected, toggle }) {
 
 // Top 20 F&O gainers / losers by % change vs previous close (same basis as NSE's
 // "Top Gainers / Losers" page), from the F&O quotes polled every 10 s.
+// Top 20: 1W / 1M % from the stocks' recent daily closes (cached on the server) and today's price.
+const isoShift = (iso, days) => { const t = new Date(iso + 'T00:00:00Z'); t.setUTCDate(t.getUTCDate() - days); return t.toISOString().slice(0, 10) }
+const pctCh = (a, b) => a && b ? +((a - b) / b * 100).toFixed(2) : null
+function weekMonth(closes, ltp, session) {
+  const hist = (closes || []).filter(([d]) => !session || d < session)
+  if (!hist.length || !session) return {}
+  const before = days => { const cut = isoShift(session, days); const r = hist.filter(([d]) => d <= cut); return r.length ? r[r.length - 1][1] : null }
+  return { w: pctCh(ltp, before(7)), m: pctCh(ltp, before(30)) }
+}
+
 function FoMovers({ stocks, selected, labels, onOpen, openSym }) {
   // Follows the heatmap selection: with sectors ticked, only their F&O stocks are ranked.
   const fo = stocks.filter(s => s.fo && isNum(s.pct_prev) && (!selected.length || s.sectors.some(x => selected.includes(x))))
     .sort((a, b) => b.pct_prev - a.pct_prev)
   const n = Math.min(20, Math.floor(fo.length / 2) || fo.length)
   const scope = selected.length ? selected.map(x => labels[x] || x).join(', ') : 'All sectors'
+  const gain = fo.slice(0, n), lose = fo.slice(-n).reverse()
+  const syms = [...new Set([...gain, ...lose].map(s => s.symbol))].sort().join(',')
+  const hres = usePoll(() => syms ? api('/api/stock-history?symbols=' + encodeURIComponent(syms)) : Promise.resolve(null), 30000, [syms])
+  const wm = s => weekMonth(hres.data?.closes?.[s.symbol], s.ltp, hres.data?.session)
   const table = (title, rows, cls) => <div className="panel">
     <div className="panel-head"><h3 className={cls}>{title}</h3><span className="muted small">F&O · {scope} · vs prev close</span></div>
     <div className="tbl-wrap"><table className="tbl compact">
-      <thead><tr><th className="num">#</th><th>Symbol</th><th>Sector</th><th className="num">LTP</th><th className="num hide-m">Chg</th><th className="num">Chg %</th><th className="num hide-m">Volume</th></tr></thead>
+      <thead><tr><th className="num">#</th><th>Symbol</th><th>Sector</th><th className="num">LTP</th><th className="num hide-m">Chg</th><th className="num" title="Today vs previous close">1D %</th><th className="num" title="Price vs the close 1 week ago">1W %</th><th className="num" title="Price vs the close 30 days ago">1M %</th><th className="num hide-m">Volume</th></tr></thead>
       <tbody>{rows.map((s, i) => <tr key={s.symbol} className={'clickable' + (openSym === s.symbol ? ' active' : '')} onClick={() => onOpen(s.symbol)} title="Click for chart and details">
         <td className="num muted">{i + 1}</td>
         <td><StockLink symbol={s.symbol} company={s.company} className="strong" /></td>
@@ -124,6 +164,7 @@ function FoMovers({ stocks, selected, labels, onOpen, openSym }) {
         <td className="num">{fmtNum(s.ltp)}</td>
         <td className={'num hide-m ' + tone(s.change)}>{fmtSigned(s.change)}</td>
         <td className="num strong"><Pct v={s.pct_prev} /></td>
+        {(({ w, m }) => [w, m].map((v, k) => <td key={k} className="num">{isNum(v) ? <Pct v={v} /> : <span className="muted">…</span>}</td>))(wm(s))}
         <td className="num hide-m">{fmtVol(s.volume)}</td>
       </tr>)}</tbody>
     </table></div>
@@ -131,8 +172,8 @@ function FoMovers({ stocks, selected, labels, onOpen, openSym }) {
   </div>
   // With few stocks selected, split them so no stock appears in both lists.
   return <div className="fo-movers">
-    {table(`Top ${n} Gainers`, fo.slice(0, n), 'up')}
-    {table(`Top ${n} Losers`, fo.slice(-n).reverse(), 'down')}
+    {table(`Top ${n} Gainers`, gain, 'up')}
+    {table(`Top ${n} Losers`, lose, 'down')}
   </div>
 }
 
@@ -154,6 +195,59 @@ function TopCards({ live }) {
   </div>
 }
 
+// Sector Rotation: each sector's rank now (1 = strongest) against its rank one step back, for the
+// period picked on the heatmap. Daily: today vs yesterday. Weekly: this week vs the week before.
+// Monthly: this month vs the month before. Earlier ranks come from NSE's daily index closes.
+const ROT = {
+  day: { now: 'Today', prev: 'Yesterday', col: 'Chg 1D', n: 1 },
+  week: { now: 'This week', prev: 'Last week', col: 'Chg 1W', n: 5 },
+  month: { now: 'This month', prev: 'Last month', col: 'Chg 1M', n: 21 },
+}
+const isoOf = d => { const t = d && new Date(d.replace(/-/g, ' ')); return t && !isNaN(t) ? `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}` : null }
+const rankMap = rows => Object.fromEntries(rows.filter(r => isNum(r.v)).sort((a, b) => b.v - a.v).map((r, i) => [r.sym, i + 1]))
+
+function SectorRotation({ sectors, period, basis, session, onOpen, openSym }) {
+  const [mode, setMode] = useSessionState('hm.rotMode', 'median')  // 'median' = median stock, 'index' = sector index
+  const med = mode === 'median'
+  const res = usePoll(() => api(med ? '/api/sector-rotation-median' : '/api/sector-rotation'), med ? 15000 : 600000, [med])
+  const closes = res.data?.closes || {}
+  const ms = res.data?.sectors || {}
+  const cfg = ROT[period]
+  const rows = useMemo(() => sectors.map(s => {
+    if (med) { const m = ms[s.symbol]; return { sym: s.symbol, label: s.label, up: m?.adv, down: m?.dec, now: m?.[period]?.now, prev: m?.[period]?.prev } }
+    const hist = (closes[s.symbol] || []).filter(([d]) => !session || d < session)  // completed sessions before today
+    let ref = hist.length - cfg.n  // the close the current % is measured from
+    if (period !== 'day') {
+      const iso = isoOf(s.quote?.[period + '_date'])
+      if (iso) { const i = hist.findLastIndex(([d]) => d <= iso); if (i >= 0) ref = i }
+    }
+    if (period === 'day') ref = hist.length - 1
+    const a = hist[ref]?.[1], b = hist[ref - cfg.n]?.[1]
+    return { sym: s.symbol, label: s.label, up: s.nse_breadth?.up, down: s.nse_breadth?.down, now: pctOf(s, basis), prev: a && b ? (a - b) / b * 100 : null }
+  }), [sectors, closes, ms, med, period, basis, session])
+  const rNow = rankMap(rows.map(r => ({ sym: r.sym, v: r.now }))), rPrev = rankMap(rows.map(r => ({ sym: r.sym, v: r.prev })))
+  const list = rows.filter(r => rNow[r.sym]).sort((a, b) => rNow[a.sym] - rNow[b.sym])
+  const n = list.length
+  return <div className="panel rotation">
+    <div className="panel-head"><h3>Sector Rotation <span className="muted">{list.length}</span></h3>
+      <Seg value={mode} onChange={setMode} options={[{ value: 'median', label: 'Median stock', title: "Rank by the median % move of the sector's stocks: every stock counts equally, so it shows how broad the move is" }, { value: 'index', label: 'Sector index', title: 'Rank by the % move of the NSE sector index (weighted by company size)' }]} />
+      <span className="muted small">Rank vs {cfg.prev.toLowerCase()}: <span className="up">▲</span> climbed, <span className="down">▼</span> slipped{med && res.data?.pending ? ` · loading stock history (${res.data.pending} left)` : ''}</span></div>
+    {res.data?.loading || (!res.data && !res.error) ? <Empty>{med ? 'Loading sector stocks…' : 'Loading earlier sector closes…'}</Empty>
+      : res.error && !res.data ? <Empty>Earlier sector closes are unavailable right now.</Empty>
+      : <div className="rot-cards">{list.map(r => {
+        const a = rNow[r.sym], b = rPrev[r.sym], d = b ? b - a : null
+        return <div key={r.sym} role="button" tabIndex={0} className={'rot-card ' + heatClass(isNum(r.now) ? r.now / SCALE[basis] : r.now) + (openSym === r.sym ? ' viewing' : '')}
+          onClick={() => onOpen(r.sym)} onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onOpen(r.sym))}
+          title={`${r.sym} — click to see its stocks · ${cfg.prev}: rank ${b ?? '—'}${isNum(r.prev) ? ', ' + fmtPct(+r.prev.toFixed(2)) : ''}`}>
+          <div className="rot-head"><span className="rot-rank">#{a}</span><span className="rot-name">{r.sym}</span>
+            {d ? <span className={'rot-badge ' + (d > 0 ? 'up' : 'down')}>{d > 0 ? '▲ ' + d : '▼ ' + -d}</span> : <span className="rot-badge same">=</span>}</div>
+          <div className="rot-now">{fmtPct(r.now)} <small>{med ? 'med ' : ''}{cfg.col}</small></div>
+          <div className="rot-foot"><span>{cfg.prev} #{b ?? '—'}</span><span><AdChips up={r.up} down={r.down} /></span></div>
+        </div>
+      })}</div>}
+  </div>
+}
+
 export default function Heatmap({ live, selected, setSelected, toggle, goto }) {
   const [search, setSearch] = useState('')
   const [view, setView] = useSessionState('hm.view', 'all')
@@ -164,6 +258,7 @@ export default function Heatmap({ live, selected, setSelected, toggle, goto }) {
   const [period, setPeriod] = useSessionState('hm.period', 'day')
   const basis = period === 'day' ? dayBasis : period  // what colours / sorts the tiles
   const [detail, setDetail] = useState(null)
+  const [detailFrom, setDetailFrom] = useState(null)  // 'rotation' when opened from Sector Rotation
   const [stockSym, setStockSym] = useState(null)  // Top 20 row opened in the details drawer
 
   const sectors = live?.sectors || []
@@ -218,7 +313,7 @@ export default function Heatmap({ live, selected, setSelected, toggle, goto }) {
         const isSel = selected.includes(s.symbol)
         return <div key={s.symbol} role="button" tabIndex={0}
           className={'tile ' + heatClass(isNum(p) ? p / SCALE[basis] : p) + (isSel ? ' selected' : '') + (detail === s.symbol ? ' viewing' : '')}
-          onClick={() => setDetail(s.symbol)} onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), setDetail(s.symbol))}
+          onClick={() => { setDetailFrom(null); setDetail(s.symbol) }} onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), setDetailFrom(null), setDetail(s.symbol))}
           title={`${s.symbol} — click to see its stocks`}>
           <div className="tile-head">
             <button className={'sel-box' + (isSel ? ' on' : '')} aria-pressed={isSel}
@@ -228,9 +323,11 @@ export default function Heatmap({ live, selected, setSelected, toggle, goto }) {
             <span className="tile-name">{s.symbol}</span>
             <ChartIcon name={s.symbol} />
           </div>
-          <div className="tile-val"><span className="c-hide">{fmtNum(s.quote?.ltp)}</span>
-            <span className="c-only">{isNum(s.quote?.ltp) ? Math.round(s.quote.ltp).toLocaleString('en-IN') : '—'}</span></div>
-          <div className="tile-pct">{fmtPct(p)} <small>{BASIS_WORD[basis]}</small></div>
+          <div className="tile-mid">
+            <div className="tile-val"><span className="c-hide">{fmtNum(s.quote?.ltp)}</span>
+              <span className="c-only">{isNum(s.quote?.ltp) ? Math.round(s.quote.ltp).toLocaleString('en-IN') : '—'}</span></div>
+            <div className="tile-pct">{fmtPct(p)} <small>{BASIS_WORD[basis]}</small></div>
+          </div>
           <div className="tile-foot"><span>{basis === 'open' ? 'prev' : basis === 'prev' ? 'open' : 'today'} {fmtPct(other)}</span><span title="NSE advances / declines vs previous close (today)"><AdChips up={s.nse_breadth.up} down={s.nse_breadth.down} /></span></div>
         </div>
       })}
@@ -242,10 +339,11 @@ export default function Heatmap({ live, selected, setSelected, toggle, goto }) {
         return [['heat-dn-4', `≤ −${f(2)}%`], ['heat-dn-3', `−${f(1)} to −${f(2)}%`], ['heat-dn-2', `−${f(0.5)} to −${f(1)}%`], ['heat-dn-1', `−${f(0.1)} to −${f(0.5)}%`], ['heat-0', `±${f(0.1)}%`], ['heat-up-1', `+${f(0.1)} to +${f(0.5)}%`], ['heat-up-2', `+${f(0.5)} to +${f(1)}%`], ['heat-up-3', `+${f(1)} to +${f(2)}%`], ['heat-up-4', `≥ +${f(2)}%`]].map(([c, l]) =>
           <span key={c} className="legend-item"><i className={c} />{l}</span>) })()}
     </div>
+    <SectorRotation sectors={sectors} period={period} basis={period === 'day' ? 'prev' : period} session={live.session_date} onOpen={sym => { setDetailFrom('rotation'); setDetail(sym) }} openSym={detail} />
     <FoMovers stocks={live.stocks} selected={selected} labels={Object.fromEntries(sectors.map(x => [x.symbol, x.label]))} onOpen={setStockSym} openSym={stockSym} />
     {stockSym && <StockDrawer stock={live.stocks.find(x => x.symbol === stockSym)} onClose={() => setStockSym(null)} />}
     <Drawer open={!!detailSector} onClose={() => setDetail(null)} wide title={detailSector?.label ? `${detailSector.label} · ${detailSector.symbol}` : ''}>
-      {detailSector && <SectorPanel sector={detailSector} basis={dayBasis} selected={selected} toggle={toggle} />}
+      {detailSector && <SectorPanel sector={detailSector} basis={dayBasis} selected={selected} toggle={toggle} from30={detailFrom === 'rotation'} />}
     </Drawer>
   </>
 }

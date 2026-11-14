@@ -251,6 +251,8 @@ def sector(symbol: str):
     try:
         data = engine.sector_detail(symbol)
         yearhl.levels(data["stocks"])
+        import rotation
+        rotation.add_30d(data["stocks"], engine.session)
     except sources.SourceError as exc:
         if hit:
             return {**hit[1], "stale": True}
@@ -438,6 +440,31 @@ def index_regime_api():
     import index_regime
 
     return index_regime.regime()
+
+
+@app.get("/api/sector-rotation")
+def sector_rotation_api():
+    """Sector Heatmap -> Sector Rotation: ~3 months of daily closes per sector index."""
+    import rotation
+
+    return rotation.closes()
+
+
+@app.get("/api/sector-rotation-median")
+def sector_rotation_median_api():
+    """Sector Heatmap -> Sector Rotation (Median stock): median % move of each sector's stocks, now vs before."""
+    import rotation
+
+    return rotation.median()
+
+
+@app.get("/api/stock-history")
+def stock_history_api(symbols: str = ""):
+    """Top 20 Gainers / Losers: recent daily closes for up to 60 stocks (comma-separated symbols)."""
+    import rotation
+
+    syms = [x.strip().upper() for x in symbols.split(",") if x.strip()][:60]
+    return {**rotation.history(syms), "session": engine.session}
 
 
 @app.get("/api/fo-lots")
