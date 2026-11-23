@@ -13,7 +13,9 @@ const fmtL = v => !isNum(v) ? 'N/A' : (v > 0 ? '+' : v < 0 ? '−' : '') +
 const Num = ({ v, strong }) => <span className={'num ' + tone(v) + (strong ? ' strong' : '')}>{fmtL(v)}</span>
 const shortDate = iso => new Date(iso + 'T00:00:00+05:30').toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
 const longDate = iso => new Date(iso + 'T00:00:00+05:30').toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' })
-const niftyPct = d => isNum(d.nifty) && isNum(d.nifty_prev) ? (d.nifty / d.nifty_prev - 1) * 100 : null
+const idxPct = (d, k) => isNum(d[k]) && isNum(d[k + '_prev']) ? (d[k] / d[k + '_prev'] - 1) * 100 : null
+const niftyPct = d => idxPct(d, 'nifty')
+const INDICES = [['nifty', 'Nifty'], ['banknifty', 'Bank Nifty'], ['sensex', 'Sensex']]
 
 // Lean from the share of positions on the bullish side (futures: longs; options: long calls + short puts).
 function lean(pct) {
@@ -143,7 +145,8 @@ export default function FiiDii() {
   const day = days[0]
   const head = day && <div className="fd-head">
     <span>Data for <b>{longDate(day.date)}</b> (NSE publishes it after the close)</span>
-    <span>Nifty <b>{fmtNum(day.nifty)}</b> <span className={tone(niftyPct(day))}>{fmtPct(niftyPct(day))}</span></span>
+    <span className="fd-idx">{INDICES.filter(([k]) => isNum(day[k])).map(([k, l]) =>
+      <span key={k}>{l} <b>{fmtNum(day[k])}</b> <span className={tone(idxPct(day, k))}>{fmtPct(idxPct(day, k))}</span></span>)}</span>
   </div>
 
   return <div className="fiidii">

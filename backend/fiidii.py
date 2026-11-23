@@ -56,11 +56,24 @@ def _parse(text):
     return out if len(out) == len(PARTIES) else None
 
 
-def _nifty(start, end):
+def _nse_closes(name, start, end):
     from rotation import _history
     try:
-        return dict(_history("NIFTY 50", start, end))
+        return dict(_history(name, start, end))
     except (sources.SourceError, KeyError, TypeError, ValueError):
+        return {}
+
+
+def _sensex_closes():
+    """Sensex daily closes (BSE index; NSE does not publish it) from Yahoo, ~3 months."""
+    try:
+        r = sources.yahoo.get("https://query1.finance.yahoo.com/v8/finance/chart/%5EBSESN?interval=1d&range=3mo", timeout=10)["chart"]["result"][0]
+        out = {}
+        for t, c in zip(r["timestamp"], r["indicators"]["quote"][0]["close"]):
+            if c:
+                out[datetime.fromtimestamp(t, IST).date().isoformat()] = round(c, 2)
+        return out
+    except (sources.SourceError, KeyError, IndexError, TypeError, ValueError):
         return {}
 
 
@@ -96,10 +109,13 @@ def _refresh():
     except OSError:
         pass
     if keep:
-        closes = _nifty(datetime.fromisoformat(keep[0]).date() - timedelta(days=7), now.date())
+        start = datetime.fromisoformat(keep[0]).date() - timedelta(days=7)
+        series = {"nifty": _nse_closes("NIFTY 50", start, now.date()), "banknifty": _nse_closes("NIFTY BANK", start, now.date()),
+                  "sensex": _sensex_closes()}
         for k in keep:
-            if k in closes:
-                days[k]["nifty"] = closes[k]
+            for name, closes in series.items():
+                if k in closes:
+                    days[k][name] = closes[k]
     with _lock:
         _state.update(at=time.time(), busy=False, days=days, missing=missing)
 
@@ -150,7 +166,9 @@ def snapshot(cash=None):
         if i == 0:
             continue  # first day only serves as the "previous" for the change
         prev, cur = days[keys[i - 1]], days[k]
-        row = {"date": k, "nifty": cur.get("nifty"), "nifty_prev": prev.get("nifty"), "p": {}}
+        row = {"date": k, "p": {}}
+        for name in ("nifty", "banknifty", "sensex"):
+            row[name], row[name + "_prev"] = cur.get(name), prev.get(name)
         for who in PARTIES:
             now_v, prev_v = _views(cur[who]), _views(prev[who])
             row["p"][who] = {**now_v, "chg": {s: now_v[s] - prev_v[s] for s in ("idx_fut", "stk_fut", "call", "put", "idx_opt")}}
