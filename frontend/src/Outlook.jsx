@@ -6,7 +6,7 @@ import { IndexSellCards } from './OptSell.jsx'
 
 // Market Outlook on Market Overview: a rule-based read of the next session (after the close) or of the
 // rest of today (during market hours), worked out live from the data already on this page: Market Bias,
-// breadth, India VIX, FII / DII, GIFT Nifty, US markets and the Nifty option chain (OI change, PCR,
+// breadth, India VIX, FII / DII (cash and F&O positions), GIFT Nifty, US markets and the Nifty option chain (OI change, PCR,
 // call / put OI walls, max pain, expected move). It shows what the signals point to and the levels to
 // watch. It is not a prediction and never a buy / sell call.
 
@@ -96,6 +96,11 @@ function build(live, ctx, d, e, s) {
   // 7. Option writers' fresh OI (same window as the OI Change panel)
   if (s) vote(s.sent.key === 'bull' ? 1 : s.sent.key === 'bear' ? -1 : 0,
     `Option writers lean bullish: ${s.sent.why.replace(/ —.*$/, '')}`, `Option writers lean bearish: ${s.sent.why.replace(/ —.*$/, '')}`)
+
+  // 8. FII F&O positioning (NSE participant-wise OI, latest session): change in index futures + options
+  const fo8 = ctx?.fii_oi
+  if (fo8) vote(fo8.score, `FII F&O positions lean bullish (${fo8.date.slice(8)}/${fo8.date.slice(5, 7)}): ${fo8.points[1] || fo8.points[0]}`,
+    `FII F&O positions lean bearish (${fo8.date.slice(8)}/${fo8.date.slice(5, 7)}): ${fo8.points[1] || fo8.points[0]}`)
 
   // Levels from the nearest expiry's option chain
   const spot = isNum(n.ltp) ? n.ltp : d?.spot

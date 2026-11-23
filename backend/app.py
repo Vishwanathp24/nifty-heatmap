@@ -211,7 +211,13 @@ async def push_unsubscribe(request: Request):
 
 @app.get("/api/context")
 def context():
-    return {"global": _global_cues.get(), "fii_dii": _fii.get()}
+    import fiidii
+
+    try:
+        fii_oi = fiidii.snapshot().get("read")  # FII F&O positioning (for Market Outlook)
+    except Exception:
+        fii_oi = None
+    return {"global": _global_cues.get(), "fii_dii": _fii.get(), "fii_oi": fii_oi}
 
 
 @app.get("/api/orb")
@@ -465,6 +471,14 @@ def stock_history_api(symbols: str = ""):
 
     syms = [x.strip().upper() for x in symbols.split(",") if x.strip()][:60]
     return {**rotation.history(syms), "session": engine.session}
+
+
+@app.get("/api/fii-dii")
+def fii_dii_api():
+    """FII / DII page: participant-wise F&O open interest (FII, DII, Pro, Client) for ~30 sessions + cash flows."""
+    import fiidii
+
+    return fiidii.snapshot(_fii.get().get("data"))
 
 
 @app.get("/api/fo-lots")

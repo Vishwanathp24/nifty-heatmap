@@ -149,6 +149,23 @@ const GUIDES = {
       <><b>Read the company's prospectus</b> (RHP) before you apply. A high subscription does not guarantee a gain.</>,
     ],
   },
+  fiidii: {
+    items: [
+      ['🧭', 'Positioning read', 'The box at the top of Summary: whether FIIs added on the bullish or bearish side yesterday, from the change in index futures (5,000 contracts or more counts) and index options (50,000 or more). Both bullish = Bullish, one = Leans bullish, none or opposite = Mixed (same for bearish). The same read is one of the signals in Market Outlook. It describes positions, it is not a forecast.'],
+      ['🏦', 'Who is who', 'FII = foreign institutions. DII = Indian institutions (mutual funds, insurers). Pro = brokers trading their own money. Client = everyone else, mostly retail traders.'],
+      ['📋', 'Summary', 'For the last session: each group net position in Index Futures, Index Options and Stock Futures, and the change from the session before. Numbers are contracts, 1L = 1,00,000.'],
+      ['➕', 'Net OI', 'Long contracts minus short contracts. For options, the bullish side (bought calls and sold puts) minus the bearish side (bought puts and sold calls). Green = more on the bullish side.'],
+      ['🧭', 'Lean', 'The share of a group positions on the bullish side: 60% or more = Bullish, 52 to 60 = Mild Bullish, 48 to 52 = Neutral, 40 to 48 = Mild Bearish, below 40 = Bearish. It describes positions, it is not a forecast.'],
+      ['📊', 'F&O History', 'Pick a group and a series (Index Futures, Calls, Puts or Options net). Bars show each day change (or the net position), the line is the Nifty close. The table lists the last 30 sessions, newest first.'],
+      ['💵', 'Cash Market', 'NSE provisional buy, sell and net in crores for FII and DII. NSE only gives the latest day, so the list grows by one row each day.'],
+    ],
+    steps: [
+      <><b>Start with FII Index Futures:</b> a big net short that keeps growing shows foreign money is hedged or bearish.</>,
+      <><b>Compare FII and Client:</b> retail clients are often on the other side of FIIs.</>,
+      <><b>Watch the change,</b> not only the total: a sudden swing in calls or puts shows fresh positions.</>,
+      <><b>Use it as background,</b> next to price, PCR and breadth. It is published after the close, so it is not live.</>,
+    ],
+  },
   learning: {
     items: [
       ['📚', 'Courses', 'Short lessons on the stock market, charts, options and risk, grouped by topic.'],

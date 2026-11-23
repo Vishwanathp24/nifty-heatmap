@@ -27,6 +27,7 @@ const lazyPage = load => lazy(() => load().catch(err => {
 }))
 const Crypto = lazyPage(() => import('./Crypto.jsx'))
 const Ipo = lazyPage(() => import('./Ipo.jsx'))
+const FiiDii = lazyPage(() => import('./FiiDii.jsx'))
 const Learning = lazyPage(() => import('./Learning.jsx'))
 const Journal = lazyPage(() => import('./Journal.jsx'))
 const Scans = lazyPage(() => import('./Scans.jsx'))  // Intraday Scanner: charts, option chain, payoff tools - loaded when opened
@@ -39,6 +40,7 @@ const PAGES = [
   { id: 'trend', label: 'Intraday Scanner', key: '4' },
   { id: 'crypto', label: 'Crypto', key: '6' },
   { id: 'ipo', label: 'IPO', key: '7' },
+  { id: 'fiidii', label: 'FII / DII', key: '9' },
   { id: 'learning', label: 'Learning', key: '8' },
 ].filter(p => !import.meta.env.VITE_PAGES || import.meta.env.VITE_PAGES.split(',').includes(p.id))  // VITE_PAGES: build with only these pages (Netlify copy)
 
@@ -51,13 +53,14 @@ const TAB_PATHS = {
   trend: 'M3 17l6-6 4 4 8-8M15 7h6v6',
   crypto: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM9.5 8h4a2 2 0 0 1 0 4h-4zm0 4h4.5a2 2 0 0 1 0 4H9.5zM9.5 8v8M11 6v2M11 16v2',
   ipo: 'M5 21V4M5 4h11l-2 4 2 4H5',
+  fiidii: 'M4 20V10M10 20V4M16 20v-7M22 20H2',
   learning: 'M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM4 21V5M8 7h7',
   journal: 'M5 3h11l3 3v15H5zM8 9h8M8 13h8M8 17h5',
   more: 'M5 12h.01M12 12h.01M19 12h.01',
 }
 const TabIcon = ({ id }) => <svg className="tab-ic" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor"
   strokeWidth={id === 'more' ? 3.2 : 1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={TAB_PATHS[id]} /></svg>
-const TAB_SHORT = { overview: 'Overview', heatmap: 'Heatmap', scanner: 'ORB', trend: 'Intraday', crypto: 'Crypto', ipo: 'IPO', learning: 'Learning', journal: 'Journal' }
+const TAB_SHORT = { overview: 'Overview', heatmap: 'Heatmap', scanner: 'ORB', trend: 'Intraday', crypto: 'Crypto', ipo: 'IPO', fiidii: 'FII/DII', learning: 'Learning', journal: 'Journal' }
 
 // Footer link that opens the Add to Home Screen banner (phones / tablets not using the app yet).
 function InstallLink() {
@@ -108,7 +111,7 @@ function NavMenu({ pages, page, go }) {
 const BASIC_PAGES = ['overview', 'heatmap', 'scanner', 'trend']  // Intraday Scanner in Basic shows 3 scans only (Scans.jsx BASIC_TABS)
 
 // One real URL per page, so each can be linked, indexed and shared. The server serves the same app for these paths.
-const PATHS = { overview: '/', heatmap: '/heatmap', scanner: '/orb-scanner', trend: '/intraday-scanner', crypto: '/crypto', ipo: '/ipo', learning: '/learning',  // /journal (removed) opens Market Overview
+const PATHS = { overview: '/', heatmap: '/heatmap', scanner: '/orb-scanner', trend: '/intraday-scanner', crypto: '/crypto', ipo: '/ipo', fiidii: '/fii-dii-data', learning: '/learning',  // /journal (removed) opens Market Overview
   ...Object.fromEntries(INFO_PAGES.map(p => [p.id, p.path])) }  // + About, Contact, Privacy Policy, Terms of Use, Disclaimer (footer links)
 const INFO_IDS = INFO_PAGES.map(p => p.id)
 const pageFromPath = path => Object.keys(PATHS).find(id => PATHS[id] === path.replace(/(.)\/$/, '$1')) || 'overview'
@@ -371,6 +374,7 @@ function App() {
         {page === 'crypto' && <Crypto crypto={crypto} />}
         {INFO_IDS.includes(page) && <InfoPage id={page} />}
         {page === 'ipo' && <Ipo ipo={ipo} />}
+        {page === 'fiidii' && <FiiDii />}
         {page === 'learning' && <Learning />}
         {page === 'journal' && <Journal live={live.data} />}
       </Suspense></PageBoundary>

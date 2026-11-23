@@ -53,6 +53,13 @@ PAGES = {
         "Upcoming, open and recently listed IPOs in India with price band, lot size, the minimum amount for a retail and HNI application, subscription status and key dates.",
         True,
     ),
+    "/fii-dii-data": (
+        "FII DII Data Today: F&O Participant Positions & Cash Flows",
+        "NSE participant-wise open interest for FII, DII, Pro and Client in index futures and options, with daily change, history and cash-market FII / DII net.",
+        "FII / DII data",
+        "How FIIs, DIIs, proprietary traders and retail clients are positioned in Nifty index futures and options after each session, the change from the day before, 30 sessions of history and the cash-market FII / DII net.",
+        True,
+    ),
     "/learning": (
         "Learn Options & Technical Analysis: PCR, ORB, VWAP, Supertrend",
         "Plain-language lessons on put-call ratio, opening range breakout, VWAP, EMA, Supertrend, RSI and ADX as used on this dashboard.",
