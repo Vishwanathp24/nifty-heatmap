@@ -1769,7 +1769,7 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
 .ipo-row.clickable:hover td { background: #F7F9FC }
 
 /* FII / DII page */
-.fiidii .fd-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 16px; margin: 0 0 12px; font-size: 13px; color: var(--muted); }
+.fiidii .fd-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 16px; margin: 0 0 10px; font-size: 13px; color: var(--muted); }
 .fiidii .fd-head b { color: var(--ink); }
 .fiidii .fd-sum td, .fiidii .fd-sum th { padding: 9px 12px; }
 .fiidii .fd-sum tr.fd-first td { border-top: 2px solid var(--border); }
@@ -1788,13 +1788,13 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
 .fiidii .fd-key.line { height: 2px; background: var(--accent-bright); }
 .fiidii .fd-hist td, .fiidii .fd-hist th { padding: 8px 10px; }
 @media (max-width: 600px) { .fiidii .fd-chart svg { height: 160px; } .fiidii .fd-sum td, .fiidii .fd-sum th { padding: 7px 8px; } }
-.fiidii .fd-read { margin: 0 0 14px; padding: 12px 14px; border: 1px solid var(--border); border-left-width: 4px; border-radius: 10px; background: var(--panel); }
+.fiidii .fd-read { margin: 0 0 12px; padding: 8px 12px; border: 1px solid var(--border); border-left-width: 4px; border-radius: 10px; background: var(--panel); }
 .fiidii .fd-read.bull { border-left-color: var(--up); }
 .fiidii .fd-read.bear { border-left-color: var(--down); }
 .fiidii .fd-read.neutral { border-left-color: var(--amber); }
-.fiidii .fd-read-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 8px; }
-.fiidii .fd-read ul { margin: 0 0 8px; padding-left: 18px; }
-.fiidii .fd-read li { margin: 4px 0; font-size: 13.5px; }
+.fiidii .fd-read-top { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-bottom: 4px; }
+.fiidii .fd-read ul { margin: 0 0 4px; padding-left: 18px; }
+.fiidii .fd-read li { margin: 2px 0; font-size: 12.5px; }
 .fiidii .fd-read p { margin: 0; }
 /* Sector Rotation: collapsible header */
 .rotation .rot-toggle { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; text-align: left; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap }
@@ -1806,3 +1806,28 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
 .rotation.collapsed .rot-toggle { width: auto }
 .rotation .rot-sh { flex: none }
 .rotation .panel-head { padding: 10px 14px; align-items: center; flex-wrap: wrap; gap: 8px 14px }
+/* FII / DII Summary cards */
+.fiidii .fd-cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px }
+.fiidii .fd-card { border: 1px solid var(--border); border-top: 3px solid var(--border-strong); border-radius: 10px; background: var(--panel); padding: 10px 12px }
+.fiidii .fd-card.up { border-top-color: var(--up) }
+.fiidii .fd-card.down { border-top-color: var(--down) }
+.fiidii .fd-card.flat { border-top-color: var(--amber) }
+.fiidii .fd-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 4px }
+.fiidii .fd-card-head b { font-size: 15px }
+.fiidii .fd-seg { padding: 6px 0; border-top: 1px solid var(--border) }
+.fiidii .fd-seg-top { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; font-size: 12px; color: var(--muted) }
+.fiidii .fd-seg-top .fd-lean { font-size: 12px }
+.fiidii .fd-seg-v { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; margin-top: 2px; font-size: 15px }
+.fiidii .fd-chg { font-size: 12px; color: var(--muted) }
+@media (max-width: 1000px) { .fiidii .fd-cards { grid-template-columns: repeat(2, minmax(0, 1fr)) } }
+@media (max-width: 420px) { .fiidii .fd-cards { grid-template-columns: 1fr } }
+.fiidii .fd-read .ol-pill { font-size: 14px }
+.fiidii .fd-split { display: flex; height: 5px; border-radius: 3px; overflow: hidden; margin-top: 5px; background: var(--panel-2) }
+.fiidii .fd-split i { display: block; height: 100% }
+.fiidii .fd-split i.b { background: var(--up) }
+.fiidii .fd-split i.s { background: var(--down); opacity: .75 }
+.fiidii .fd-card-head { align-items: center }
+.fiidii .fd-spark { flex: none; display: block }
+.fiidii .fd-spark polyline { stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round }
+.fiidii .fd-spark.up polyline { stroke: var(--up) } .fiidii .fd-spark.up circle { fill: var(--up) }
+.fiidii .fd-spark.down polyline { stroke: var(--down) } .fiidii .fd-spark.down circle { fill: var(--down) }

@@ -26,18 +26,43 @@ function lean(pct) {
 }
 const Lean = ({ pct }) => { const l = lean(pct); return l ? <span className={'fd-lean ' + l[1]} title={`${pct}% of positions on the bullish side`}>{l[0]} <small>{pct}%</small></span> : <span className="muted">—</span> }
 
-function Summary({ day }) {
-  return <div className="panel tbl-wrap"><table className="tbl fd-sum">
-    <thead><tr><th>Participant</th><th>Segment</th><th>Lean</th><th className="num">Net OI</th><th className="num">Change</th></tr></thead>
-    <tbody>{PARTIES.map(who => SEGS.map(([k, label, pk], i) => {
-      const p = day.p[who]
-      return <tr key={who + k} className={i === 0 ? 'fd-first' : ''}>
-        {i === 0 && <td rowSpan={SEGS.length} className="strong">{who}</td>}
-        <td>{label}</td><td>{pk ? <Lean pct={p[pk]} /> : <span className="muted">—</span>}</td>
-        <td className="num"><Num v={p[k]} strong /></td><td className="num"><Num v={p.chg[k]} /></td>
-      </tr>
-    }))}</tbody>
-  </table></div>
+// Long vs short split as a bar (green = bullish side, red = bearish side).
+function Split({ pct }) {
+  if (!isNum(pct)) return null
+  return <div className="fd-split" title={`${pct}% bullish side · ${(100 - pct).toFixed(1)}% bearish side`}>
+    <i className="b" style={{ width: pct + '%' }} /><i className="s" style={{ width: (100 - pct) + '%' }} /></div>
+}
+// Last 10 sessions of index futures net position (oldest to newest) as a small trend line, scaled to its
+// own range so the direction shows even when the position stays on one side; green if it rose overall.
+function Spark({ days, who }) {
+  const vals = days.slice(0, 10).reverse().map(d => d.p[who].idx_fut)
+  if (vals.length < 2) return null
+  const lo = Math.min(...vals), hi = Math.max(...vals), W = 84, H = 26, pad = 3
+  const x = i => pad + i * (W - pad * 2) / (vals.length - 1), y = v => H - pad - (v - lo) / ((hi - lo) || 1) * (H - pad * 2)
+  const up = vals[vals.length - 1] >= vals[0]
+  return <svg className={'fd-spark ' + (up ? 'up' : 'down')} viewBox={`0 0 ${W} ${H}`} width={W} height={H}>
+    <polyline points={vals.map((v, i) => `${x(i)},${y(v)}`).join(' ')} fill="none" />
+    <circle cx={x(vals.length - 1)} cy={y(vals[vals.length - 1])} r="2.6" />
+    <title>{`Index futures net position, last 10 sessions: ${fmtL(vals[0])} → ${fmtL(vals[vals.length - 1])}`}</title>
+  </svg>
+}
+
+// One card per participant: net position, change, lean and long/short split for each segment.
+const WHO = { FII: 'Foreign institutions', DII: 'Indian institutions', Pro: 'Brokers, own money', Client: 'Retail & others' }
+const stkPct = r => r.fsl + r.fss ? +(100 * r.fsl / (r.fsl + r.fss)).toFixed(1) : null
+function Summary({ day, days }) {
+  return <div className="fd-cards">{PARTIES.map(who => {
+    const p = day.p[who], l = lean(p.fut_long_pct)
+    return <div key={who} className={'fd-card ' + (l ? l[1] : '')}>
+      <div className="fd-card-head"><div><b>{who}</b><div className="muted small">{WHO[who]}</div></div><Spark days={days} who={who} /></div>
+      {SEGS.map(([k, label, pk]) => { const pct = pk ? p[pk] : stkPct(p.raw)
+        return <div key={k} className="fd-seg">
+          <div className="fd-seg-top"><span className="fd-seg-l">{label}</span><Lean pct={pct} /></div>
+          <div className="fd-seg-v"><Num v={p[k]} strong /><span className="fd-chg">Chg <Num v={p.chg[k]} /></span></div>
+          <Split pct={pct} />
+        </div> })}
+    </div>
+  })}</div>
 }
 
 // Daily change bars for one series (newest on the right) with the Nifty close as a line.
@@ -101,7 +126,7 @@ function Read({ r }) {
     <div className="fd-read-top"><span className={'ol-pill ' + r.key}><span className="ol-dot">{emoji}</span>{r.label}</span>
       <span className="muted small">FII positioning after {longDate(r.date)}</span></div>
     <ul>{r.points.map(x => <li key={x}>{x}</li>)}</ul>
-    <p className="muted small">Describes where FIIs added positions, not a forecast: FIIs often hold shorts as a hedge, and the market can move the other way. It is one of the signals in Market Outlook on Market Overview. Not a buy / sell recommendation.</p>
+    <p className="muted small" title="FIIs often hold shorts as a hedge, and the market can move the other way. This read is also one of the signals in Market Outlook on Market Overview.">Describes positions, not a forecast · not a buy / sell recommendation.</p>
   </div>
 }
 
@@ -134,7 +159,7 @@ export default function FiiDii() {
       {!data || data.loading ? <Empty>Loading NSE participant data…</Empty> : !day ? <Empty>No data yet.</Empty> : <>
         {tab !== 'cash' && head}
         {tab === 'summary' && <Read r={data.read} />}
-        {tab === 'summary' && <Summary day={day} />}
+        {tab === 'summary' && <Summary day={day} days={days} />}
         {tab === 'fno' && <>
           <div className="fd-ctrls">
             <Seg value={who} onChange={setWho} options={PARTIES.map(p => ({ value: p, label: p }))} />
