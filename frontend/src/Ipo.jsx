@@ -132,10 +132,10 @@ function IpoRow({ r, onDetails, gmpSrc, gmpAt }) {
   const d = res.data && res.data.symbol === r.symbol ? res.data : null
   const rt = ipoRating(d, r)
   return <>
-    <tr className={'ipo-row' + (rt ? ' rate-' + rt.key : '')}>
+    <tr className={'ipo-row clickable' + (rt ? ' rate-' + rt.key : '')} onClick={onDetails} title="Click for company / issue details, subscription and checklist">
       <td><div className="ipo-name">
         <span className={'ipo-dot ' + (rt?.key || (r.symbol ? 'loading' : ''))} title={rt ? `${rt.label} — ${rt.why}` : r.symbol ? 'Loading checklist…' : 'No NSE checklist once bidding has closed'} />
-        <div><button className="link-btn strong" onClick={onDetails} title="Open company / issue details, subscription and checklist">{r.company}</button>
+        <div><button className="link-btn strong" onClick={e => { e.stopPropagation(); onDetails() }} title="Open company / issue details, subscription and checklist">{r.company}</button>
           <div className="muted small">{r.symbol}</div></div></div></td>
       <td className="muted">{r.board}</td>
       <td><span className={'ipo-status ' + (r.status === 'Open' ? 'open' : r.status === 'Closed' ? 'closed' : 'soon')}>{r.status}</span></td>
@@ -153,7 +153,7 @@ function IpoRow({ r, onDetails, gmpSrc, gmpAt }) {
       <td className="num">{fmtVol(r.issue_shares)}</td>
       <td className="num strong">{isNum(d?.total_times) ? d.total_times.toFixed(2) + 'x' : isNum(r.subscription) ? r.subscription.toFixed(2) + 'x' : '—'}</td>
       <td className="num">{isNum(d?.subscription?.qib?.times) ? <span className={d.subscription.qib.times >= 1 ? 'strong up' : 'strong'}>{d.subscription.qib.times.toFixed(2)}x</span> : <span className="muted">—</span>}</td>
-      <td className="num">{r.gmp ? <a className="tv-link gmp" href={gmpSrc || gmpUrl(r.company)} target="_blank" rel="noopener noreferrer" title={`Unofficial grey market premium (ipowatch.in)${gmpAt ? ', read ' + istTime(gmpAt) + ' IST' : ''}. Est. listing ₹${fmtNum(r.gmp.est, 0)}. Not from the exchange — often wrong.`}>
+      <td className="num" onClick={e => e.stopPropagation()}>{r.gmp ? <a className="tv-link gmp" href={gmpSrc || gmpUrl(r.company)} target="_blank" rel="noopener noreferrer" title={`Unofficial grey market premium (ipowatch.in)${gmpAt ? ', read ' + istTime(gmpAt) + ' IST' : ''}. Est. listing ₹${fmtNum(r.gmp.est, 0)}. Not from the exchange — often wrong.`}>
           <b className={r.gmp.gmp > 0 ? 'up' : r.gmp.gmp < 0 ? 'down' : 'muted'}>{r.gmp.gmp > 0 ? '+' : r.gmp.gmp < 0 ? '−' : ''}₹{fmtNum(Math.abs(r.gmp.gmp), 0)}</b>
           {isNum(r.gmp.pct) && <div className="muted small">{r.gmp.pct > 0 ? '+' : ''}{r.gmp.pct.toFixed(1)}%</div>}</a>
         : <a className="tv-link" href={gmpUrl(r.company)} target="_blank" rel="noopener noreferrer" title={`Search “${r.company} IPO GMP today” — GMP is unofficial`}>GMP<span className="ext">↗</span></a>}</td>

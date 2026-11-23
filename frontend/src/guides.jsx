@@ -136,7 +136,7 @@ const GUIDES = {
       ['🗓️', 'Dates', 'Subscription Period = the days you can apply. Last Day to Apply = the final day (UPI approval by the cut-off time). Listing Date = when the shares start trading.'],
       ['💰', 'Price Band, Lot, Amount / Lot', 'The price range per share, how many shares are in one lot, and how much money one lot needs. The HNI line shows the smallest amount for the HNI category.'],
       ['🔥', 'Subscription', 'How many times the issue is booked. 5x means people asked for 5 times more shares than are on offer.'],
-      ['🟢', 'Coloured dot', 'A quick checklist rating from NSE data: green = most checks pass, yellow = mixed, red = several checks fail, blue = too early, bidding still open. Click the name for details.'],
+      ['🟢', 'Coloured dot', 'A quick checklist rating from NSE data: green = most checks pass, yellow = mixed, red = several checks fail, blue = too early, bidding still open. Click anywhere on a row for its details.'],
       ['📈', 'Recent IPOs', 'Companies that already listed: issue price, listing price, listing gain and how they are doing now.'],
       ['🏛️', 'QIB', 'How many times the big institutions (banks, mutual funds, insurance companies) have booked their part. They often apply on the last day. Above 1x means their part is fully booked.'],
       ['🔗', 'GMP', 'Grey market premium: an unofficial guess of how much above (or below) the price the shares may list. +₹7 (+8.5%) means about ₹7 above the top price. It is not from the exchange and is often wrong.'],

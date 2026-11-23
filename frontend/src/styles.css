@@ -1766,3 +1766,4 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
 .tile-mid .tile-pct small { font-size: 9.5px }
 @media (min-width: 1100px) { .heatmap { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)) } }
 @media (max-width: 600px), (pointer: coarse) and (max-width: 1366px) { .app:not(.full-data) .heatmap .tile-mid { display: contents } }
+.ipo-row.clickable:hover td { background: #F7F9FC }
