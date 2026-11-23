@@ -269,8 +269,15 @@ function App() {
   // larger screens; a switch lasts until the page is reloaded.
   const [mode, setMode] = useState(() => window.matchMedia('(max-width: 600px)').matches ? 'basic' : 'advanced')
   const basic = mode === 'basic'
-  useEffect(() => { if (basic && !BASIC_PAGES.includes(page) && !INFO_IDS.includes(page)) setPage('overview') }, [basic, page])
-  const navPages = basic ? PAGES.filter(p => BASIC_PAGES.includes(p.id)) : PAGES
+  useEffect(() => { if (basic && !BASIC_PAGES.includes(page) && !INFO_IDS.includes(page) && page !== 'crypto') setPage('overview') }, [basic, page])
+  // Crypto is the third choice of the Basic | Advanced | Crypto switch (it has its own tabs), not a menu page.
+  const isCrypto = page === 'crypto'
+  const navPages = isCrypto ? [] : (basic ? PAGES.filter(p => BASIC_PAGES.includes(p.id)) : PAGES).filter(p => p.id !== 'crypto')
+  const pickMode = v => {
+    if (v === 'crypto') { setPage('crypto'); window.scrollTo({ top: 0 }); return }
+    setMode(v)
+    if (isCrypto) { setPage('overview'); window.scrollTo({ top: 0 }) }
+  }
   const [selected, setSelected] = useSessionState('sectors', [])
   const [auto, setAuto] = usePersistentState('auto', true)
   const [tf, setTf] = useSessionState('orb.tf.v4', 15)  // break candle: 5 or 15 min
@@ -336,8 +343,8 @@ function App() {
       <button className="hdr-brand" onClick={() => { setPage('overview'); window.scrollTo({ top: 0 }) }} title="Go to homepage (Market Overview)">
         <span>NSE Sector Heatmap</span></button>
       <div className="seg mode-switch" role="group" aria-label="Site version">
-        {[['basic', 'Basic'], ['advanced', 'Advanced']].map(([v, l]) => <button key={v} className={mode === v ? 'on' : ''} onClick={() => setMode(v)}
-          title={v === 'basic' ? 'Simple view: Market Overview, Sector Heatmap, ORB Scanner and 3 intraday scans' : 'Full view: every scanner, chart and tool'}>{l}</button>)}
+        {[['basic', 'Basic'], ['advanced', 'Advanced'], ['crypto', 'Crypto']].map(([v, l]) => <button key={v} className={(isCrypto ? v === 'crypto' : mode === v) ? 'on' : ''} onClick={() => pickMode(v)}
+          title={v === 'basic' ? 'Simple view: Market Overview, Sector Heatmap, ORB Scanner and 3 intraday scans' : v === 'crypto' ? 'Crypto market: prices, heatmap, movers, ORB and options (trades 24x7)' : 'Full view: every scanner, chart and tool'}>{l}</button>)}
       </div>
       <button className={'full-toggle' + (fullData ? ' on' : '')} role="switch" aria-checked={fullData} onClick={() => setFullData(f => !f)}
         title="Phones and tablets: show the full data panels (as in the first version) instead of the small cards"><i />Full data</button>
@@ -384,7 +391,7 @@ function App() {
       <PageHowTo page={page} />  {/* Market Overview has its own (with the live 3-step check) */}
     </main>
     <InstallPrompt />  {/* phones / tablets not using the home-screen app yet */}
-    <TabBar pages={navPages} page={page} setPage={setPage} badges={{ heatmap: selected.length || null, scanner: orbNow[0] }} />
+    {!isCrypto && <TabBar pages={navPages} page={page} setPage={setPage} badges={{ heatmap: selected.length || null, scanner: orbNow[0] }} />}
     <footer className="foot">
       <InfoLinks go={setPage} />
       <InstallLink />

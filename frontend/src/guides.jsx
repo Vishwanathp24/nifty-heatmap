@@ -114,6 +114,7 @@ const GUIDES = {
   crypto: {
     crypto: true,
     items: [
+      ['🔀', 'Opening Crypto', 'Pick Crypto in the Basic | Advanced | Crypto switch at the top. Pick Basic or Advanced to go back to the Indian market pages.'],
       ['🌐', 'Market Overview', 'The size of the whole crypto market, Bitcoin\'s share, the Fear & Greed meter (0 = very scared, 100 = very greedy) and Altcoin Season.'],
       ['🟩', 'Heatmap', 'Coins grouped by type. Green = up, red = down. The crypto day starts at 12:00 AM IST.'],
       ['🚀', 'Top Movers', 'Coins that went up the most, went down the most, and were traded the most.'],
