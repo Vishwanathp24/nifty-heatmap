@@ -208,10 +208,10 @@ th .arrow { font-size: 9px; margin-left: 4px; opacity: .6 }
 .heat-dn-1 { background: var(--heat-dn-1); color: #6e1f1f } .heat-dn-2 { background: var(--heat-dn-2); color: #5c1717 }
 .heat-dn-3 { background: var(--heat-dn-3); color: #fff } .heat-dn-4 { background: var(--heat-dn-4); color: #fff }
 .heat-up-3.selected, .heat-up-4.selected, .heat-dn-3.selected, .heat-dn-4.selected { border-color: #fff; box-shadow: 0 0 0 2px var(--ink) }
-.legend { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: 11px; color: var(--muted); margin: 10px 0 }
+.legend { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: 11px; color: var(--muted); margin: 12px 0 }
 .legend-item i { display: inline-block; width: 14px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px }
 
-.fo-movers { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 4px 0 12px }
+.fo-movers { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0 }
 .fo-movers h3.up { color: var(--up) } .fo-movers h3.down { color: var(--down) }
 
 .fo-movers tbody tr.clickable, .movers tbody tr.clickable, tr.clickable { cursor: pointer }
@@ -1731,7 +1731,7 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
 .pcr-in-bias { margin-top: 12px; display: grid; gap: 6px }
 .pcr-two.em-only { grid-template-columns: 1fr !important }
 /* Sector Heatmap -> Sector Rotation */
-.panel.rotation { margin-top: 12px }
+.panel.rotation { margin: 16px 0 }
 .rot-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(185px, 1fr)); gap: 10px; padding: 12px }
 .rot-card { border-radius: 8px; padding: 8px 10px; min-width: 0; cursor: pointer; outline: 2px solid transparent; transition: outline-color .15s }
 .rot-card:hover, .rot-card.viewing { outline-color: var(--accent, #6366f1) }
@@ -1767,3 +1767,13 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
 @media (min-width: 1100px) { .heatmap { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)) } }
 @media (max-width: 600px), (pointer: coarse) and (max-width: 1366px) { .app:not(.full-data) .heatmap .tile-mid { display: contents } }
 .ipo-row.clickable:hover td { background: #F7F9FC }
+
+/* Sector Rotation: collapsible header */
+.rotation .rot-toggle { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; text-align: left; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap }
+.rotation.collapsed .rot-toggle { margin: 0 }
+.rotation.collapsed { padding: 10px 14px }
+.rotation .rot-chev { display: inline-block; width: 14px; color: var(--muted) }
+.rotation .rot-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px }
+.rotation .rot-toggle h3 { display: flex; align-items: center; gap: 6px; margin: 0 }
+.rotation .rot-sh { flex: none }
+.rotation .panel-head { padding: 10px 14px; align-items: center; flex-wrap: wrap; gap: 8px 14px }

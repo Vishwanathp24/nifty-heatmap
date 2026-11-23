@@ -206,7 +206,19 @@ const ROT = {
 const isoOf = d => { const t = d && new Date(d.replace(/-/g, ' ')); return t && !isNaN(t) ? `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}` : null }
 const rankMap = rows => Object.fromEntries(rows.filter(r => isNum(r.v)).sort((a, b) => b.v - a.v).map((r, i) => [r.sym, i + 1]))
 
-function SectorRotation({ sectors, period, basis, session, onOpen, openSym }) {
+// Collapsed by default: a one-line header; data is fetched only once it is opened.
+function SectorRotation(props) {
+  const [open, setOpen] = useSessionState('hm.rotOpen', false)
+  if (!open) return <div className="panel rotation collapsed"><div className="rot-row">
+    <button className="panel-head rot-toggle" onClick={() => setOpen(true)} aria-expanded="false">
+      <h3><span className="rot-chev">▸</span> Sector Rotation</h3></button>
+    <button className="btn sm rot-sh" onClick={() => setOpen(true)} aria-expanded="false">Show</button>
+    <span className="muted small">Which sectors are climbing or slipping in rank</span>
+  </div></div>
+  return <RotationBody {...props} close={() => setOpen(false)} />
+}
+
+function RotationBody({ sectors, period, basis, session, onOpen, openSym, close }) {
   const [mode, setMode] = useSessionState('hm.rotMode', 'median')  // 'median' = median stock, 'index' = sector index
   const med = mode === 'median'
   const res = usePoll(() => api(med ? '/api/sector-rotation-median' : '/api/sector-rotation'), med ? 15000 : 600000, [med])
@@ -229,7 +241,8 @@ function SectorRotation({ sectors, period, basis, session, onOpen, openSym }) {
   const list = rows.filter(r => rNow[r.sym]).sort((a, b) => rNow[a.sym] - rNow[b.sym])
   const n = list.length
   return <div className="panel rotation">
-    <div className="panel-head"><h3>Sector Rotation <span className="muted">{list.length}</span></h3>
+    <div className="panel-head"><div className="rot-row"><button className="rot-toggle" onClick={close} aria-expanded="true"><h3><span className="rot-chev">▾</span> Sector Rotation{n ? <span className="muted"> {n}</span> : null}</h3></button>
+      <button className="btn sm rot-sh" onClick={close} aria-expanded="true">Hide</button></div>
       <Seg value={mode} onChange={setMode} options={[{ value: 'median', label: 'Median stock', title: "Rank by the median % move of the sector's stocks: every stock counts equally, so it shows how broad the move is" }, { value: 'index', label: 'Sector index', title: 'Rank by the % move of the NSE sector index (weighted by company size)' }]} />
       <span className="muted small">Rank vs {cfg.prev.toLowerCase()}: <span className="up">▲</span> climbed, <span className="down">▼</span> slipped{med && res.data?.pending ? ` · loading stock history (${res.data.pending} left)` : ''}</span></div>
     {res.data?.loading || (!res.data && !res.error) ? <Empty>{med ? 'Loading sector stocks…' : 'Loading earlier sector closes…'}</Empty>
@@ -248,7 +261,7 @@ function SectorRotation({ sectors, period, basis, session, onOpen, openSym }) {
   </div>
 }
 
-export default function Heatmap({ live, selected, setSelected, toggle, goto }) {
+export default function Heatmap({ live, selected, setSelected, toggle, goto, basic }) {
   const [search, setSearch] = useState('')
   const [view, setView] = useSessionState('hm.view', 'all')
   // Selection cleared elsewhere (ORB / Intraday Scanner "Clear"): show all sectors again.
@@ -339,7 +352,7 @@ export default function Heatmap({ live, selected, setSelected, toggle, goto }) {
         return [['heat-dn-4', `≤ −${f(2)}%`], ['heat-dn-3', `−${f(1)} to −${f(2)}%`], ['heat-dn-2', `−${f(0.5)} to −${f(1)}%`], ['heat-dn-1', `−${f(0.1)} to −${f(0.5)}%`], ['heat-0', `±${f(0.1)}%`], ['heat-up-1', `+${f(0.1)} to +${f(0.5)}%`], ['heat-up-2', `+${f(0.5)} to +${f(1)}%`], ['heat-up-3', `+${f(1)} to +${f(2)}%`], ['heat-up-4', `≥ +${f(2)}%`]].map(([c, l]) =>
           <span key={c} className="legend-item"><i className={c} />{l}</span>) })()}
     </div>
-    <SectorRotation sectors={sectors} period={period} basis={period === 'day' ? 'prev' : period} session={live.session_date} onOpen={sym => { setDetailFrom('rotation'); setDetail(sym) }} openSym={detail} />
+    {!basic && <SectorRotation sectors={sectors} period={period} basis={period === 'day' ? 'prev' : period} session={live.session_date} onOpen={sym => { setDetailFrom('rotation'); setDetail(sym) }} openSym={detail} />}
     <FoMovers stocks={live.stocks} selected={selected} labels={Object.fromEntries(sectors.map(x => [x.symbol, x.label]))} onOpen={setStockSym} openSym={stockSym} />
     {stockSym && <StockDrawer stock={live.stocks.find(x => x.symbol === stockSym)} onClose={() => setStockSym(null)} />}
     <Drawer open={!!detailSector} onClose={() => setDetail(null)} wide title={detailSector?.label ? `${detailSector.label} · ${detailSector.symbol}` : ''}>
