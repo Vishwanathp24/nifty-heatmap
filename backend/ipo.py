@@ -78,10 +78,14 @@ class IpoData:
             return rows
         issues = sources.nse.get(sources.NSE_API + "all-upcoming-issues?category=ipo")
         try:
-            subs = {x.get("symbol"): _num(x.get("noOfTime")) for x in sources.nse.get(sources.NSE_API + "ipo-current-issue")
-                    if (x.get("category") or "Total") == "Total"}
+            current = [x for x in sources.nse.get(sources.NSE_API + "ipo-current-issue") if (x.get("category") or "Total") == "Total"]
         except sources.SourceError:
-            subs = {}
+            current = []
+        subs = {x.get("symbol"): _num(x.get("noOfTime")) for x in current}
+        # Issues open for bidding can drop out of "all-upcoming-issues" while still in "ipo-current-issue":
+        # add those so open IPOs always show.
+        known = {x.get("symbol") for x in issues}
+        issues = list(issues) + [x for x in current if x.get("symbol") not in known]
         out = []
         for x in issues:
             series = (x.get("series") or "").upper()
