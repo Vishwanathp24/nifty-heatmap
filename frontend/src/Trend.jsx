@@ -70,6 +70,8 @@ export function trendRows(rows, { dir, tfs, rsiMin, adxMin, either = false }) {
   })
 }
 export const trendNeed = tfs => tfs === 'both' ? 14 : 7
+// Min score choices: all conditions down to about two-thirds of them
+export const trendMins = need => Array.from({ length: need === 14 ? 5 : 4 }, (_, i) => need - i)
 
 export function useTrendSettings(prefix = 'trend') {
   const [dir, setDir] = useSessionState(prefix + '.dir', 'bull')
@@ -81,7 +83,8 @@ export function useTrendSettings(prefix = 'trend') {
 }
 
 // crypto: link(row) renders the symbol link and hides the F&O / All switch
-export default function Trend({ trend, settings, link, prefix = 'trend', fmtLtp = fmtNum, noun = 'stock', either = false, onPick, picked }) {
+// min / setMin (stocks): Min score dropdown instead of the "all conditions" checkbox.
+export default function Trend({ trend, settings, link, prefix = 'trend', fmtLtp = fmtNum, noun = 'stock', either = false, onPick, picked, min, setMin }) {
   const { dir, setDir, tfs, setTfs, rsiMin, setRsiMin, adxMin, setAdxMin, universe, setUniverse } = settings
   const [allOnly, setAllOnly] = useSessionState(prefix + '.allOnly', true)
   const [search, setSearch] = useState('')
@@ -99,7 +102,8 @@ export default function Trend({ trend, settings, link, prefix = 'trend', fmtLtp 
     && (!q || r.symbol.includes(q) || (r.company || '').toUpperCase().includes(q)))
   const full = base.filter(r => r.ok)
   const topPass = useTopPass()
-  const sorted = sortRows(allOnly ? full : base, sort.key, sort.dir)
+  const useMin = min != null && !union
+  const sorted = sortRows(useMin ? base.filter(r => r.score >= min) : allOnly ? full : base, sort.key, sort.dir)
   const shown = link ? sorted : topPass(sorted)  // crypto (link) has no NSE Top 20
   const sp = { sort, setSort }
 
@@ -116,9 +120,10 @@ export default function Trend({ trend, settings, link, prefix = 'trend', fmtLtp 
           {[20, 25, 30, 40].map(v => <option key={v} value={v}>{v}</option>)}</select></label>
       {!link && <Seg value={universe} onChange={setUniverse} options={[{ value: 'fo', label: 'F&O' }, { value: 'all', label: 'All' }]} />}
       <input className="search" placeholder="Search symbol" value={search} onChange={e => setSearch(e.target.value)} />
-      <label className="check-label"><input type="checkbox" checked={allOnly} onChange={e => setAllOnly(e.target.checked)} />Only {noun}s meeting all {need} conditions{tfWord}</label>
+      {useMin ? <label className="check-label">Min score <select value={min} onChange={e => setMin(Number(e.target.value))}>{[...trendMins(need)].reverse().map(v => <option key={v} value={v}>{v} of {need}</option>)}</select></label>
+        : <label className="check-label"><input type="checkbox" checked={allOnly} onChange={e => setAllOnly(e.target.checked)} />Only {noun}s meeting all {need} conditions{tfWord}</label>}
     </div>
-    <p className="muted small qualify-line"><b className={bull ? 'up' : 'down'}>{full.length}</b> of {base.length} {noun}s meet all {need} {bull ? 'bullish' : 'bearish'} conditions{tfWord}.{' '}
+    <p className="muted small qualify-line"><b className={bull ? 'up' : 'down'}>{useMin ? shown.length : full.length}</b> of {base.length} {noun}s meet {useMin && min < need ? `at least ${min} of ${need}` : `all ${need}`} {bull ? 'bullish' : 'bearish'} conditions{tfWord}.{' '}
       VWAP · EMA 5 · EMA 9 · Supertrend (10, 3) · RSI 14 · ADX / DI 14 on 15-min, 30-min and 1-hour candles ({bull ? `price above VWAP, EMA 5 and EMA 9 · Supertrend UP · RSI > ${rsiMin} · ADX > ${adxMin} · DI+ > DI−` : `price below VWAP, EMA 5 and EMA 9 · Supertrend DOWN · RSI < ${100 - rsiMin} · ADX > ${adxMin} · DI− > DI+`}
       {union ? ', on 15-min or on 1-hour — either is enough' : use15 && use60 ? ', on both 15-min and 1-hour' : use15 ? ', on 15-min' : use30 ? ', on 30-min' : ', on 1-hour'}).</p>
     {<div className="tbl-wrap panel trend-wrap">

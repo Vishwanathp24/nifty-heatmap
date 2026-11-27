@@ -305,10 +305,13 @@ function App() {
   // ORB scans refresh every 10 s only where they are shown (ORB Scanner; Intraday Scanner's Common Stocks);
   // elsewhere once a minute, just for the menu badge.
   const orbMs = !auto ? 3.6e6 : page === 'scanner' || page === 'trend' || page === 'unused' ? REFRESH_MS : 60000
-  const orb = usePoll(() => api(`/api/orb?tf=${tf}&confirm=${Number(confirm3)}&orm=60`), orbMs, [orbMs, tf, confirm3])
-  const orb15 = usePoll(() => api(`/api/orb?tf=${tf15}&confirm=${Number(confirm15)}&orm=15`), orbMs, [orbMs, tf15, confirm15])
-  const orb5 = usePoll(() => api(`/api/orb?tf=${tf5}&confirm=${Number(confirm5)}&orm=5`), orbMs, [orbMs, tf5, confirm5])
-  const orb30 = usePoll(() => api(`/api/orb?tf=${tf30}&confirm=${Number(confirm30)}&orm=30`), orbMs, [orbMs, tf30, confirm30])
+  // On pages without ORB tables the four ORB scans (menu badge only) load a few seconds after the page.
+  const orbHere = page === 'scanner' || page === 'trend' || page === 'unused'
+  const orbGet = path => orbHere ? api(path) : new Promise(r => setTimeout(r, 4000)).then(() => api(path))
+  const orb = usePoll(() => orbGet(`/api/orb?tf=${tf}&confirm=${Number(confirm3)}&orm=60`), orbMs, [orbMs, tf, confirm3])
+  const orb15 = usePoll(() => orbGet(`/api/orb?tf=${tf15}&confirm=${Number(confirm15)}&orm=15`), orbMs, [orbMs, tf15, confirm15])
+  const orb5 = usePoll(() => orbGet(`/api/orb?tf=${tf5}&confirm=${Number(confirm5)}&orm=5`), orbMs, [orbMs, tf5, confirm5])
+  const orb30 = usePoll(() => orbGet(`/api/orb?tf=${tf30}&confirm=${Number(confirm30)}&orm=30`), orbMs, [orbMs, tf30, confirm30])
   const ctx = usePoll(() => api('/api/context'), 60000, [])
   // Data for other pages is prefetched a few seconds after load, so it doesn't slow the page being opened.
   const later = (on, path) => on ? api(path) : new Promise(r => setTimeout(r, 8000)).then(() => api(path))

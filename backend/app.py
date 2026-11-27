@@ -75,6 +75,18 @@ def _start():
     trend_scan.ensure_started()
     vol_scan.ensure_started()
     push.start(_bias_now, _oi_now)
+    threading.Thread(target=_warm, daemon=True).start()
+
+
+def _warm():
+    """Fill the slower caches a few seconds after start, so the first visitor doesn't wait for NSE."""
+    time.sleep(5)
+    for call in (lambda: index_options("NIFTY"), ipo, oi_change_api, volume_gainers_api, gainers_losers_api,
+                 lambda: momentum_api("m30"), lambda: momentum_api("m50"), ipo_tracker_api, preopen):
+        try:
+            call()
+        except Exception:
+            pass
 
 
 def _bias_now():
@@ -124,15 +136,54 @@ class Cached:
         self.value = self.fetched_at = self.error = None
         self.checked = 0.0
 
+    def _refresh(self):
+        try:
+            self.value, self.fetched_at, self.error = self.fetch(), datetime.now(IST).isoformat(), None
+        except Exception as exc:
+            self.error = f"{type(exc).__name__}"
+
     def get(self):
+        # Stale-while-revalidate: once there is a value, an expired one is returned at once and refreshed in
+        # the background, so no visitor waits for the upstream call.
         with self.lock:
-            if time.time() - self.checked >= self.ttl:
+            due = time.time() - self.checked >= self.ttl
+            if due:
                 self.checked = time.time()
-                try:
-                    self.value, self.fetched_at, self.error = self.fetch(), datetime.now(IST).isoformat(), None
-                except Exception as exc:
-                    self.error = f"{type(exc).__name__}"
+                if self.value is None:
+                    self._refresh()
+                else:
+                    threading.Thread(target=self._refresh, daemon=True).start()
             return {"data": self.value, "fetched_at": self.fetched_at, "error": self.error}
+
+
+_swr_store = {}
+_swr_lock = threading.Lock()
+
+
+def swr(key, ttl, build):
+    """Serve the last good result at once and rebuild it in the background when older than ttl seconds;
+    only the very first call (nothing cached yet) waits for build()."""
+    with _swr_lock:
+        hit = _swr_store.get(key)
+        if hit and (time.time() - hit["at"] < ttl or hit["busy"]):
+            return hit["val"]
+        if hit:
+            hit["busy"] = True
+
+            def bg():
+                try:
+                    val = build()
+                    with _swr_lock:
+                        _swr_store[key] = {"at": time.time(), "val": val, "busy": False}
+                except Exception:
+                    with _swr_lock:
+                        hit["busy"], hit["at"] = False, time.time() - ttl + 30  # retry in 30 s
+            threading.Thread(target=bg, daemon=True).start()
+            return hit["val"]
+    val = build()
+    with _swr_lock:
+        _swr_store[key] = {"at": time.time(), "val": val, "busy": False}
+    return val
 
 
 def _clock_status(now):
@@ -431,7 +482,7 @@ def index_options(symbol: str = "NIFTY"):
     if _index_opt is None:
         _index_opt = IndexOptions(engine)
     try:
-        return _index_opt.get(symbol)
+        return swr("iopt:" + symbol.upper(), 30, lambda: _index_opt.get(symbol))
     except LookupError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
     except ValueError as exc:
@@ -487,6 +538,12 @@ MOMENTUM = {"m30": "NIFTY200MOMENTM30", "m50": "NIFTY500MOMENTM50"}  # NSE marke
 
 @app.get("/api/momentum")
 def momentum_api(idx: str = "m30"):
+    if idx not in MOMENTUM:
+        raise HTTPException(404, "unknown index")
+    return swr("mom:" + idx, 60, lambda: _momentum_build(idx))
+
+
+def _momentum_build(idx):
     """Intraday Scanner > Momentum: members of Nifty200 Momentum 30 / Nifty500 Momentum 50 with today's move
     (as on NSE's heatmap), cached for 60 s."""
     if idx not in MOMENTUM:
@@ -521,6 +578,10 @@ _oisp = {"lock": threading.Lock(), "at": 0, "data": None}
 
 @app.get("/api/oi-change")
 def oi_change_api():
+    return swr("oic", 60, _oi_change_api_build)
+
+
+def _oi_change_api_build():
     """Intraday Scanner > NSE > Change in OI: NSE's OI spurts for every F&O underlying (latest vs previous OI,
     volume, futures / options value), cached for 60 s."""
     with _oisp["lock"]:
@@ -574,6 +635,10 @@ def _is_fund(name):
 
 @app.get("/api/volume-gainers")
 def volume_gainers_api():
+    return swr("volg", 60, _volume_gainers_api_build)
+
+
+def _volume_gainers_api_build():
     """Intraday Scanner > NSE > Volume Gainers: NSE's volume gainers / spurts (today's volume vs the 1- and
     2-week average), cached for 60 s."""
     with _volg["lock"]:
@@ -598,6 +663,10 @@ _gl = {"lock": threading.Lock(), "at": 0, "data": None}
 
 @app.get("/api/gainers-losers")
 def gainers_losers_api():
+    return swr("gl", 60, _gainers_losers_api_build)
+
+
+def _gainers_losers_api_build():
     """Intraday Scanner > NSE > Gainers / Losers: NSE's top gainers and losers for each group (Nifty 50, Bank Nifty,
     Nifty Next 50, securities above / below Rs 20, F&O, all), cached for 60 s."""
     with _gl["lock"]:
@@ -629,6 +698,10 @@ _ipot = {"lock": threading.Lock(), "at": 0, "data": None}
 
 @app.get("/api/ipo-tracker")
 def ipo_tracker_api():
+    return swr("ipot", 300, _ipo_tracker_api_build)
+
+
+def _ipo_tracker_api_build():
     """Intraday Scanner > NSE > IPO: NSE's IPO tracker (gain / loss vs issue price for IPOs listed this year,
     mainboard and SME), cached for 5 minutes."""
     def num(v):
@@ -759,7 +832,7 @@ def ipo():
     if _ipo is None:
         _ipo = IpoData()
     try:
-        return _ipo.snapshot()
+        return swr("ipo", 60, _ipo.snapshot)
     except sources.SourceError as exc:
         raise HTTPException(status_code=502, detail=f"NSE IPO data unavailable ({exc}).")
 

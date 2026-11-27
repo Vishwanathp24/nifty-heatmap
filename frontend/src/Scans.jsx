@@ -1,7 +1,7 @@
 import React, { useContext, useEffect, useMemo, useState } from 'react'
 import { BiasPill, CopyTv, Empty, Seg, SortTh, StockLink, TopFilter, TopMoversCtx, TopTag, topRows, useTopPass } from './components.jsx'
 import { api, fmtNum, heatClass, fmtVol, hhmmTo12, isNum, istTime, setSessionValue, sortRows, usePersistentState, usePoll, useSessionState } from './lib.js'
-import Trend, { trendNeed, trendRows, useTrendSettings } from './Trend.jsx'
+import Trend, { trendMins, trendNeed, trendRows, useTrendSettings } from './Trend.jsx'
 import { SectorMulti, StockDrawer } from './Scanner.jsx'
 import { INDIA, OptionsBoard } from './CryptoOptions.jsx'
 import { ChartView } from './Chart.jsx'
@@ -301,6 +301,14 @@ export default function Scans({ basic = false, unused = false, openOsell, trend:
     return N
   }
   const minFor = id => condMin[id] ?? autoMin(id)
+  // Trending Stocks: Min score per timeframe choice, the strictest with stocks until picked by hand
+  const [trendMinRaw, setTrendMin] = useSessionState('trend.min', {})
+  const trendMin = () => {
+    const need = trendNeed(settings.tfs)
+    if (trendMinRaw[settings.tfs] != null) return trendMinRaw[settings.tfs]
+    const sc = data ? topPass(trendRows(data.rows, settings).filter(r => settings.universe === 'all' || r.fo)).map(r => r.score) : []
+    return trendMins(need).find(v => sc.some(x => x >= v)) ?? need
+  }
   const [volgTop, setVolgTop] = useSessionState('volg.top', 0)  // Volume Gainers: own switch, off at first
   const [oicTop, setOicTop] = useSessionState('oic.top', 0)  // Change in OI: own switch, off at first
   const [pick, setPick] = useState(null)  // stock whose details drawer is open (row click, as on the ORB Scanner)
@@ -311,7 +319,7 @@ export default function Scans({ basic = false, unused = false, openOsell, trend:
     setDirManual(false); base.setDir(biasLabel === 'BEARISH' ? 'bear' : 'bull'); settings.setTfs('both'); settings.setRsiMin(60); settings.setAdxMin(25); settings.setUniverse('fo')
     setSessionValue('mom.sideManual', null); setSessionValue('oic.nselist', null); setSessionValue('vol5.dirManual', null); setOicTop(0); setVolgTop(0); setSessionValue('volg.sideManual', null); setSessionValue('gl.sideManual', null)
     topCtx.setTopN?.(10); topCtx.setTopOn(true)  // back to Top 10 gainers + losers
-    setCondMin({}); setSessionValue('trend.allOnly', true)
+    setCondMin({}); setTrendMin({}); setSessionValue('trend.allOnly', true)
     setResetKey(k => k + 1)  // remount the tables so search / sort / checkboxes start fresh
   }
   // Sector selection is shared with the Sector Heatmap and the ORB Scanner.
@@ -323,10 +331,10 @@ export default function Scans({ basic = false, unused = false, openOsell, trend:
   const topPass = useTopPass()
   const counts = useMemo(() => {
     const need = trendNeed(tfs)
-    const c = { trend: data ? topPass(trendRows(data.rows, settings).filter(r => (universe === 'all' || r.fo) && r.score === need)).length : null }
+    const c = { trend: data ? topPass(trendRows(data.rows, settings).filter(r => (universe === 'all' || r.fo) && r.score >= trendMin())).length : null }
     for (const id of ['bull', 'bear', 'btst']) c[id] = data ? topPass(scanRows(data.rows, id).filter(r => r.met >= minFor(id))).length : null
     return c
-  }, [data, dir, tfs, rsiMin, adxMin, universe, topPass, condMin])
+  }, [data, dir, tfs, rsiMin, adxMin, universe, topPass, condMin, trendMinRaw])
   const [volList, setVolList] = useSessionState('vol.list', 'fo')
   const vol = usePoll(() => api('/api/volscan'), tab === 'vol' ? 60000 : 300000, [tab === 'vol'])
   const cp = usePoll(() => api('/api/candle-patterns'), tab === 'candle' ? 60000 : 300000, [tab === 'candle'])
@@ -364,7 +372,7 @@ export default function Scans({ basic = false, unused = false, openOsell, trend:
       : tab === 'chart' ? <StockLive key={'sl' + chartReq} stocks={live?.stocks || []} selected={selected} bias={live?.bias?.label} nifty={live?.indices?.nifty50} />
       : !data ? <Empty>{trend.error || 'Loading scan data…'}</Empty>
       : !data.rows.length ? <Empty>Calculating for the first time — this takes about 2–3 minutes…</Empty>
-        : tab === 'trend' ? <Trend key={'t' + resetKey} trend={trend} settings={settings} {...pp} />
+        : tab === 'trend' ? <Trend key={'t' + resetKey} trend={trend} settings={settings} min={trendMin()} setMin={v => setTrendMin(m => ({ ...m, [tfs]: v }))} {...pp} />
         : tab === 'common' ? <CommonStocks key={'c' + resetKey} data={data} settings={settings} orbLists={orbLists} bias={live?.bias?.label} {...pp} />
         : <ConditionScan key={tab + resetKey} id={tab} data={data} min={minFor(tab)} setMin={v => setCondMin(m => ({ ...m, [tab]: v }))} {...pp} />}
     {pick && <StockDrawer stock={live?.stocks?.find(s => s.symbol === pick.symbol) || pick} onClose={() => setPick(null)} />}
