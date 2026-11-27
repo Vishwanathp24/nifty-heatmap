@@ -6,18 +6,34 @@ import { api, fmtVol, isNum, istTime, usePersistentState, usePoll } from './lib.
 // side: heavy put writing = support below (bullish), heavy call writing = resistance above
 // (bearish). A market-mood meter, not a buy/sell signal.
 export const PCR_ZONES = [
-  { max: 0.7, key: 'oversold', label: 'Oversold / Bounce zone', tone: 'up',
+  { max: 0.7, key: 'oversold', label: 'Oversold / Bounce zone', tone: 'up', kid: '▲ May go up',
     text: 'Market has fallen a lot, fear is high and call sellers are heavy — bounce or short covering becomes more likely.' },
-  { max: 1.0, key: 'bearish', label: 'Bearish → Neutral', tone: 'amber',
+  { max: 1.0, key: 'bearish', label: 'Bearish → Neutral', tone: 'orange', kid: '▼ Weak, may dip',
     text: 'Call writers are still active — pressure on the market; rises may see selling.' },
-  { max: 1.3, key: 'bullish', label: 'Healthy Bullish', tone: 'up',
+  { max: 1.3, key: 'bullish', label: 'Healthy Bullish', tone: 'up', kid: '▲ Going up steady',
     text: 'Put writers are strong — big traders expect the market to hold; usually a healthy uptrend.' },
-  { max: 1.5, key: 'strong', label: 'Strong Bullish (stretching)', tone: 'up',
+  { max: 1.5, key: 'strong', label: 'Strong Bullish (stretching)', tone: 'up', kid: '▲ Up, may slow down',
     text: 'Put writing is heavy; the market is getting stretched — watch for the 1.5+ risk zone.' },
-  { max: Infinity, key: 'overbought', label: 'Overbought / Risk zone', tone: 'down',
+  { max: Infinity, key: 'overbought', label: 'Overbought / Risk zone', tone: 'down', kid: '▼ May fall',
     text: 'Market has run up fast and the crowd is one-sided bullish — profit booking, reversal or sharp correction risk rises.' },
 ]
 export const pcrZone = v => isNum(v) ? PCR_ZONES.find(z => v < z.max) : null
+
+// Small gauge icon for a PCR reading: a half dial from 0.4 to 1.9 coloured by zone (green bounce zone,
+// amber bearish to neutral, green bullish, red overbought) with a needle at the current value.
+export function PcrGauge({ v, size = 30 }) {
+  if (!isNum(v)) return null
+  const lo = 0.4, hi = 1.9, cx = 20, cy = 19, r = 15
+  const pt = (x, rr = r) => { const a = Math.PI * (1 - (Math.min(hi, Math.max(lo, x)) - lo) / (hi - lo)); return [cx + rr * Math.cos(a), cy - rr * Math.sin(a)] }
+  const arc = (a, b) => { const [x1, y1] = pt(a), [x2, y2] = pt(b); return `M${x1.toFixed(2)} ${y1.toFixed(2)}A${r} ${r} 0 0 1 ${x2.toFixed(2)} ${y2.toFixed(2)}` }
+  const segs = [[0.4, 0.7, 'var(--up)'], [0.7, 1.0, 'var(--orange)'], [1.0, 1.5, 'var(--up)'], [1.5, 1.9, 'var(--down)']]
+  const [nx, ny] = pt(v, r - 3)
+  return <svg className="pcr-gauge" width={size} height={size * 0.6} viewBox="0 0 40 24" aria-hidden="true">
+    {segs.map(([a, b, c]) => <path key={a} d={arc(a + 0.015, b - 0.015)} stroke={c} strokeWidth="5" fill="none" opacity={v >= a && v < b || (b === 1.9 && v >= 1.9) || (a === 0.4 && v < 0.4) ? 1 : 0.7} />)}
+    <line x1={cx} y1={cy} x2={nx.toFixed(2)} y2={ny.toFixed(2)} stroke="var(--ink)" strokeWidth="2.6" strokeLinecap="round" />
+    <circle cx={cx} cy={cy} r="3" fill="var(--ink)" />
+  </svg>
+}
 
 // Short guide used in "How to read this" (Index Options) and the meter's details.
 export function PcrGuide() {
@@ -111,7 +127,7 @@ export function PcrMeter({ compact = false, noPcr = false }) {
         <div className="pcr-main">
           <span className="pcr-k">Nifty PCR (OI)</span>
           <b className="pcr-v">{v.toFixed(2)}</b>
-          <span className={'pcr-pill ' + z.tone}>{z.label}</span>
+          <span className={'pcr-pill ' + z.tone}>{z.label}</span><span className={'pcr-kid ' + z.tone}>{z.kid}</span><PcrGauge v={v} size={52} />
           <span className="pcr-bar" title="< 0.7 oversold · 0.7–1.0 bearish→neutral · 1.0–1.3 healthy bullish · 1.3–1.5 strong · > 1.5 overbought">
             {[0.7, 1.0, 1.3, 1.5].map(t => <i key={t} className="pcr-tick" style={{ left: (t - 0.4) / 1.5 * 100 + '%' }} />)}
             <i className="pcr-mark" style={{ left: pos + '%' }} /></span>
@@ -145,7 +161,7 @@ export function PcrInBias() {
     <div className="pcr-main">
       <span className="pcr-k">Nifty PCR (OI)</span>
       <b className="pcr-v">{v.toFixed(2)}</b>
-      <span className={'pcr-pill ' + z.tone}>{z.label}</span>
+      <span className={'pcr-pill ' + z.tone}>{z.label}</span><span className={'pcr-kid ' + z.tone}>{z.kid}</span><PcrGauge v={v} size={52} />
       <span className="pcr-bar" title="< 0.7 oversold · 0.7–1.0 bearish→neutral · 1.0–1.3 healthy bullish · 1.3–1.5 strong · > 1.5 overbought">
         {[0.7, 1.0, 1.3, 1.5].map(t => <i key={t} className="pcr-tick" style={{ left: (t - 0.4) / 1.5 * 100 + '%' }} />)}
         <i className="pcr-mark" style={{ left: pos + '%' }} /></span>
@@ -181,7 +197,7 @@ export function MiniCards({ bias, breadth, fiiDii, nifty, always = false, childr
       <>{s ? s.sent.label : '—'}</>,
       s && `${oiLean(s, nifty, bias)?.why}\n\n${s.sent.why}${isNum(s.sent.pct) ? ` (${s.sent.key === 'bear' ? 'calls' : 'puts'} ${s.sent.pct}% of fresh OI)` : ''}\nOI change today: calls ${s.cc > 0 ? '+' : ''}${shares(s.cc)}, puts ${s.pc > 0 ? '+' : ''}${shares(s.pc)}\nTotal OI: calls ${shares(s.co)}, puts ${shares(s.po)}\nStrikes ${s.lo.toLocaleString('en-IN')}–${s.hi.toLocaleString('en-IN')}, OI in shares.`,
       s && <><span><b>Chg</b> {pair(s.cc, s.pc, true)}</span><span><b>OI</b> {pair(s.co, s.po)}</span></>)}
-    {card('pcr', z?.tone, 'Nifty PCR (OI)', <>{z ? v.toFixed(2) : '—'} {z && <small>{z.label.split(' / ')[0]}</small>}</>, z ? `${z.label}: ${z.text} (${spanText(s)}; all strikes ${isNum(e.pcr_oi) ? e.pcr_oi.toFixed(2) : '—'})` : undefined)}
+    {card('pcr', z?.tone, 'Nifty PCR (OI)', <>{z ? v.toFixed(2) : '—'} {z && <small>{z.kid}</small>}{z && <PcrGauge v={v} size={62} />}</>, z ? `${z.label}: ${z.text} (${spanText(s)}; all strikes ${isNum(e.pcr_oi) ? e.pcr_oi.toFixed(2) : '—'})` : undefined)}
     {card('em', 'em', 'Expected Move', em ? <>±{k(e.move)} <small>{k(d.spot - e.move)}–{k(d.spot + e.move)}</small></> : '—',
       'From option prices (at-the-money implied volatility): about a 2-in-3 chance Nifty ends this expiry inside the range. Not a prediction.')}
     {children}
@@ -194,7 +210,7 @@ export function PcrCard() {
   return <>
     <div className={'card hm-card pcr-card ' + (pcr?.zone.tone || '')}>
       <div className="card-k">Nifty PCR (OI)</div>
-      <div className="card-v">{pcr ? pcr.v.toFixed(2) : '—'} {pcr && <span className={'pcr-pill ' + pcr.zone.tone}>{pcr.zone.label}</span>}</div>
+      <div className="card-v">{pcr ? pcr.v.toFixed(2) : '—'} {pcr && <span className={'pcr-pill ' + pcr.zone.tone}>{pcr.zone.label}</span>}{pcr && <span className={'pcr-kid ' + pcr.zone.tone}>{pcr.zone.kid}</span>}{pcr && <PcrGauge v={pcr.v} size={56} />}</div>
       <div className="card-n">{pcr ? <>{pcr.zone.text} <span className="muted">Expiry {pcr.expiry} · {pcr.span} · all strikes {isNum(pcr.full) ? pcr.full.toFixed(2) : '—'}</span></> : 'Loading…'}</div>
       {pcr && (() => { const c = pcrCheck(pcr); return <div className={'pcr-dec-status small ' + c.state} title="Support = highest put OI strike, resistance = highest call OI strike (nearest expiry)">
         {c.state === 'wait' ? `Wait — inside ${pcr.support?.toLocaleString('en-IN')} support / ${pcr.resistance?.toLocaleString('en-IN')} resistance` : c.state === 'ce' ? `Above ${pcr.resistance?.toLocaleString('en-IN')} resistance — CE side only if it sustains` : `Below ${pcr.support?.toLocaleString('en-IN')} support — PE side only if it sustains`}</div> })()}

@@ -31,7 +31,7 @@ const big = v => !isNum(v) ? '—' : M.cur + (v >= 1e9 ? (v / 1e9).toFixed(2) + 
 const sgn = (v, d = 2, suf = '%') => isNum(v) ? (v > 0 ? '+' : '') + v.toFixed(d) + suf : '—'
 const amt = v => isNum(v) ? v.toLocaleString(M.locale, { maximumFractionDigits: v >= 100 ? 0 : 1 }) : '—'
 // Index options read PCR from the option sellers' side (zones in Pcr.jsx); crypto keeps the simple read.
-const pcrTone = v => !isNum(v) ? '' : M.key === 'iopt' ? ({ up: 'up', down: 'down', amber: 'amber' })[pcrZone(v).tone] : v >= 1 ? 'down' : v <= 0.7 ? 'up' : ''
+const pcrTone = v => !isNum(v) ? '' : M.key === 'iopt' ? ({ up: 'up', down: 'down', amber: 'amber', orange: 'orange' })[pcrZone(v).tone] : v >= 1 ? 'down' : v <= 0.7 ? 'up' : ''
 const pcrLabel = v => !isNum(v) ? '' : M.key === 'iopt' ? pcrZone(v).label : v >= 1 ? 'more puts than calls' : v <= 0.7 ? 'call-heavy' : 'balanced'
 
 // Option chain around ATM (± 10 strikes), laid out like a broker chain: calls on the left, strike

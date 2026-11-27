@@ -18,6 +18,8 @@
   --down-bg: #FBEAEA;
   --amber: #B7791F;
   --amber-bg: #FDF4E3;
+  --orange: #D9480F;
+  --orange-bg: #FFF0E6;
   --accent: #2563EB;
   --accent-bg: #EAF0FD;
   --radius: 4px;
@@ -1860,3 +1862,16 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
 .ol-drawer .ol-tbl td { white-space: nowrap }
 .ol-drawer .ol-tbl td.muted { white-space: normal }
 @media (max-width: 640px) { .ol-drawer .ol-grid { grid-template-columns: 1fr; grid-template-areas: "lean" "sig" "lev" "scen" } }
+/* PCR gauge icon */
+.pcr-gauge { display: inline-block; vertical-align: -3px; margin-left: 8px; flex: none; filter: saturate(1.5) brightness(.7) }
+.mcard:has(.pcr-gauge) { position: relative; padding-right: 80px }
+.mcard .mv .pcr-gauge { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); margin: 0 }
+.pcr-kid { margin-left: 8px; font-size: 12px; font-weight: 700; white-space: nowrap }
+.pcr-kid.up { color: var(--up) } .pcr-kid.down { color: var(--down) } .pcr-kid.amber { color: var(--amber) }
+/* Orange tone: PCR 0.7 to 1.0 (weak, may dip) */
+.orange { color: var(--orange) }
+.pcr-meter.orange, .hm-card.orange, .mini-strip .pcr-mini.orange { border-left-color: var(--orange) }
+.pcr-pill.orange, .pcr-z.orange { background: var(--orange-bg); color: var(--orange) }
+.pcr-mini.orange { color: var(--orange); background: var(--orange-bg); border-color: #f7c9ad }
+.card-v.orange, .cm-v.orange, td.orange, .pcr-kid.orange, .mcard .pcr-t.orange { color: var(--orange) }
+.mcard.orange { border-left-color: var(--orange) } .mcard.orange .mv { color: var(--orange) }
