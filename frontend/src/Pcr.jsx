@@ -8,7 +8,7 @@ import { api, fmtVol, isNum, istTime, usePersistentState, usePoll } from './lib.
 export const PCR_ZONES = [
   { max: 0.7, key: 'oversold', label: 'Oversold / Bounce zone', tone: 'up', kid: '▲ May go up',
     text: 'Market has fallen a lot, fear is high and call sellers are heavy — bounce or short covering becomes more likely.' },
-  { max: 1.0, key: 'bearish', label: 'Bearish → Neutral', tone: 'orange', kid: '▼ Weak, may dip',
+  { max: 1.0, key: 'bearish', label: 'Bearish → Neutral', tone: 'amber', kid: '▼ Weak, may dip',
     text: 'Call writers are still active — pressure on the market; rises may see selling.' },
   { max: 1.3, key: 'bullish', label: 'Healthy Bullish', tone: 'up', kid: '▲ Going up steady',
     text: 'Put writers are strong — big traders expect the market to hold; usually a healthy uptrend.' },
@@ -26,7 +26,7 @@ export function PcrGauge({ v, size = 30 }) {
   const lo = 0.4, hi = 1.9, cx = 20, cy = 19, r = 15
   const pt = (x, rr = r) => { const a = Math.PI * (1 - (Math.min(hi, Math.max(lo, x)) - lo) / (hi - lo)); return [cx + rr * Math.cos(a), cy - rr * Math.sin(a)] }
   const arc = (a, b) => { const [x1, y1] = pt(a), [x2, y2] = pt(b); return `M${x1.toFixed(2)} ${y1.toFixed(2)}A${r} ${r} 0 0 1 ${x2.toFixed(2)} ${y2.toFixed(2)}` }
-  const segs = [[0.4, 0.7, 'var(--up)'], [0.7, 1.0, 'var(--orange)'], [1.0, 1.5, 'var(--up)'], [1.5, 1.9, 'var(--down)']]
+  const segs = [[0.4, 0.7, 'var(--up)'], [0.7, 1.0, 'var(--amber)'], [1.0, 1.5, 'var(--up)'], [1.5, 1.9, 'var(--down)']]
   const [nx, ny] = pt(v, r - 3)
   return <svg className="pcr-gauge" width={size} height={size * 0.6} viewBox="0 0 40 24" aria-hidden="true">
     {segs.map(([a, b, c]) => <path key={a} d={arc(a + 0.015, b - 0.015)} stroke={c} strokeWidth="5" fill="none" opacity={v >= a && v < b || (b === 1.9 && v >= 1.9) || (a === 0.4 && v < 0.4) ? 1 : 0.7} />)}
