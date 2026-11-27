@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Drawer, Empty, Pct, Seg, SortTh, StockLink, TopFilter, TopTag, useTopPass } from './components.jsx'
+import { CopyTv, Drawer, Empty, Pct, Seg, SortTh, StockLink, TopFilter, TopTag, useTopPass } from './components.jsx'
 import { PageNote } from './guides.jsx'
 import { api, fmtNum, fmtPct, fmtPrice, fmtRatio, fmtVol, heatClass, hhmmTo12, isNum, sessionLabel, sortRows, tone, tvStock, useSessionState } from './lib.js'
 
@@ -313,6 +313,7 @@ export default function Scanner({ orb, live, selected, setSelected, tf, setTf, c
       {selected.length > 0 && <button className="btn sm clear-sectors" onClick={() => setSelected([])} title="Clear the sector filter (also clears the heatmap selection)">✕ Clear sectors ({selected.length})</button>}
       <input className="search" placeholder="Search symbol" value={filters.search} onChange={e => setF(x => ({ ...x, search: e.target.value }))} />
       <button className="btn sm filters-toggle" onClick={() => setFiltersOpen(o => !o)}>{filtersOpen ? 'Hide filters' : 'Filters'}</button>
+      <CopyTv symbols={rows.map(r => r.symbol)} />
       <span className="grow" />
       <EngineStatus data={data} eng={eng} error={orb.error} />
     </div>

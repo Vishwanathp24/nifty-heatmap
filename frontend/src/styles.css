@@ -1832,3 +1832,4 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
 .fiidii .fd-spark.up polyline { stroke: var(--up) } .fiidii .fd-spark.up circle { fill: var(--up) }
 .fiidii .fd-spark.down polyline { stroke: var(--down) } .fiidii .fd-spark.down circle { fill: var(--down) }
 .fiidii .fd-idx { display: flex; flex-wrap: wrap; gap: 4px 18px }
+.copy-tv { white-space: nowrap }

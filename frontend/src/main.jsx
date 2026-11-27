@@ -108,7 +108,7 @@ function NavMenu({ pages, page, go }) {
 }
 
 // Basic site (header switch): only these pages, exactly as in Advanced.
-const BASIC_PAGES = ['overview', 'heatmap', 'scanner', 'trend']  // Intraday Scanner in Basic shows 3 scans only (Scans.jsx BASIC_TABS)
+const BASIC_PAGES = ['overview', 'heatmap', 'scanner', 'trend']  // Intraday Scanner in Basic shows 3 scans + Option Selling (Scans.jsx BASIC_TABS)
 
 // One real URL per page, so each can be linked, indexed and shared. The server serves the same app for these paths.
 const PATHS = { overview: '/', heatmap: '/heatmap', scanner: '/orb-scanner', trend: '/intraday-scanner', crypto: '/crypto', ipo: '/ipo', fiidii: '/fii-dii-data', learning: '/learning',  // /journal (removed) opens Market Overview
@@ -347,7 +347,7 @@ function App() {
         <span>NSE Sector Heatmap</span></button>
       <div className="seg mode-switch" role="group" aria-label="Site version">
         {[['basic', 'Basic'], ['advanced', 'Advanced'], ['crypto', 'Crypto']].map(([v, l]) => <button key={v} className={(isCrypto ? v === 'crypto' : mode === v) ? 'on' : ''} onClick={() => pickMode(v)}
-          title={v === 'basic' ? 'Simple view: Market Overview, Sector Heatmap, ORB Scanner and 3 intraday scans' : v === 'crypto' ? 'Crypto market: prices, heatmap, movers, ORB and options (trades 24x7)' : 'Full view: every scanner, chart and tool'}>{l}</button>)}
+          title={v === 'basic' ? 'Simple view: Market Overview, Sector Heatmap, ORB Scanner, 3 intraday scans and Option Selling' : v === 'crypto' ? 'Crypto market: prices, heatmap, movers, ORB and options (trades 24x7)' : 'Full view: every scanner, chart and tool'}>{l}</button>)}
       </div>
       <button className={'full-toggle' + (fullData ? ' on' : '')} role="switch" aria-checked={fullData} onClick={() => setFullData(f => !f)}
         title="Phones and tablets: show the full data panels (as in the first version) instead of the small cards"><i />Full data</button>
@@ -367,7 +367,7 @@ function App() {
           on Overview / Heatmap only in the phone / tablet views (desktop has the full panels) */}
       {page !== 'crypto' && !INFO_IDS.includes(page) && <MiniCards always={page !== 'heatmap' ? true : fullData && 'full'} bias={live.data?.bias} breadth={live.data?.breadth} fiiDii={ctx.data?.fii_dii?.data} nifty={live.data?.indices?.nifty50} />}
       {page === 'journal' && <div className="mini-strip"><div id="journal-account-slot" className="mini-slot" /></div>}  {/* Journal puts its sign-in / saved status here */}
-      {page === 'overview' && <Overview live={live.data} ctx={ctx.data} openOptionSelling={() => { setSessionValue('scans.tab', 'osell'); setMode('advanced'); setPage('trend'); window.scrollTo({ top: 0 }) }} />}
+      {page === 'overview' && <Overview live={live.data} ctx={ctx.data} openOptionSelling={() => { setSessionValue('scans.tab', 'osell'); setPage('trend'); window.scrollTo({ top: 0 }) }} />}
       {page === 'heatmap' && <Heatmap live={live.data} selected={selected} setSelected={setSelected} toggle={toggleSector} goto={setPage} basic={basic} />}
       <PageBoundary page={page}><Suspense fallback={<div className="empty">Loading… (updating to the latest version if the site was just updated)</div>}>
         {page === 'trend' && <Scans basic={basic} trend={trend} live={live.data} selected={selected} setSelected={setSelected} chartReq={chartReq} orbLists={orbLists} />}

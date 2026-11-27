@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect } from 'react'
+import React, { createContext, useContext, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { fmtPct, isNum, tone, tvIndex, tvStock, tvSymbol } from './lib.js'
 
@@ -156,4 +156,21 @@ export function BiasPill({ bias }) {
   const tone = label === 'BULLISH' ? 'bull' : label === 'BEARISH' ? 'bear' : 'neutral'
   return <span className={'bias-pill ' + tone} title={bias?.components ? bias.components.map(c => `${c.label} ${c.points > 0 ? '+1' : c.points < 0 ? '−1' : '0'}`).join(' · ') : undefined}>
     Market Bias: {label || 'N/A'}{isNum(bias?.score) ? ` (${bias.score > 0 ? '+' : ''}${bias.score})` : ''}</span>
+}
+
+// Copies symbols as "NSE:A,NSE:B,…": paste into TradingView's watchlist "Add symbol" box to add them all at once.
+export function CopyTv({ symbols, label = 'Copy for TradingView' }) {
+  const [done, setDone] = useState(null)
+  const list = [...new Set(symbols)].map(tvSymbol)
+  const copy = async () => {
+    const text = list.join(',')
+    try { await navigator.clipboard.writeText(text) } catch {
+      const t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select()
+      try { document.execCommand('copy') } catch { /* nothing else to try */ } t.remove()
+    }
+    setDone(list.length); setTimeout(() => setDone(null), 2500)
+  }
+  return <button className="btn sm copy-tv" onClick={copy} disabled={!list.length}
+    title="Copies the symbols shown (NSE:SYMBOL, comma-separated). In TradingView open the watchlist, click + (Add symbol), paste and press Enter.">
+    {done != null ? `✓ Copied ${done}` : `📋 ${label}${list.length ? ` (${list.length})` : ''}`}</button>
 }

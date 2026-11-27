@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react'
-import { Empty, Seg, SortTh, StockLink, TopFilter, TopTag, useTopPass } from './components.jsx'
+import { CopyTv, Empty, Seg, SortTh, StockLink, TopFilter, TopTag, useTopPass } from './components.jsx'
 import { fmtNum, hhmmTo12, isNum, sortRows, useSessionState } from './lib.js'
 
 // Indicator checks per timeframe. Bullish: price above VWAP / EMA 5 / EMA 9,
@@ -107,7 +107,7 @@ export default function Trend({ trend, settings, link, prefix = 'trend', fmtLtp 
     <div className="toolbar">
       <Seg value={dir} onChange={setDir} options={[{ value: 'bull', label: 'Bullish', tone: 'up' }, { value: 'bear', label: 'Bearish', tone: 'down' }]} />
       <Seg value={tfs} onChange={setTfs} options={[{ value: 'both', label: '15 Min + 1 Hour' }, { value: '15', label: '15 Min only' }, { value: '60', label: '1 Hour only' }]} />
-      {!link && <TopFilter />}
+      {!link && <TopFilter />}{!link && <CopyTv symbols={shown.map(r => r.symbol)} />}
       <label className="field-inline">RSI {bull ? '>' : '<'}
         <select value={rsiMin} onChange={e => setRsiMin(Number(e.target.value))}>
           {[50, 55, 60, 65, 70].map(v => <option key={v} value={v}>{bull ? v : 100 - v}</option>)}</select></label>
