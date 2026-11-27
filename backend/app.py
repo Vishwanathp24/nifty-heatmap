@@ -560,8 +560,8 @@ def _lakh_cr(v):
         return v
     try:
         t = str(v).replace(",", "").strip()
-        mult = 1e5 if t.endswith("L") else 1e7 if t.endswith("Cr") else 1
-        return float(t.rstrip("LCr ").strip()) * mult
+        mult = 1e5 if t.endswith("L") else 1e7 if t.endswith("Cr") else 1e3 if t.endswith("K") else 1
+        return float(t.rstrip("LCrK ").strip()) * mult
     except ValueError:
         return None
 

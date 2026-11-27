@@ -320,14 +320,15 @@ function App() {
   // Today's Top 20 F&O gainers / losers (same ranking as the Sector Heatmap list), tagged in every scanner.
   // Scanners (Basic and Advanced): one on/off button for Top 20 gainers + losers, on by default; tap off to see all stocks
   const [topOn, setTopOn] = useSessionState('top20.on', true)
+  const [topN, setTopN] = useSessionState('top.n', 10)  // Top 10 or Top 20 gainers + losers
   const topMovers = useMemo(() => {
     const fo = (live.data?.stocks || []).filter(s => s.fo && Number.isFinite(s.pct_prev)).sort((a, b) => b.pct_prev - a.pct_prev)
     const n = Math.min(20, Math.floor(fo.length / 2)), out = {}
     fo.slice(0, n).forEach((s, i) => { if (s.pct_prev > 0) out[s.symbol] = ['up', i + 1] })
     fo.slice(-n).reverse().forEach((s, i) => { if (s.pct_prev < 0) out[s.symbol] = ['down', i + 1] })
-    return { map: out, only: topOn ? 'both' : '', topOn, setTopOn }
-  }, [live.data?.stocks, topOn])
-  const topCut = rows => topOn ? rows.filter(r => topMovers.map[r.symbol]) : rows  // tab counts match the list shown
+    return { map: out, only: topOn ? 'both' : '', topOn, setTopOn, topN, setTopN }
+  }, [live.data?.stocks, topOn, topN])
+  const topCut = rows => topOn ? rows.filter(r => topMovers.map[r.symbol]?.[1] <= topN) : rows  // tab counts match the list shown
   const toggleSector = useCallback(sym => setSelected(s => s.includes(sym) ? s.filter(x => x !== sym) : [...s, sym]), [setSelected])
   const orbCount = orb.data?.rows ? topCut(filterRows(orb.data.rows, orbFilters, selected, orb.data)).length : null
   const orb15Count = orb15.data?.rows ? topCut(filterRows(orb15.data.rows, orbFilters15, selected, orb15.data)).length : null

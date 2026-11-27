@@ -10,20 +10,29 @@ const stop = e => e.stopPropagation()
 export const StockChartCtx = createContext(null)
 // Today's Top 20 F&O gainers / losers (set in main.jsx): map = symbol -> ['up' | 'down', rank];
 // only = '' | 'up' | 'down', the scanner filter shared by every scanner table.
-export const TopMoversCtx = createContext({ map: {}, only: '', topOn: false, setTopOn: () => {} })
+export const TopMoversCtx = createContext({ map: {}, only: '', topOn: false, setTopOn: () => {}, topN: 20, setTopN: () => {} })
 
-// Scanner rows with the Top 20 filter applied; when it is on, ordered by rank (#1 first).
+// Scanner rows with the Top 10 / Top 20 filter applied; when it is on, ordered by rank (#1 first).
 export function useTopPass() {
-  const { map, only } = useContext(TopMoversCtx)
-  if (only === 'both') return rows => rows.filter(r => map[r.symbol])  // either list, scan order kept
-  return rows => only ? rows.filter(r => map[r.symbol]?.[0] === only).sort((a, b) => map[a.symbol][1] - map[b.symbol][1]) : rows
+  const { map, only, topN = 10 } = useContext(TopMoversCtx)
+  const inTop = r => map[r.symbol] && map[r.symbol][1] <= topN
+  if (only === 'both') return rows => rows.filter(inTop)  // either list, scan order kept
+  return rows => only ? rows.filter(r => inTop(r) && map[r.symbol][0] === only).sort((a, b) => map[a.symbol][1] - map[b.symbol][1]) : rows
+}
+// Same filter for a tab that keeps its own switch (n = 0 off, 10 or 20).
+export function topRows(map, n) {
+  return rows => n ? rows.filter(r => map[r.symbol] && map[r.symbol][1] <= n) : rows
 }
 
-export function TopFilter() {
-  const { topOn, setTopOn } = useContext(TopMoversCtx)
-  return <button className={'top-toggle' + (topOn ? ' on' : '')} aria-pressed={topOn} onClick={() => setTopOn(v => !v)}
-    title={topOn ? 'Showing only today’s Top 20 F&O gainers and losers. Tap to show all stocks' : 'Showing all stocks. Tap to show only today’s Top 20 F&O gainers and losers'}>
-    <i>{topOn ? '✓' : ''}</i>Top 20 gainers + losers</button>
+// Two switches: Top 10 and Top 20 gainers + losers (one at a time; tap the ticked one to show all stocks).
+// value / setValue: a tab that keeps its own switch (e.g. NSE > IPO in Gain, off by default) instead of the shared one.
+export function TopFilter({ value, setValue }) {
+  const ctx = useContext(TopMoversCtx)
+  const cur = value ?? (ctx.topOn ? (ctx.topN || 10) : 0)
+  const set = setValue ?? (v => { if (v) { ctx.setTopN?.(v); ctx.setTopOn(true) } else ctx.setTopOn(false) })
+  return <>{[10, 20].map(n => <button key={n} className={'top-toggle' + (cur === n ? ' on' : '')} aria-pressed={cur === n} onClick={() => set(cur === n ? 0 : n)}
+    title={cur === n ? `Showing only today’s Top ${n} F&O gainers and losers. Tap to show all stocks` : `Show only today’s Top ${n} F&O gainers and losers`}>
+    <i>{cur === n ? '✓' : ''}</i>Top {n} gainers + losers</button>)}</>
 }
 
 // Tag shown beside a symbol in the scanners when it is in today's Top 20 gainers or losers.

@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react'
-import { BiasPill, CopyTv, Empty, Seg, SortTh, StockLink, TopFilter, TopTag, useTopPass } from './components.jsx'
+import React, { useContext, useEffect, useMemo, useState } from 'react'
+import { BiasPill, CopyTv, Empty, Seg, SortTh, StockLink, TopFilter, TopMoversCtx, TopTag, topRows, useTopPass } from './components.jsx'
 import { api, fmtNum, heatClass, fmtVol, hhmmTo12, isNum, istTime, setSessionValue, sortRows, usePersistentState, usePoll, useSessionState } from './lib.js'
 import Trend, { trendNeed, trendRows, useTrendSettings } from './Trend.jsx'
 import { SectorMulti, StockDrawer } from './Scanner.jsx'
@@ -61,25 +61,24 @@ export function scanRows(rows, id) {
   })
 }
 
-function ConditionScan({ id, data, onPick, picked }) {
+function ConditionScan({ id, data, min, setMin, onPick, picked }) {
   const sc = SCANS[id]
-  const [allOnly, setAllOnly] = useSessionState('scan.allOnly.' + id, true)
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState({ key: 'met', dir: 'desc' })
   const rows = useMemo(() => scanRows(data?.rows, id).map(r => ({ ...r, ...Object.fromEntries(sc.conds.map(c => ['v_' + c.k, c.val(r)])) })), [data, id])
   const q = search.trim().toUpperCase()
   const base = rows.filter(r => !q || r.symbol.includes(q) || (r.company || '').toUpperCase().includes(q))
-  const full = base.filter(r => r.met === sc.conds.length)
-  const topPass = useTopPass()
-  const shown = topPass(sortRows(allOnly ? full : base, sort.key, sort.dir))
-  const sp = { sort, setSort }
   const N = sc.conds.length
+  const full = base.filter(r => r.met >= min)
+  const topPass = useTopPass()
+  const shown = topPass(sortRows(full, sort.key, sort.dir))
+  const sp = { sort, setSort }
   return <>
-    <p className="muted small qualify-line"><b className={sc.tone}>{full.length}</b> of {base.length} stocks meet all {N} conditions. {sc.about}</p>
+    <p className="muted small qualify-line"><b className={sc.tone}>{shown.length}</b> of {base.length} stocks meet {min === N ? `all ${N}` : `at least ${min} of ${N}`} conditions. {sc.about}</p>
     <div className="toolbar">
       <input className="search" placeholder="Search symbol" value={search} onChange={e => setSearch(e.target.value)} />
-      <label className="check-label"><input type="checkbox" checked={allOnly} onChange={e => setAllOnly(e.target.checked)} />Only stocks meeting all {N} conditions</label>
-      <TopFilter /><CopyTv symbols={shown.map(r => r.symbol)} />
+      <label className="check-label">Min score <select value={min} onChange={e => setMin(Number(e.target.value))}>{Array.from({ length: N - 2 }, (_, i) => N - i).reverse().map(v => <option key={v} value={v}>{v} of {N}</option>)}</select></label>
+      <CopyTv symbols={shown.map(r => r.symbol)} />
     </div>
     <div className="tbl-wrap panel trend-wrap">
       <table className="tbl trend-tbl cond-tbl pickable">
@@ -102,7 +101,7 @@ function ConditionScan({ id, data, onPick, picked }) {
           {sc.conds.map((c, i) => <td key={c.k} className={'num ind ' + (r.res[i] ? 'pass' : 'fail')} title={c.title}>{(c.fmt || n2)(r['v_' + c.k], r)}</td>)}
         </tr>)}</tbody>
       </table>
-      {!shown.length && <Empty>No stock meets every condition right now. Untick “Only stocks meeting all conditions” to see the closest ones (sorted by conditions met).</Empty>}
+      {!shown.length && <Empty>No stock meets {min} of {N} conditions right now. Pick a lower Min score to see the closest ones.</Empty>}
     </div>
     <p className="muted small">Each cell shows the level the condition compares against (hover for the exact rule); green = met, red = not met. Daily values use today’s live candle, so results change during the session. Condition screen, not a buy/sell recommendation.</p>
   </>
@@ -139,7 +138,7 @@ function VolumeSpike({ vol, stocks, list, setList, onPick, picked }) {
       <Seg value={dir} onChange={setDir} className="vol-dir" options={[{ value: 'all', label: <>All <span className="count">{n('all')}</span></> },
         { value: 'bull', label: <>Bullish <span className="count">{n('bull')}</span></>, tone: 'up' },
         { value: 'bear', label: <>Bearish <span className="count">{n('bear')}</span></>, tone: 'down' }]} />
-      <TopFilter /><CopyTv symbols={shown.map(r => r.symbol)} />
+      <CopyTv symbols={shown.map(r => r.symbol)} />
       <Seg options={VOL_LISTS} value={list} onChange={setList} />
       <input className="search" placeholder="Search symbol" value={search} onChange={e => setSearch(e.target.value)} />
       <label className="check-label"><input type="checkbox" checked={allRows} onChange={e => setAllRows(e.target.checked)} />Show all stocks (sorted by × average)</label>
@@ -172,14 +171,14 @@ function VolumeSpike({ vol, stocks, list, setList, onPick, picked }) {
   </>
 }
 
-const ALL_TABS = [['setup', 'Trade Setup'], ['fno', 'F&O Stocks'], ['osell', 'Option Selling'], ['trend', 'Trending Stocks'], ['bull', 'Bullish Intraday'], ['bear', 'Bearish Intraday'], ['vol5', 'Volume > 5 Days'], ['nse', 'NSE']]
+const ALL_TABS = [['nse', 'NSE'], ['setup', 'Trade Setup'], ['fno', 'F&O Stocks'], ['osell', 'Option Selling'], ['trend', 'Trending Stocks'], ['bull', 'Bullish Intraday'], ['bear', 'Bearish Intraday'], ['vol5', 'Volume > 5 Days']]
 // Unused Screeners page (footer link): scans moved out of the Intraday Scanner
 const UNUSED_TABS = [['common', 'Common Stocks'], ['candle', 'Candlestick'], ['chart', 'Live Chart'], ['vol', 'Volume Spike'], ['btst', 'BTST Stocks'], ['ema', 'EMA 9/21 + RSI'], ['ixsell', 'Index Option Selling'], ['iopt', 'Index Options']]
 // Extra scanners: hidden unless "More scanners" is switched on (remembered in this browser)
 const HIDDEN_TABS = []
 const BASE_TABS = ALL_TABS.filter(([v]) => !HIDDEN_TABS.includes(v))
 // Basic mode: just these four scans
-const BASIC_TABS = [['bull', 'Bullish Intraday'], ['bear', 'Bearish Intraday'], ['vol5', 'Volume > 5 Days'], ['osell', 'Option Selling'], ['nse', 'NSE']]
+const BASIC_TABS = [['nse', 'NSE'], ['bull', 'Bullish Intraday'], ['bear', 'Bearish Intraday'], ['vol5', 'Volume > 5 Days'], ['osell', 'Option Selling']]
 
 // Live Chart: NSE stock candles (Yahoo) on 1m ... 1M with the indicator table; the stock list
 // follows the sector filter.
@@ -213,7 +212,7 @@ function CommonStocks({ data, settings, orbLists, bias, onPick, picked }) {
     <div className="toolbar">
       <Seg value={dir} onChange={setDir} options={[{ value: 'bull', label: 'Bullish', tone: 'up' }, { value: 'bear', label: 'Bearish', tone: 'down' }]} />
       <label className="check-label"><input type="checkbox" checked={allOnly} onChange={e => setAllOnly(e.target.checked)} />Only stocks in all {N} scans</label>
-      <TopFilter /><CopyTv symbols={shown.map(r => r.symbol)} />
+      <CopyTv symbols={shown.map(r => r.symbol)} />
     </div>
     <p className="muted small qualify-line"><b className={bull ? 'up' : 'down'}>{all.length}</b> stock{all.length === 1 ? '' : 's'} in all {N} {bull ? 'bullish' : 'bearish'} scans: Trending Stocks, {bull ? 'Bullish' : 'Bearish'} Intraday and the 15 Min, 30 Min and 1 Hour ORB {bull ? 'breakouts' : 'breakdowns'} (each with the filters set on its own tab).</p>
     <div className="tbl-wrap panel"><table className="tbl pickable">
@@ -289,14 +288,30 @@ export default function Scans({ basic = false, unused = false, openOsell, trend:
     if (biasLabel === 'BULLISH' && base.dir !== 'bull') base.setDir('bull')
   }, [biasLabel, dirManual])
   const [resetKey, setResetKey] = useState(0)
+  const topCtx = useContext(TopMoversCtx)
+  const [nseRaw, setNseTab] = useSessionState('nse.tab', 'mom')
+  const nseTab = nseSub(nseRaw)
+  // Volume Gainers and IPO in Gain keep their own Top 10 / 20 switch (off at first), so the shared one is hidden there
+  const sharedTop = !(tab === 'nse' && ['volg', 'ipo', 'oic'].includes(nseTab)) && !['iopt', 'ixsell', 'osell', 'chart', 'fno'].includes(tab)
+  const [condMin, setCondMin] = useSessionState('scan.min', {})  // Bullish / Bearish Intraday, BTST: minimum conditions met (all by default)
+  // Until picked by hand: the strictest score (all conditions) that has stocks, stepping down to 3 at most
+  const autoMin = id => {
+    const N = SCANS[id].conds.length, met = data ? topPass(scanRows(data.rows, id)).map(r => r.met) : []
+    for (let v = N; v >= 3; v--) if (met.some(m => m >= v)) return v
+    return N
+  }
+  const minFor = id => condMin[id] ?? autoMin(id)
+  const [volgTop, setVolgTop] = useSessionState('volg.top', 0)  // Volume Gainers: own switch, off at first
+  const [oicTop, setOicTop] = useSessionState('oic.top', 0)  // Change in OI: own switch, off at first
   const [pick, setPick] = useState(null)  // stock whose details drawer is open (row click, as on the ORB Scanner)
   const pp = { onPick: r => setPick(r), picked: pick?.symbol }
   // Clear filters: sectors, Trending settings, search, sort and the "all conditions only" boxes.
   const clearAll = () => {
     setSelected([])
     setDirManual(false); base.setDir(biasLabel === 'BEARISH' ? 'bear' : 'bull'); settings.setTfs('both'); settings.setRsiMin(60); settings.setAdxMin(25); settings.setUniverse('fo')
-    setSessionValue('mom.sideManual', null); setSessionValue('oic.nselist', 'Rise-in-OI-Rise'); setSessionValue('volg.sideManual', null); setSessionValue('gl.sideManual', null)
-    for (const k of ['trend.allOnly', 'scan.allOnly.bull', 'scan.allOnly.bear', 'scan.allOnly.btst']) setSessionValue(k, true)
+    setSessionValue('mom.sideManual', null); setSessionValue('oic.nselist', null); setSessionValue('vol5.dirManual', null); setOicTop(0); setVolgTop(0); setSessionValue('volg.sideManual', null); setSessionValue('gl.sideManual', null)
+    topCtx.setTopN?.(10); topCtx.setTopOn(true)  // back to Top 10 gainers + losers
+    setCondMin({}); setSessionValue('trend.allOnly', true)
     setResetKey(k => k + 1)  // remount the tables so search / sort / checkboxes start fresh
   }
   // Sector selection is shared with the Sector Heatmap and the ORB Scanner.
@@ -309,9 +324,9 @@ export default function Scans({ basic = false, unused = false, openOsell, trend:
   const counts = useMemo(() => {
     const need = trendNeed(tfs)
     const c = { trend: data ? topPass(trendRows(data.rows, settings).filter(r => (universe === 'all' || r.fo) && r.score === need)).length : null }
-    for (const id of ['bull', 'bear', 'btst']) c[id] = data ? topPass(scanRows(data.rows, id).filter(r => r.met === SCANS[id].conds.length)).length : null
+    for (const id of ['bull', 'bear', 'btst']) c[id] = data ? topPass(scanRows(data.rows, id).filter(r => r.met >= minFor(id))).length : null
     return c
-  }, [data, dir, tfs, rsiMin, adxMin, universe, topPass])
+  }, [data, dir, tfs, rsiMin, adxMin, universe, topPass, condMin])
   const [volList, setVolList] = useSessionState('vol.list', 'fo')
   const vol = usePoll(() => api('/api/volscan'), tab === 'vol' ? 60000 : 300000, [tab === 'vol'])
   const cp = usePoll(() => api('/api/candle-patterns'), tab === 'candle' ? 60000 : 300000, [tab === 'candle'])
@@ -326,7 +341,8 @@ export default function Scans({ basic = false, unused = false, openOsell, trend:
         {cyc?.finished ? ` · last full pass ${istTime(cyc.finished)}` : ''}{cyc?.state === 'running' ? ` · refreshing ${cyc.done}/${cyc.total}` : ''}</span></div>
     <div className="toolbar"><SectorMulti sectors={live?.sectors || []} selected={selected} setSelected={setSelected} />
       {selected.length > 0 && <button className="btn sm clear-sectors" onClick={() => setSelected([])} title="Clear the sector filter (also clears the heatmap and ORB selection)">✕ Clear sectors ({selected.length})</button>}
-      <button className="btn sm" onClick={clearAll} title="Reset every Intraday Scanner filter to its default (Bullish · 15 Min + 1 Hour · RSI 60 · ADX 25 · F&O · all sectors)">Clear filters</button></div>
+      <button className="btn sm" onClick={clearAll} title="Reset every Intraday Scanner filter to its default (Bullish · 15 Min + 1 Hour · RSI 60 · ADX 25 · F&O · all sectors)">Clear filters</button>
+      {sharedTop && <TopFilter />}{tab === 'nse' && nseTab === 'volg' && <TopFilter value={volgTop} setValue={setVolgTop} />}{tab === 'nse' && nseTab === 'oic' && <TopFilter value={oicTop} setValue={setOicTop} />}</div>
     <div className="orb-switch learn-cats scan-tabs" role="tablist" aria-label="Scan">
       {TABS.map(([v, label]) => <button key={v} role="tab" aria-selected={tab === v} className={tab === v ? 'on' : ''} onClick={() => setTab(v)}>
         {label}{tabCounts[v] != null && <span className="count">{tabCounts[v]}</span>}</button>)}
@@ -338,7 +354,7 @@ export default function Scans({ basic = false, unused = false, openOsell, trend:
       : tab === 'fno' ? <FnoStocks key={'f' + resetKey} stocks={live?.stocks || []} selected={selected} bias={live?.bias} trendRows={data?.rows} />
       : tab === 't15' ? (!data ? <Empty>{trend.error || 'Loading scan data…'}</Empty> : <Trend15 key={'t15' + resetKey} data={data} live={live} {...pp} />)
       : tab === 'vol5' ? (!data ? <Empty>{trend.error || 'Loading scan data…'}</Empty> : <VolumeUp5 key={'v5' + resetKey} data={data} live={live} {...pp} />)
-      : tab === 'nse' ? <NseTab key={'nse' + resetKey} live={live} selected={selected} bias={biasLabel} {...pp} />
+      : tab === 'nse' ? <NseTab key={'nse' + resetKey} live={live} selected={selected} bias={biasLabel} sub={nseTab} setSub={setNseTab} volgTop={volgTop} oicTop={oicTop} {...pp} />
       : tab === 'ixsell' ? <OptionOutlook live={live} onOpen={() => unused ? openOsell?.() : setTab('osell')} cardsOutside />
       : tab === 'osell' ? (!data ? <Empty>{trend.error || 'Loading scan data…'}</Empty> : <OptionSelling key={'os' + resetKey} data={data} live={live} />)
       : tab === 'setup' ? (!data ? <Empty>{trend.error || 'Loading scan data…'}</Empty> : <TradeSetup key={'ts' + resetKey} data={data} live={live} {...pp} />)
@@ -350,7 +366,7 @@ export default function Scans({ basic = false, unused = false, openOsell, trend:
       : !data.rows.length ? <Empty>Calculating for the first time — this takes about 2–3 minutes…</Empty>
         : tab === 'trend' ? <Trend key={'t' + resetKey} trend={trend} settings={settings} {...pp} />
         : tab === 'common' ? <CommonStocks key={'c' + resetKey} data={data} settings={settings} orbLists={orbLists} bias={live?.bias?.label} {...pp} />
-        : <ConditionScan key={tab + resetKey} id={tab} data={data} {...pp} />}
+        : <ConditionScan key={tab + resetKey} id={tab} data={data} min={minFor(tab)} setMin={v => setCondMin(m => ({ ...m, [tab]: v }))} {...pp} />}
     {pick && <StockDrawer stock={live?.stocks?.find(s => s.symbol === pick.symbol) || pick} onClose={() => setPick(null)} />}
   </div>
 }
@@ -383,7 +399,7 @@ function CandleScan({ res, rows, onPick, picked }) {
   return <>
     <div className="toolbar">
       <Seg value={side} onChange={setSide} options={CANDLE_SIDES.map(o => ({ ...o, label: <>{o.label} <span className="count">{d ? n(o.value) : ''}</span></> }))} />
-      <TopFilter /><CopyTv symbols={shown.map(r => r.symbol)} />
+      <CopyTv symbols={shown.map(r => r.symbol)} />
       <select className="search" value={pat} onChange={e => setPat(e.target.value)} aria-label="Pattern">
         <option value="">Every pattern</option>{names.map(x => <option key={x} value={x}>{x}</option>)}</select>
       <input className="search" placeholder="Search symbol" value={search} onChange={e => setSearch(e.target.value)} />
@@ -458,7 +474,7 @@ function EmaRsi({ data, onPick, picked }) {
       <Seg value={side} onChange={setSide} options={[{ value: 'bull', label: <>Bullish <span className="count">{n('bull')}</span></>, tone: 'up' },
         { value: 'bear', label: <>Bearish <span className="count">{n('bear')}</span></>, tone: 'down' }]} />
       <Seg value={tf} onChange={setTf} options={EMA_TFS} />
-      <TopFilter /><CopyTv symbols={shown.map(r => r.symbol)} />
+      <CopyTv symbols={shown.map(r => r.symbol)} />
       <label className="check-label" title="Only stocks whose 9 EMA crossed the 21 EMA on the latest candle"><input type="checkbox" checked={fresh} onChange={e => setFresh(e.target.checked)} />Fresh crossover only</label>
       <input className="search" placeholder="Search symbol" value={search} onChange={e => setSearch(e.target.value)} />
     </div>
@@ -542,7 +558,7 @@ function FnoStocks({ stocks, selected, bias, trendRows }) {
       <Seg value={side} onChange={setManual} options={[{ value: 'all', label: <>All <span className="count">{nSide('all')}</span></> },
         { value: 'bull', label: <>Bullish <span className="count">{nSide('bull')}</span></>, tone: 'up' }, { value: 'bear', label: <>Bearish <span className="count">{nSide('bear')}</span></>, tone: 'down' }]} />
       {!manual && bias?.label && <span className="muted small" title="Opens on the side that matches Market Bias (a Neutral bias of +2 or more leans bullish, −2 or less bearish); pick another to override">follows Market Bias ({biasNote(bias)})</span>}
-      <TopFilter /><CopyTv symbols={shown.map(r => r.symbol)} />
+      <CopyTv symbols={shown.map(r => r.symbol)} />
       <input className="search" placeholder="Search F&O stock" value={search} onChange={e => setSearch(e.target.value)} />
       <span className="muted small">Tap a stock to open its option chain analysis.</span>
     </div>
@@ -700,7 +716,7 @@ function TradeSetup({ data, live, onPick, picked }) {
       <label className="check-label">Min score <select value={minScore} onChange={e => setMinScore(Number(e.target.value))}>{[5, 6, 7, 8].map(v => <option key={v} value={v}>{v} of 8</option>)}</select></label>
       <label className="check-label" title={`Only stocks whose price has closed ${side === 'bull' ? 'above' : 'below'} the 15-minute opening range (9:15–9:30) today, confirmed on 3-minute candles, as in the ORB Scanner`}><input type="checkbox" checked={orbOnly} onChange={e => setOrbOnly(e.target.checked)} />Only 15-min ORB {side === 'bull' ? 'breakouts' : 'breakdowns'}</label>
       <label className="check-label" title="How much you are willing to lose on one trade if the stop is hit (₹). Quantity = this ÷ the distance to the stop.">Risk per trade ₹<input className="search setup-risk" type="number" min="100" step="100" value={risk} onChange={e => setRisk(e.target.value)} /></label>
-      <TopFilter /><CopyTv symbols={shown.map(r => r.symbol)} />
+      <CopyTv symbols={shown.map(r => r.symbol)} />
     </div>
     <p className="muted small qualify-line"><b className={side === 'bull' ? 'up' : 'down'}>{shown.length}</b> F&amp;O stocks pass at least <b>{minScore} of 8</b> {side === 'bull' ? 'long' : 'short'} checks on 15-minute candles. Hover the dots to see which checks passed. Levels follow fixed rules (see “How the levels are worked out” below).</p>
     <div className="tbl-wrap panel trend-wrap">
@@ -797,7 +813,7 @@ function OptionSelling({ data, live }) {
         label: <>{OS_KIND[k].strat} <span className="count">{n(k)}</span></> }))} />
       {!manual && <span className="muted small">follows Market Bias ({biasNote(live?.bias)})</span>}
       <label className="check-label">Min score <select value={minScore} onChange={e => setMinScore(Number(e.target.value))}>{[4, 5, 6].map(v => <option key={v} value={v}>{v} of 6</option>)}</select></label>
-      <TopFilter /><CopyTv symbols={shown.map(r => r.symbol)} />
+      <CopyTv symbols={shown.map(r => r.symbol)} />
     </div>
     <p className="muted small qualify-line"><b>{shown.length}</b> F&amp;O stocks look <b>{K.label.toLowerCase()}</b> and pass at least {minScore} of 6 option-selling checks → <b>{K.strat}</b>: {K.what} Click a stock for its strike plan.</p>
     <div className="tbl-wrap panel trend-wrap">
@@ -890,7 +906,7 @@ function Trend15({ data, live, onPick, picked }) {
       <Seg value={side} onChange={setManual} options={[{ value: 'bull', label: <>Bullish <span className="count">{n(true)}</span></>, tone: 'up' }, { value: 'bear', label: <>Bearish <span className="count">{n(false)}</span></>, tone: 'down' }]} />
       {!manual && <span className="muted small">follows Market Bias ({biasNote(live?.bias)})</span>}
       <label className="check-label">Show <select value={need} onChange={e => setNeed(Number(e.target.value))}>{[8, 7, 6].map(v => <option key={v} value={v}>{v === 8 ? 'all 8 checks' : `${v}+ of 8`}</option>)}</select></label>
-      <TopFilter /><CopyTv symbols={shown.map(r => r.symbol)} />
+      <CopyTv symbols={shown.map(r => r.symbol)} />
     </div>
     <p className="muted small qualify-line"><b className={bull ? 'up' : 'down'}>{shown.length}</b> F&amp;O stocks on <b>15-minute candles</b> with price {bull ? 'above' : 'below'} VWAP, EMA 5, EMA 9 and EMA 21, Supertrend {bull ? 'up' : 'down'}, {bull ? 'DI+ above DI−' : 'DI− above DI+'}, RSI {bull ? 'above 60' : 'below 40'} and ADX above 25{need < 8 ? ` (at least ${need} of the 8)` : ''}. Green = passed.</p>
     <div className="tbl-wrap panel trend-wrap">
@@ -956,7 +972,7 @@ function HighMomentum({ data, live, onPick, picked }) {
   return <>
     <div className="toolbar">
       <label className="check-label" title="Also require a fresh 15-minute push: the previous 15-min candle red, the latest one green and closing more than 1% above the previous 15-min close"><input type="checkbox" checked={push} onChange={e => setPush(e.target.checked)} />15-minute conditions</label>
-      <TopFilter /><CopyTv symbols={shown.map(r => r.symbol)} />
+      <CopyTv symbols={shown.map(r => r.symbol)} />
     </div>
     <p className="muted small qualify-line"><b className="up">{shown.length}</b> F&amp;O stocks pass Chartink’s High Momentum rules: daily RSI above 50 and above its last 3 days, MACD above its signal, CCI above 0, price above its 200-day averages and MFI above 60{push ? <>, <b>plus</b> a fresh 15-minute push (previous 15-min candle red, latest one green and closing more than 1% above the previous close)</> : ''}.</p>
     <div className="tbl-wrap panel trend-wrap">
@@ -1025,17 +1041,22 @@ function oiReading(r) {
   return { up, text: (up ? '▲ ' : '▼ ') + (newMoney ? 'Strong ' : 'Weak ') + (up ? 'up' : 'down'), why }
 }
 const INST = { OPTSTK: 'Stock Options', FUTSTK: 'Stock Futures' }
-function OiChange({ live, selected, head }) {
-  const topPass = useTopPass()
-  const [listRaw, setListRaw] = useSessionState('oic.nselist', OI_LISTS[0].key)
-  const L = OI_LISTS.find(l => l.key === listRaw) || OI_LISTS[0]
-  const [sort, setSort] = useState({ key: 'pct_oi', dir: L.dir })
-  const setList = k => { setListRaw(k); setSort({ key: 'pct_oi', dir: OI_LISTS.find(l => l.key === k).dir }) }
+function OiChange({ topN, live, selected, bias, head }) {
+  const topPass = topRows(useContext(TopMoversCtx).map, topN)  // own switch next to Clear filters, off at first
+  const [listRaw, setListRaw] = useSessionState('oic.nselist', null)
+  const [sortRaw, setSort] = useState(null)  // null = by % change in OI, the list's own direction
+  const setList = k => { setListRaw(k); setSort(null) }
   const [search, setSearch] = useState('')
   const res = usePoll(() => api('/api/oi-change'), 60000, [])
   const d = res.data
   const sec = useMemo(() => Object.fromEntries((live?.stocks || []).map(s => [s.symbol, s])), [live])
   const stockRows = k => (d?.contracts?.[k] || []).filter(r => INST[r.inst] && (!selected?.length || (sec[r.symbol]?.sectors || []).some(x => selected.includes(x))))
+  // Auto pick (until one is picked by hand): the Market Bias side first (bearish: fresh selling, then buyers
+  // leaving; bullish / neutral: fresh buying, then short covering), skipping any list with no stocks right now.
+  const order = bias === 'BEARISH' ? ['Rise-in-OI-Slide', 'Slide-in-OI-Slide', 'Rise-in-OI-Rise', 'Slide-in-OI-Rise'] : ['Rise-in-OI-Rise', 'Slide-in-OI-Rise', 'Rise-in-OI-Slide', 'Slide-in-OI-Slide']
+  const auto = order.find(k => topPass(stockRows(k)).length) || order[0]
+  const L = OI_LISTS.find(l => l.key === listRaw) || OI_LISTS.find(l => l.key === auto)
+  const sort = sortRaw || { key: 'pct_oi', dir: L.dir }
   const q = search.trim().toUpperCase()
   const shown = sortRows(topPass(stockRows(L.key)).filter(r => !q || r.symbol.includes(q)), sort.key, sort.dir)
   const sp = { sort, setSort }
@@ -1044,7 +1065,7 @@ function OiChange({ live, selected, head }) {
     <div className="toolbar">
       {head}
       <Seg value={L.key} onChange={setList} options={OI_LISTS.map(l => ({ value: l.key, tone: l.tone, title: l.title, label: <>{l.label} <span className="count">{d ? topPass(stockRows(l.key)).length : ''}</span></> }))} />
-      <TopFilter /><CopyTv symbols={[...new Set(shown.map(r => r.symbol))]} />
+      <CopyTv symbols={[...new Set(shown.map(r => r.symbol))]} />
       <input className="search" placeholder="Search symbol" value={search} onChange={e => setSearch(e.target.value)} />
     </div>
     {d && <p className="muted small qualify-line"><b>{shown.length}</b> stock contracts · {L.label} · NSE's list (top 25 contracts by change in OI), index contracts left out · open interest {d.date} vs {d.prev_date} · as of {d.timestamp}</p>}
@@ -1093,8 +1114,9 @@ function volReading(r) {
   return r.pct > 0 ? { tone: 'up', text: `▲ ${big} buying`, why: 'lots of trading and the price went up' }
     : { tone: 'down', text: `▼ ${big} selling`, why: 'lots of trading and the price went down' }
 }
-function VolumeGainers({ live, selected, bias, head, onPick, picked }) {
-  const topPass = useTopPass()
+function VolumeGainers({ topN, live, selected, bias, head, onPick, picked }) {
+  // Own Top 10 / 20 switch (next to Clear filters), off at first: most volume gainers are not F&O stocks.
+  const topPass = topRows(useContext(TopMoversCtx).map, topN)
   const [manual, setManual] = useSessionState('volg.sideManual', null)
   const side = manual || (bias === 'BULLISH' ? 'up' : bias === 'BEARISH' ? 'down' : 'all')
   const [sort, setSort] = useState({ key: 'x1w', dir: 'desc' })
@@ -1115,7 +1137,7 @@ function VolumeGainers({ live, selected, bias, head, onPick, picked }) {
       <Seg value={side} onChange={setManual} options={[{ value: 'all', label: <>All <span className="count">{d ? rows.length : ''}</span></> },
         { value: 'up', label: <>Price up <span className="count">{d ? rows.filter(r => r.pct > 0).length : ''}</span></>, tone: 'up' },
         { value: 'down', label: <>Price down <span className="count">{d ? rows.filter(r => r.pct < 0).length : ''}</span></>, tone: 'down' }]} />
-      <TopFilter /><CopyTv symbols={shown.map(r => r.symbol)} />
+      <CopyTv symbols={shown.map(r => r.symbol)} />
       <input className="search" placeholder="Search symbol" value={search} onChange={e => setSearch(e.target.value)} />
     </div>
     {d && <p className="muted small qualify-line"><b>{shown.length}</b> stocks from NSE's top 25 volume gainers (ETFs and funds left out; today's volume vs the 1-week and 2-week average) · as of {d.timestamp}</p>}
@@ -1181,7 +1203,7 @@ function GainersLosers({ live, selected, bias, head, onPick, picked }) {
       <Seg value={side} onChange={v => { setManual(v); setSort(null) }} options={[{ value: 'gainers', label: 'Gainers', tone: 'up' }, { value: 'losers', label: 'Losers', tone: 'down' }]} />
       <select className="search" value={grp} onChange={e => setGrp(e.target.value)} aria-label="Group">
         {(d?.groups || [['FOSec', 'F&O Securities']]).map(([k, l]) => <option key={k} value={k}>{l.replace('Rs', '₹')}{d ? ` (${list(k).length})` : ''}</option>)}</select>
-      <TopFilter /><CopyTv symbols={shown.map(r => r.symbol)} />
+      <CopyTv symbols={shown.map(r => r.symbol)} />
       <input className="search" placeholder="Search symbol" value={search} onChange={e => setSearch(e.target.value)} />
     </div>
     {d && <p className="muted small qualify-line"><b>{shown.length}</b> top {side} · {((d.groups || []).find(([k]) => k === grp) || [, grp])[1].replace('Rs', '₹')} · NSE, as of {d.timestamp}</p>}
@@ -1228,7 +1250,6 @@ function ipoReading(r) {
 }
 const IPO_BOARDS = [{ value: 'MAINBOARD', label: 'Mainboard' }, { value: 'SME', label: 'SME' }, { value: 'all', label: 'All' }]
 function IpoTracker({ live, selected, head, onPick, picked }) {
-  const topPass = useTopPass()
   const [board, setBoard] = useSessionState('ipot.board', 'MAINBOARD')
   const [pl, setPl] = useSessionState('ipot.pl', 'gain')  // opens on IPOs trading above their issue price (as NSE's IPO in Gain)
   const [sort, setSort] = useState({ key: 'gain_pct', dir: 'desc' })
@@ -1236,7 +1257,7 @@ function IpoTracker({ live, selected, head, onPick, picked }) {
   const res = usePoll(() => api('/api/ipo-tracker'), 300000, [])
   const d = res.data
   const px = useMemo(() => Object.fromEntries((live?.stocks || []).map(s => [s.symbol, s])), [live])
-  const rows = topPass((d?.rows || []).filter(r => (board === 'all' || r.board === board) && (!selected?.length || (px[r.symbol]?.sectors || []).some(x => selected.includes(x)))))
+  const rows = ((d?.rows || []).filter(r => (board === 'all' || r.board === board) && (!selected?.length || (px[r.symbol]?.sectors || []).some(x => selected.includes(x)))))
   const q = search.trim().toUpperCase()
   const inPl = (r, k) => k === 'all' || (k === 'gain' ? r.gain_pct >= 0 : r.gain_pct < 0)
   const shown = sortRows(rows.filter(r => inPl(r, pl) && (!q || r.symbol.includes(q) || (r.company || '').toUpperCase().includes(q))), sort.key, sort.dir)
@@ -1250,7 +1271,7 @@ function IpoTracker({ live, selected, head, onPick, picked }) {
       <Seg value={pl} onChange={setPl} options={[{ value: 'all', label: <>All <span className="count">{d ? rows.length : ''}</span></> },
         { value: 'gain', label: <>Above issue price <span className="count">{d ? rows.filter(r => inPl(r, 'gain')).length : ''}</span></>, tone: 'up' },
         { value: 'loss', label: <>Below issue price <span className="count">{d ? rows.filter(r => inPl(r, 'loss')).length : ''}</span></>, tone: 'down' }]} />
-      <TopFilter /><CopyTv symbols={shown.map(r => r.symbol)} />
+      <CopyTv symbols={shown.map(r => r.symbol)} />
       <input className="search" placeholder="Search symbol or company" value={search} onChange={e => setSearch(e.target.value)} />
     </div>
     {d && <p className="muted small qualify-line"><b>{shown.length}</b> IPOs from about the last year{pl === 'gain' ? ' trading above their issue price' : pl === 'loss' ? ' trading below their issue price' : ''} · biggest gain first · NSE IPO tracker</p>}
@@ -1286,16 +1307,15 @@ function IpoTracker({ live, selected, head, onPick, picked }) {
 
 // Intraday Scanner > NSE: index views straight from NSE, one sub-tab per view (Momentum for now).
 const NSE_TABS = [['mom', 'Momentum'], ['oic', 'Change in OI'], ['volg', 'Volume Gainers'], ['gl', 'Gainers / Losers'], ['ipo', 'IPO in Gain']]
-function NseTab({ live, selected, bias, onPick, picked }) {
-  const [subRaw, setSub] = useSessionState('nse.tab', 'mom')
-  const sub = NSE_TABS.some(([v]) => v === subRaw) ? subRaw : 'mom'
+const nseSub = v => NSE_TABS.some(([k]) => k === v) ? v : 'mom'
+function NseTab({ live, selected, bias, onPick, picked, sub, setSub, volgTop, oicTop }) {
   const head = <Seg value={sub} onChange={setSub} options={NSE_TABS.map(([value, label]) => ({ value, label }))} />  // shown first in each view's toolbar
   return <>
     {sub === 'mom' && <Momentum live={live} selected={selected} bias={bias} head={head} onPick={onPick} picked={picked} />}
-    {sub === 'oic' && <OiChange live={live} selected={selected} head={head} />}
+    {sub === 'oic' && <OiChange topN={oicTop} live={live} selected={selected} bias={bias} head={head} />}
     {sub === 'ipo' && <IpoTracker live={live} selected={selected} head={head} onPick={onPick} picked={picked} />}
     {sub === 'gl' && <GainersLosers live={live} selected={selected} bias={bias} head={head} onPick={onPick} picked={picked} />}
-    {sub === 'volg' && <VolumeGainers live={live} selected={selected} bias={bias} head={head} onPick={onPick} picked={picked} />}
+    {sub === 'volg' && <VolumeGainers topN={volgTop} live={live} selected={selected} bias={bias} head={head} onPick={onPick} picked={picked} />}
   </>
 }
 
@@ -1323,7 +1343,7 @@ function Momentum({ live, selected, bias, head, onPick, picked }) {
       <Seg value={side} onChange={setSide} options={[{ value: 'all', label: <>All <span className="count">{d ? all.length : ''}</span></> },
         { value: 'bull', label: <>Bullish <span className="count">{d ? up : ''}</span></>, tone: 'up' }, { value: 'bear', label: <>Bearish <span className="count">{d ? dn : ''}</span></>, tone: 'down' }]} />
       <Seg value={view} onChange={setView} options={[{ value: 'heat', label: 'Heatmap' }, { value: 'table', label: 'Table' }]} />
-      <TopFilter /><CopyTv symbols={shown.map(r => r.symbol)} />
+      <CopyTv symbols={shown.map(r => r.symbol)} />
     </div>
     {d && <p className="muted small qualify-line"><b>{d.name}</b> {isNum(d.last) ? fmtNum(d.last) : '—'} <b className={d.pct > 0 ? 'up' : d.pct < 0 ? 'down' : ''}>{sg(d.pct)}</b>
       {' '}· <b className="up">{up} up</b> · <b className="down">{dn} down</b> of {all.length} stocks{selected?.length ? ` in ${selected.length} selected sector${selected.length > 1 ? 's' : ''}` : ''} · NSE, updated {istTime(d.at * 1000)} IST</p>}
@@ -1356,7 +1376,10 @@ function Momentum({ live, selected, bias, head, onPick, picked }) {
   </>
 }
 function VolumeUp5({ data, live, onPick, picked }) {
-  const [dir, setDir] = useSessionState('vol5.dir', 'all')
+  // Price up / Price down follows Market Bias (All when Neutral) until a side is picked by hand.
+  const [manual, setDir] = useSessionState('vol5.dirManual', null)
+  const bias = live?.bias?.label
+  const dir = manual || (bias === 'BULLISH' ? 'up' : bias === 'BEARISH' ? 'down' : 'all')
   const [sort, setSort] = useState({ key: 'x', dir: 'desc' })
   const topPass = useTopPass()
   const rows = useMemo(() => withLive(data.rows, live).filter(r => r.fo && r.daily?.vol_prev5?.length === 5).map(r => {
@@ -1372,7 +1395,7 @@ function VolumeUp5({ data, live, onPick, picked }) {
     <div className="toolbar">
       <Seg value={dir} onChange={setDir} options={[{ value: 'all', label: <>All <span className="count">{n('all')}</span></> },
         { value: 'up', label: <>Price up <span className="count">{n('up')}</span></>, tone: 'up' }, { value: 'down', label: <>Price down <span className="count">{n('down')}</span></>, tone: 'down' }]} />
-      <TopFilter /><CopyTv symbols={shown.map(r => r.symbol)} />
+      <CopyTv symbols={shown.map(r => r.symbol)} />
     </div>
     <p className="muted small qualify-line"><b className="up">{shown.length}</b> F&amp;O stocks with <b>today’s volume higher than each of the last 5 days</b> (Daily Volume &gt; 1, 2, 3, 4 and 5 days ago). During market hours today’s volume is still growing, so more stocks join as the day goes on. Price up / down = change vs yesterday’s close.</p>
     <div className="tbl-wrap panel trend-wrap">

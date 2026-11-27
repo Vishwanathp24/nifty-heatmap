@@ -261,10 +261,11 @@ def to_hourly_clock(c15):
     return out
 
 
-def to_hourly(c15):
+def to_hourly(c15, mins=60):
+    """15-min candles -> 30-min / 1-hour candles aligned to 09:15."""
     out = []
     for b in c15:
-        slot = OPEN + (b["m"] - OPEN) // 60 * 60
+        slot = OPEN + (b["m"] - OPEN) // mins * mins
         if out and out[-1]["d"] == b["d"] and out[-1]["m"] == slot:
             h = out[-1]
             h["h"], h["l"], h["c"], h["v"] = max(h["h"], b["h"]), min(h["l"], b["l"]), b["c"], h["v"] + b["v"]
@@ -456,7 +457,7 @@ class TrendScan:
             q = (self.engine.quotes or {}).get(s)
             nse_q = q if q and self.engine.session == (c15[-1]["d"] if c15 else None) else None
             d1 = with_today(self.daily[s][1], c15, nse_q)
-            row = {"15": indicators(c15), "60": indicators(h1), "daily": daily_metrics(d1),
+            row = {"15": indicators(c15), "30": indicators(to_hourly(c15, 30)), "60": indicators(h1), "daily": daily_metrics(d1),
                    "hourly": hourly_metrics(to_hourly_clock(c15)), "at": time.time()}
             now = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
             now_min = now.hour * 60 + now.minute if now.date().isoformat() == (c15[-1]["d"] if c15 else "") else CLOSE
@@ -487,7 +488,7 @@ class TrendScan:
             out.append({"symbol": s, "company": meta.get("company"), "sector": meta.get("sector"),
                         "sectors": meta.get("sectors", []), "fo": meta.get("fo"),
                         "ltp": ltp, "pct_prev": round((ltp - prev) / prev * 100, 2) if ltp and prev else None,
-                        "tf15": row["15"], "tf60": row["60"], "daily": row.get("daily"), "hourly": row.get("hourly"),
+                        "tf15": row["15"], "tf30": row.get("30"), "tf60": row["60"], "daily": row.get("daily"), "hourly": row.get("hourly"),
                         "since": {k: v for k, v in row.get("since", {}).items() if k != "steps"},
                         "steps": row.get("since", {}).get("steps", [])})
         return {"rows": out, "cycle": self.cycle, "fetched_at": datetime.now(timezone.utc).isoformat()}
