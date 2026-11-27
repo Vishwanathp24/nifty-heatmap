@@ -1,9 +1,9 @@
 import React, { useMemo, useState } from 'react'
-import { AdChips, AdText, BreadthBar, Empty, IndexLink, Pct, Section, StockLink } from './components.jsx'
+import { AdChips, AdText, BreadthBar, CopyTv, Empty, IndexLink, Pct, Section, StockLink } from './components.jsx'
 import { OiChange, PcrInBias, useOiChange } from './Pcr.jsx'
 import { PageGuide } from './guides.jsx'
 import { StockDrawer } from './Scanner.jsx'
-import MarketOutlook, { OptionOutlook } from './Outlook.jsx'
+import MarketOutlook from './Outlook.jsx'
 import { api, fmtCr, fmtNum, fmtPct, fmtRatio, fmtSigned, fmtVol, istDate, istTime, isNum, nseTs, tone, tvStock, tvSymbol, useClock, usePoll } from './lib.js'
 
 const biasClass = l => l === 'BULLISH' ? 'bull' : l === 'BEARISH' ? 'bear' : 'neutral'
@@ -102,6 +102,7 @@ export function BreadthPanel({ title, subtitle, b, alt, rows, showTotal, noStock
     <BreadthBar up={b.up} down={b.down} unchanged={b.unchanged} />
     <div className="bbar-legend"><span className="up">{pctUp}% Advancing</span><span className="down">{pctDn}% Declining</span></div>
     {alt && <div className="muted small">vs today's open: <AdChips up={alt.up} down={alt.down} unch={alt.unchanged} /></div>}
+    {open && <div className="chip-copy"><CopyTv symbols={sorted.map(s => s.symbol)} /></div>}
     {open && <div className="chip-grid">{sorted.map(s => <a key={s.symbol} className={'chip ' + tone(s.pct_prev)}
       href={tvStock(s.symbol)} target="_blank" rel="noopener noreferrer"
       title={`${s.company} · ${fmtPct(s.pct_prev)} vs prev close · open ${tvSymbol(s.symbol)} on TradingView`}>
@@ -111,7 +112,7 @@ export function BreadthPanel({ title, subtitle, b, alt, rows, showTotal, noStock
 
 function MoversTable({ title, rows, note, onOpen, openSym }) {
   return <div className="panel">
-    <div className="panel-head"><h3>{title}</h3>{note && <span className="muted small">{note}</span>}</div>
+    <div className="panel-head"><h3>{title}</h3>{note && <span className="muted small">{note}</span>}<CopyTv symbols={rows.map(s => s.symbol)} label="Copy" /></div>
     <div className="tbl-wrap"><table className="tbl compact">
       <thead><tr><th>Symbol</th><th>Sector</th><th className="num">LTP</th><th className="num" title="vs previous close">Chg %</th><th className="num hide-m">Volume</th><th className="num hide-m" title="Volume vs 5-day average: time-adjusted vs recorded sessions during market hours; full day vs NSE bhavcopy 5-day average after the close">Vol vs 5D</th></tr></thead>
       <tbody>{rows.length ? rows.map(s => <tr key={s.symbol} className={'clickable' + (openSym === s.symbol ? ' active' : '')} onClick={() => onOpen(s.symbol)} title="Click for chart and details">
@@ -186,11 +187,10 @@ const HOW_TO = [
   ['📱', 'Small cards at the top', 'The strip of small cards gives the short version: Market Bias, Nifty OI Change (with today\'s call / put OI change and total OI beside it, calls first), Nifty PCR, Expected Move, the up/down counts and FII / DII. Each card has its name on top and its value below. Green = good sign, red = bad sign, amber = mixed. On a phone, want every number? Turn on the Full data switch at the top to see the big panels instead.'],
   ['🧮', 'Breadth (Nifty 50 and F&O)', 'Counts how many stocks went up and how many went down. Like a class test: if most students scored better, the class did well. If only the toppers did well, it was not a good day for everyone.'],
   ['🧭', 'Market Bias', 'A vote of 5 simple checks (Nifty, fear meter, and three up/down counts). Each check gives +1 or −1. Bullish = most checks are happy. Bearish = most checks are sad. Neutral = mixed.'],
-  ['🧮', 'Option Selling Outlook', 'Which option-selling structure today\'s market fits for Nifty, using the same rules as Intraday Scanner → Option Selling: a Bull Put Spread in a steady uptrend, a Bear Call Spread in a steady downtrend, an Iron Condor in a sideways market. It says when the structure that matches the sentiment is not clean yet (for example Nifty overbought with RSI over 70, or India VIX jumping) and what would make it fit. Below it, a card for Nifty 50, Bank Nifty and Sensex shows each index\'s 6 checks (dots), its regime and structure; pick a structure and tap Strike plan for the strikes, credit, max loss and exits (Nifty and Bank Nifty from their NSE option chains; Sensex is an estimate from India VIX because BSE\'s option data can\'t be read here). See details shows the readings, how each structure fits, the expiry (at least 5 days left) and the strike area beyond the expected move and the OI wall. A guide from rules, not a recommendation.'],
-  ['🔭', 'Market Outlook', 'The short box gives the plain answer: good, weak or mixed, and the one level to watch. Tap See details for everything behind it. On a phone it is a small card: the lean, the likely open and the one level to watch. After the close it reads the next session (during market hours, the rest of today) from the signals on this page: Market Bias, breadth, India VIX, FII buying or selling, FII futures and options positions (from the FII / DII page), GIFT Nifty, US markets and what option writers did. Each signal counts as positive, negative or neutral, and the box says which way most of them lean. The levels come from the option chain: resistance where the most calls are written, support where the most puts are written, max pain, and the usual one-day range. It is a weather report, not a prediction, and never a buy or sell signal.'],
+  ['🔭', 'Market Outlook', 'Also a small Market Outlook card in the strip at the top of every page: it shows the lean and the count of good / bad signs; click it for the full outlook. The short box gives the plain answer: good, weak or mixed, and the one level to watch. Tap See details for everything behind it. On a phone it is a small card: the lean, the likely open and the one level to watch. After the close it reads the next session (during market hours, the rest of today) from the signals on this page: Market Bias, breadth, India VIX, FII buying or selling, FII futures and options positions (from the FII / DII page), GIFT Nifty, US markets and what option writers did. Each signal counts as positive, negative or neutral, and the box says which way most of them lean. The levels come from the option chain: resistance where the most calls are written, support where the most puts are written, max pain, and the usual one-day range. It is a weather report, not a prediction, and never a buy or sell signal.'],
   ['⚖️', 'Nifty PCR (OI)', 'Shown inside the Market Bias panel. Compares two kinds of option bets on Nifty. Around 1 = balanced. Very high (above 1.5) = everyone is too sure the market will go up, so it may cool down. Very low (below 0.7) = everyone is too scared, so it may bounce back. It counts the 10 strikes on each side of the current Nifty level (the same strikes as the OI Change panel and most option-chain sites); the line under it also shows the figure for all strikes.'],
   ['🧱', 'Nifty OI Change', 'Where big option traders put new money today. More new puts = they are building a "floor" under Nifty (Bullish). More new calls = they are building a "ceiling" over Nifty (Bearish). OI lean tag: CE side ▲ = put writers lead the fresh OI (60%+) and Nifty is not falling since the open, so the OI favours the upside; PE side ▼ = call writers lead and Nifty is not rising; Wait = close to even, or price or Market Bias points the other way. It is a reading of option writers\' positions, not a buy or sell call: confirm with the price chart.'],
-  ['🚀', 'Top Movers', 'The stocks that went up the most, went down the most, and were traded the most today. Click a stock for its chart, 1-day / 1-week / 1-month change and last 30 days.'],
+  ['🚀', 'Top Movers', 'The stocks that went up the most, went down the most, and were traded the most today. Click a stock for its chart, 1-day / 1-week / 1-month change and last 30 days. The Copy button copies these symbols for a TradingView watchlist (NSE:SYMBOL, comma-separated: in TradingView click + Add symbol, paste, Enter).'],
 ]
 
 // Live check for the 3 steps: Market Bias, Nifty OI Change and F&O breadth (most stocks) each read
@@ -238,7 +238,7 @@ function HowToRead({ live }) {
 
 // Same layout in Basic and Advanced (the PCR bar above the page is set in main.jsx): Global Cues | FII/DII
 // (with the breadth cards), Indian Markets (index cards), Market Bias beside Nifty OI Change, Market Outlook,
-// Option Selling Outlook (with the index cards), Top Movers,
+// Top Movers (Option Selling Outlook moved to Intraday Scanner -> Index Option Selling),
 // then "How to read this page" with the live 3-step check and the disclaimer.
 export default function Overview({ live, ctx, openOptionSelling }) {
   if (!live) return <Empty>Loading live market data…</Empty>
@@ -260,7 +260,6 @@ export default function Overview({ live, ctx, openOptionSelling }) {
       <OiChange nifty={live.indices.nifty50} bias={live.bias} />
     </div>
     <MarketOutlook live={live} ctx={ctx} />
-    <OptionOutlook live={live} onOpen={openOptionSelling} />
     <TopMovers stocks={live.stocks} baseline={live.volume_baseline} />
     <HowToRead live={live} />
   </div>

@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react'
-import { Section } from './components.jsx'
+import { Drawer, Section } from './components.jsx'
 import { useOiChange } from './Pcr.jsx'
 import { api, isNum, istTime, usePoll } from './lib.js'
 import { IndexSellCards } from './OptSell.jsx'
@@ -13,10 +13,10 @@ import { IndexSellCards } from './OptSell.jsx'
 const k = v => isNum(v) ? Math.round(v).toLocaleString('en-IN') : '—'
 const pct = (v, d = 2) => isNum(v) ? `${v > 0 ? '+' : ''}${v.toFixed(d)}%` : '—'
 
-export default function MarketOutlook({ live, ctx }) {
+export default function MarketOutlook({ live, ctx, initialMore = false }) {
   const { d, e, s } = useOiChange()
   const o = useMemo(() => build(live, ctx, d, e, s), [live, ctx, d, e, s])
-  const [more, setMore] = useState(false)
+  const [more, setMore] = useState(initialMore)
   if (!o) return null
   return <Section title={<><span className="c-hide">Market </span>{o.title.replace('Market ', '')}</>} subtitle={o.subtitle} className="outlook"
     right={<button className="btn ghost sm" onClick={() => setMore(m => !m)} aria-expanded={more}>{more ? 'Hide details' : 'See details'}</button>}>
@@ -180,7 +180,7 @@ const STRUCT = {
   bear: { name: 'Bear Call Spread', tone: 'bear', what: 'sell an OTM call above resistance, buy a higher call' },
   range: { name: 'Iron Condor', tone: 'neutral', what: 'sell an OTM call spread above and a put spread below' },
 }
-export function OptionOutlook({ live, onOpen }) {
+export function OptionOutlook({ live, onOpen, cardsOutside = false }) {  // cardsOutside: index cards as a full-width row after the card
   const reg = usePoll(() => api('/api/index-regime'), 300000, [])
   const opt = usePoll(() => api('/api/index-options?symbol=NIFTY'), 120000, [])
   const lots = usePoll(() => api('/api/fo-lots'), 3600000, [])
@@ -188,7 +188,8 @@ export function OptionOutlook({ live, onOpen }) {
   const o = useMemo(() => buildOpt(live, reg.data?.NIFTY, opt.data), [live, reg.data, opt.data])
   if (!o) return null
   const S = STRUCT[o.lean]
-  return <Section title={<>Option Selling<span className="c-hide"> Outlook</span> · Nifty</>} subtitle="Which option-selling structure today's market fits (Nifty, Bank Nifty, Sensex), from the Option Selling rules — not advice"
+  const cards = <IndexSellCards live={live} lots={lots.data?.lots || {}} fallback={o.lean} />
+  const sec = <Section title={<>Option Selling<span className="c-hide"> Outlook</span> · Nifty</>} subtitle="Which option-selling structure today's market fits (Nifty, Bank Nifty, Sensex), from the Option Selling rules — not advice"
     className="outlook opt-outlook" right={<button className="btn ghost sm" onClick={() => setMore(m => !m)} aria-expanded={more}>{more ? 'Hide details' : 'See details'}</button>}>
     <div className={'ol-simple ' + (o.clean ? S.tone : 'neutral')}>
       <span className="ol-emoji" aria-hidden="true">{o.clean ? (o.lean === 'bull' ? '🟢' : o.lean === 'bear' ? '🔴' : '🟡') : '⏸️'}</span>
@@ -198,7 +199,7 @@ export function OptionOutlook({ live, onOpen }) {
         <p>A guide from fixed rules, not a recommendation. Option selling can lose much more than the credit.</p>
       </div>
     </div>
-    <IndexSellCards live={live} lots={lots.data?.lots || {}} fallback={o.lean} />
+    {!cardsOutside && cards}
     {more && <div className="ol-grid opt-grid">
       <div className="ol-sig"><b>Today's readings (Nifty)</b><ul>{o.readings.map(x => <li key={x}>{x}</li>)}</ul></div>
       <div className="ol-sig"><b>How each structure fits</b><ul>{['bull', 'bear', 'range'].map(x => <li key={x}>
@@ -211,6 +212,7 @@ export function OptionOutlook({ live, onOpen }) {
       </ul></div>
     </div>}
   </Section>
+  return cardsOutside ? <>{sec}<div className="os-idx-row">{cards}</div></> : sec
 }
 
 function buildOpt(live, g, ch) {
@@ -261,4 +263,24 @@ function buildOpt(live, g, ch) {
   const clean = fit[lean].ok
   return { lean, clean, fit, blockers, fixes, why: fit[lean].why, exp: e ? e.expiry_ist.split(',')[0] : '—', days: e ? Math.round(e.days) : '—',
     skipped: e && exps[0] !== e ? exps[0].expiry_ist.split(',')[0] : null, strikeTxt, move, weekend, readings }
+}
+
+// Small card in the top strip: the Market Outlook lean in one line; click it for the full outlook.
+export function OutlookMini({ live, ctx }) {
+  const { d, e, s } = useOiChange()
+  const o = useMemo(() => build(live, ctx, d, e, s), [live, ctx, d, e, s])
+  const [open, setOpen] = useState(false)
+  if (!o) return null
+  const tone = o.lean.key === 'bull' ? 'up' : o.lean.key === 'bear' ? 'down' : 'amber'
+  return <>
+    <div className={'mcard clickable ' + tone} role="button" tabIndex={0} onClick={() => setOpen(true)}
+      onKeyDown={ev => (ev.key === 'Enter' || ev.key === ' ') && (ev.preventDefault(), setOpen(true))}
+      title={`${o.short}\n\nClick for the full Market Outlook. A read of the signals, not a prediction.`}>
+      <div className="mk">Market Outlook</div>
+      <div className="mv">{o.lean.label} <small>{o.up} good / {o.down} bad</small></div>
+    </div>
+    <Drawer open={open} onClose={() => setOpen(false)} title="Market Outlook" wide>
+      <MarketOutlook live={live} ctx={ctx} initialMore />
+    </Drawer>
+  </>
 }

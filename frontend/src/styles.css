@@ -1486,8 +1486,8 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
   .app:not(.full-data) .ov .cues .cards.six, .app:not(.full-data) .ov .idx-section > .cards { grid-template-columns: repeat(6, minmax(0, 1fr)) !important }
 }
 /* Small cards on every page and screen size: 8 in a row on wide screens, 4 on tablets, 2 on phones */
-.app .mini-cards { grid-template-columns: repeat(8, minmax(0, 1fr)) }
-@media (max-width: 1100px) { .app .mini-cards { grid-template-columns: repeat(4, minmax(0, 1fr)) } }
+.app .mini-cards { grid-template-columns: repeat(9, minmax(0, 1fr)) }
+@media (max-width: 1100px) { .app .mini-cards { grid-template-columns: repeat(3, minmax(0, 1fr)) } }
 @media (max-width: 600px) { .app .mini-cards { grid-template-columns: repeat(2, minmax(0, 1fr)) } }
 /* Small cards: never cut a value off: the grey detail moves under the value when the card is too narrow */
 .mcard .mv { white-space: normal; overflow: visible; text-overflow: clip; display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 4px }
@@ -1833,3 +1833,18 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
 .fiidii .fd-spark.down polyline { stroke: var(--down) } .fiidii .fd-spark.down circle { fill: var(--down) }
 .fiidii .fd-idx { display: flex; flex-wrap: wrap; gap: 4px 18px }
 .copy-tv { white-space: nowrap }
+/* Copy for TradingView buttons beside list titles */
+.h-copy { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px }
+.h-copy .copy-tv { margin-left: auto }
+.panel-head .copy-tv { margin-left: auto; flex: none }
+.panel-head .copy-tv + * { margin-left: 0 }
+.chip-copy { display: flex; justify-content: flex-end; margin: 8px 0 }
+/* Market Outlook + Option Selling Outlook as two cards side by side */
+.outlook-pair { align-items: stretch }
+.outlook-pair > .section { display: flex; flex-direction: column; min-width: 0 }
+.outlook-pair .ol-simple p { font-size: 14px }
+.outlook-pair .ol-grid { grid-template-columns: 1fr }
+.outlook-pair > .os-idx-row { grid-column: 1 / -1 }
+.outlook-pair > .os-idx-row .os-idx { margin-bottom: 0 }
+.mcard.clickable { cursor: pointer } .mcard.clickable:hover { border-color: var(--border-strong); box-shadow: 0 1px 4px rgba(0,0,0,.08) }
+@media (max-width: 600px) { .app .mini-cards > .mcard.clickable:last-child { grid-column: 1 / -1 } }

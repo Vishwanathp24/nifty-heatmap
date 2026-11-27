@@ -6,6 +6,7 @@ import { SectorMulti, StockDrawer } from './Scanner.jsx'
 import { INDIA, OptionsBoard } from './CryptoOptions.jsx'
 import { ChartView } from './Chart.jsx'
 import { OS_CHECKS, OS_KIND, OsPlan, osRegime } from './OptSell.jsx'
+import { OptionOutlook } from './Outlook.jsx'
 
 // Condition scans modelled on the Chartink screens the user follows. "Daily" = today's
 // candle (NSE official open/high/low/last/volume) on top of Yahoo daily history;
@@ -171,12 +172,12 @@ function VolumeSpike({ vol, stocks, list, setList, onPick, picked }) {
   </>
 }
 
-const ALL_TABS = [['setup', 'Trade Setup'], ['iopt', 'Index Options'], ['fno', 'F&O Stocks'], ['osell', 'Option Selling'], ['trend', 'Trending Stocks'], ['bull', 'Bullish Intraday'], ['bear', 'Bearish Intraday'], ['vol5', 'Volume > 5 Days'], ['btst', 'BTST Stocks'], ['vol', 'Volume Spike'], ['ema', 'EMA 9/21 + RSI'], ['candle', 'Candlestick'], ['common', 'Common Stocks'], ['chart', 'Live Chart']]
+const ALL_TABS = [['setup', 'Trade Setup'], ['iopt', 'Index Options'], ['fno', 'F&O Stocks'], ['osell', 'Option Selling'], ['ixsell', 'Index Option Selling'], ['trend', 'Trending Stocks'], ['bull', 'Bullish Intraday'], ['bear', 'Bearish Intraday'], ['vol5', 'Volume > 5 Days'], ['btst', 'BTST Stocks'], ['vol', 'Volume Spike'], ['ema', 'EMA 9/21 + RSI'], ['candle', 'Candlestick'], ['common', 'Common Stocks'], ['chart', 'Live Chart']]
 // Extra scanners: hidden unless "More scanners" is switched on (remembered in this browser)
 const HIDDEN_TABS = ['iopt', 'btst', 'vol', 'ema', 'candle']
 const BASE_TABS = ALL_TABS.filter(([v]) => !HIDDEN_TABS.includes(v))
 // Basic mode: just these four scans
-const BASIC_TABS = [['bull', 'Bullish Intraday'], ['bear', 'Bearish Intraday'], ['vol5', 'Volume > 5 Days'], ['osell', 'Option Selling']]
+const BASIC_TABS = [['bull', 'Bullish Intraday'], ['bear', 'Bearish Intraday'], ['vol5', 'Volume > 5 Days'], ['osell', 'Option Selling'], ['ixsell', 'Index Option Selling']]
 
 // Live Chart: NSE stock candles (Yahoo) on 1m ... 1M with the indicator table; the stock list
 // follows the sector filter.
@@ -335,6 +336,7 @@ export default function Scans({ basic = false, trend: trendRaw, live, selected, 
       : tab === 't15' ? (!data ? <Empty>{trend.error || 'Loading scan data…'}</Empty> : <Trend15 key={'t15' + resetKey} data={data} live={live} {...pp} />)
       : tab === 'mom' ? (!data ? <Empty>{trend.error || 'Loading scan data…'}</Empty> : <HighMomentum key={'mo' + resetKey} data={data} live={live} {...pp} />)
       : tab === 'vol5' ? (!data ? <Empty>{trend.error || 'Loading scan data…'}</Empty> : <VolumeUp5 key={'v5' + resetKey} data={data} live={live} {...pp} />)
+      : tab === 'ixsell' ? <OptionOutlook live={live} onOpen={() => setTab('osell')} cardsOutside />
       : tab === 'osell' ? (!data ? <Empty>{trend.error || 'Loading scan data…'}</Empty> : <OptionSelling key={'os' + resetKey} data={data} live={live} />)
       : tab === 'setup' ? (!data ? <Empty>{trend.error || 'Loading scan data…'}</Empty> : <TradeSetup key={'ts' + resetKey} data={data} live={live} {...pp} />)
       : tab === 'vol' ? <VolumeSpike key={'v' + resetKey} vol={vol} stocks={live?.stocks} list={volList} setList={setVolList} {...pp} />

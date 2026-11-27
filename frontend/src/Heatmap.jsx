@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { AdChips, BreadthBar, ChartIcon, Drawer, Empty, IndexLink, Pct, Seg, SortTh, StockLink } from './components.jsx'
+import { AdChips, BreadthBar, ChartIcon, CopyTv, Drawer, Empty, IndexLink, Pct, Seg, SortTh, StockLink } from './components.jsx'
 import { StockDrawer } from './Scanner.jsx'
 import { OiCard, PcrCard } from './Pcr.jsx'
 import { BreadthPanel } from './Overview.jsx'
@@ -36,7 +36,7 @@ function DailyGrid({ rows, sp }) {
   const dates = [...new Set(rows.flatMap(s => Object.keys(s.daily || {})))].sort().reverse().slice(0, 30)
   if (!dates.length) return <div className="muted small">Loading 30-day history…</div>
   return <>
-    <h4>Daily % change · last {dates.length} sessions <span className="muted small">newest first · scroll sideways for older days · each cell = that day's close vs the day before</span></h4>
+    <h4 className="h-copy">Daily % change · last {dates.length} sessions <span className="muted small">newest first · scroll sideways for older days · each cell = that day's close vs the day before</span><CopyTv symbols={rows.map(s => s.symbol)} /></h4>
     <div className="tbl-wrap d30-wrap"><table className="tbl compact d30">
       <thead><tr><SortTh label="Symbol" k="symbol" {...sp} defaultDir="asc" /><SortTh label="1D %" k="pct_prev" {...sp} num title="Today vs previous close" /><SortTh label="1W %" k="pct_1w" {...sp} num title="Price vs the close 1 week ago" /><SortTh label="1M %" k="pct_30d" {...sp} num title="Price vs the close 30 days ago" />{dates.map(d => <th key={d} className="num">{dayHead(d)}</th>)}</tr></thead>
       <tbody>{rows.map(s => <tr key={s.symbol}>
@@ -92,7 +92,7 @@ function SectorPanel({ sector, basis, selected, toggle, from30 }) {
     {!live.data && !live.error && <div className="muted small">Loading constituents from NSE…</div>}
     {from30 && <DailyGrid rows={all} sp={sp} />}
     {!from30 && <>
-    <h4>All stocks in {sector.label} <span className="muted small">{members.length} · live from NSE{live.at ? ' · ' + istTime(live.at) : ''} · click a symbol to open TradingView</span></h4>
+    <h4 className="h-copy">All stocks in {sector.label} <span className="muted small">{members.length} · live from NSE{live.at ? ' · ' + istTime(live.at) : ''} · click a symbol to open TradingView</span><CopyTv symbols={all.map(s => s.symbol)} /></h4>
     <div className="tbl-wrap sp-table"><table className="tbl compact">
       <thead><tr>
         <SortTh label="Symbol" k="symbol" {...sp} defaultDir="asc" />
@@ -154,7 +154,7 @@ function FoMovers({ stocks, selected, labels, onOpen, openSym }) {
   const hres = usePoll(() => syms ? api('/api/stock-history?symbols=' + encodeURIComponent(syms)) : Promise.resolve(null), 30000, [syms])
   const wm = s => weekMonth(hres.data?.closes?.[s.symbol], s.ltp, hres.data?.session)
   const table = (title, rows, cls) => <div className="panel">
-    <div className="panel-head"><h3 className={cls}>{title}</h3><span className="muted small">F&O · {scope} · vs prev close</span></div>
+    <div className="panel-head"><h3 className={cls}>{title}</h3><span className="muted small">F&O · {scope} · vs prev close</span><CopyTv symbols={rows.map(s => s.symbol)} label="Copy" /></div>
     <div className="tbl-wrap"><table className="tbl compact">
       <thead><tr><th className="num">#</th><th>Symbol</th><th>Sector</th><th className="num">LTP</th><th className="num hide-m">Chg</th><th className="num" title="Today vs previous close">1D %</th><th className="num" title="Price vs the close 1 week ago">1W %</th><th className="num" title="Price vs the close 30 days ago">1M %</th><th className="num hide-m">Volume</th></tr></thead>
       <tbody>{rows.map((s, i) => <tr key={s.symbol} className={'clickable' + (openSym === s.symbol ? ' active' : '')} onClick={() => onOpen(s.symbol)} title="Click for chart and details">

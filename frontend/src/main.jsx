@@ -8,6 +8,7 @@ import Overview from './Overview.jsx'
 import Heatmap from './Heatmap.jsx'
 import Scanner, { DEFAULT_FILTERS, filterRows } from './Scanner.jsx'
 import { MiniCards } from './Pcr.jsx'
+import { OutlookMini } from './Outlook.jsx'
 import { PageHowTo } from './guides.jsx'
 import InfoPage, { INFO_PAGES, InfoLinks } from './Legal.jsx'
 import InstallPrompt, { openInstall, useCanInstall } from './InstallPrompt.jsx'
@@ -365,7 +366,7 @@ function App() {
       {live.error && !live.data && <div className="alert">{live.error}</div>}
       {/* Market Bias, OI Change, PCR, Expected Move, breadth and FII / DII as small cards on every page except Crypto;
           on Overview / Heatmap only in the phone / tablet views (desktop has the full panels) */}
-      {page !== 'crypto' && !INFO_IDS.includes(page) && <MiniCards always={page !== 'heatmap' ? true : fullData && 'full'} bias={live.data?.bias} breadth={live.data?.breadth} fiiDii={ctx.data?.fii_dii?.data} nifty={live.data?.indices?.nifty50} />}
+      {page !== 'crypto' && !INFO_IDS.includes(page) && <MiniCards always={page !== 'heatmap' ? true : fullData && 'full'} bias={live.data?.bias} breadth={live.data?.breadth} fiiDii={ctx.data?.fii_dii?.data} nifty={live.data?.indices?.nifty50}><OutlookMini live={live.data} ctx={ctx.data} /></MiniCards>}
       {page === 'journal' && <div className="mini-strip"><div id="journal-account-slot" className="mini-slot" /></div>}  {/* Journal puts its sign-in / saved status here */}
       {page === 'overview' && <Overview live={live.data} ctx={ctx.data} openOptionSelling={() => { setSessionValue('scans.tab', 'osell'); setPage('trend'); window.scrollTo({ top: 0 }) }} />}
       {page === 'heatmap' && <Heatmap live={live.data} selected={selected} setSelected={setSelected} toggle={toggleSector} goto={setPage} basic={basic} />}

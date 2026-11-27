@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react'
-import { Drawer, Empty, Seg, SortTh, StockLink } from './components.jsx'
+import { CopyTv, Drawer, Empty, Seg, SortTh, StockLink } from './components.jsx'
 import { PageNote } from './guides.jsx'
 import { api, fmtNum, fmtVol, isNum, istTime, sortRows, usePoll, useSessionState } from './lib.js'
 
@@ -198,7 +198,7 @@ function Recent({ rows, board, below, search }) {
     (!below || (isNum(r.pct_vs_issue) && r.pct_vs_issue < 0)) &&
     (!q || r.symbol.includes(q) || (r.company || '').toUpperCase().includes(q))), sort.key, sort.dir)
   const sp = { sort, setSort }
-  return <div className="tbl-wrap panel">
+  return <><div className="chip-copy"><CopyTv symbols={shown.map(r => r.symbol)} /></div><div className="tbl-wrap panel">
     <table className="tbl">
       <thead><tr>
         <SortTh label="Company" k="company" {...sp} defaultDir="asc" />
@@ -226,7 +226,7 @@ function Recent({ rows, board, below, search }) {
       </tr>)}</tbody>
     </table>
     {!shown.length && <Empty>No recent IPOs match.</Empty>}
-  </div>
+  </div></>
 }
 
 // Blog: IPO updates & reviews, as compact cards (status, issue name, dates, price band, updated time).

@@ -160,7 +160,7 @@ export function PcrInBias() {
 
 // Top strip as small 2-line cards (name, then value), 2 per row: Market Bias, Nifty OI
 // Change, Nifty PCR (OI), Expected Move, Nifty 50 and F&O breadth, FII and DII net (last data date).
-export function MiniCards({ bias, breadth, fiiDii, nifty, always = false }) {
+export function MiniCards({ bias, breadth, fiiDii, nifty, always = false, children }) {
   const res = usePoll(() => api('/api/index-options?symbol=NIFTY'), 30000, [])
   const { s } = useOiChange()
   const d = res.data, e = d?.expiries?.[0], v = s?.pcr, z = pcrZone(v)
@@ -193,6 +193,7 @@ export function MiniCards({ bias, breadth, fiiDii, nifty, always = false }) {
     {breadthCard('F&O', breadth?.fo)}
     {flowCard('FII', fiiDii?.fii)}
     {flowCard('DII', fiiDii?.dii)}
+    {children}
   </div>
 }
 
