@@ -159,18 +159,34 @@ export function BiasPill({ bias }) {
 }
 
 // Copies symbols as "NSE:A,NSE:B,…": paste into TradingView's watchlist "Add symbol" box to add them all at once.
+// Phones: TradingView's app adds one symbol at a time, so on a phone the button opens a sheet where
+// each stock is a tap-to-copy chip (ticked once copied); desktop copies the whole list in one go.
+const isPhone = () => typeof window !== 'undefined' && window.matchMedia?.('(max-width: 760px), (pointer: coarse) and (max-width: 1024px)').matches
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text) } catch {
+    const t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select()
+    try { document.execCommand('copy') } catch { /* nothing else to try */ } t.remove()
+  }
+}
 export function CopyTv({ symbols, label = 'Copy for TradingView' }) {
   const [done, setDone] = useState(null)
+  const [sheet, setSheet] = useState(false)
+  const [copied, setCopied] = useState({})
   const list = [...new Set(symbols)].map(tvSymbol)
-  const copy = async () => {
-    const text = list.join(',')
-    try { await navigator.clipboard.writeText(text) } catch {
-      const t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select()
-      try { document.execCommand('copy') } catch { /* nothing else to try */ } t.remove()
-    }
-    setDone(list.length); setTimeout(() => setDone(null), 2500)
-  }
-  return <button className="btn sm copy-tv" onClick={copy} disabled={!list.length}
-    title="Copies the symbols shown (NSE:SYMBOL, comma-separated). In TradingView open the watchlist, click + (Add symbol), paste and press Enter.">
-    {done != null ? `✓ Copied ${done}` : `📋 ${label}${list.length ? ` (${list.length})` : ''}`}</button>
+  const copyAll = async () => { await copyText(list.join(',')); setDone(list.length); setTimeout(() => setDone(null), 2500) }
+  const copyOne = async s => { await copyText(s); setCopied(c => ({ ...c, [s]: true })) }
+  const n = Object.keys(copied).filter(s => list.includes(s)).length
+  return <>
+    <button className="btn sm copy-tv" onClick={() => isPhone() ? (setCopied({}), setSheet(true)) : copyAll()} disabled={!list.length}
+      title="Copies the symbols shown (NSE:SYMBOL, comma-separated). In TradingView open the watchlist, click + (Add symbol), paste and press Enter. On a phone: tap each stock to copy it, then paste it in TradingView.">
+      {done != null ? `✓ Copied ${done}` : `📋 ${label}${list.length ? ` (${list.length})` : ''}`}</button>
+    {sheet && createPortal(<div className="tv-sheet-bg" onClick={() => setSheet(false)}>
+      <div className="tv-sheet" role="dialog" aria-label="Copy stocks for TradingView" onClick={e => e.stopPropagation()}>
+        <div className="tv-sheet-h"><b>Tap a stock to copy it</b><button className="btn sm" onClick={() => setSheet(false)}>Done</button></div>
+        <p className="muted small">Then open TradingView, tap + in your watchlist, paste, and come back for the next one. {n} of {list.length} copied.</p>
+        <div className="tv-chips">{list.map(s => <button key={s} className={'tv-chip' + (copied[s] ? ' on' : '')} onClick={() => copyOne(s)}>
+          {copied[s] ? '✓ ' : ''}{s.replace(/^NSE:/, '')}</button>)}</div>
+        <button className="btn sm tv-all" onClick={async () => { await copyText(list.join(',')); setCopied(Object.fromEntries(list.map(s => [s, true]))) }}>Copy all as one line (desktop TradingView)</button>
+      </div></div>, document.body)}
+  </>
 }

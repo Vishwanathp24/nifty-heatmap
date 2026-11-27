@@ -1884,3 +1884,11 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
 @media (max-width: 640px) { .mom-grid { grid-template-columns: repeat(3, 1fr) } }
 .nse-read { white-space: nowrap } .nse-read b { margin-right: 2px } .nse-read.up b { color: var(--up) } .nse-read.down b { color: var(--down) }
 .nse-read.amber b { color: var(--amber) }
+/* Copy for TradingView on phones: tap-to-copy sheet */
+.tv-sheet-bg { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 1000; display: flex; align-items: flex-end; justify-content: center }
+.tv-sheet { background: var(--panel); width: 100%; max-width: 560px; max-height: 75vh; overflow: auto; border-radius: 16px 16px 0 0; padding: 14px 16px calc(16px + env(safe-area-inset-bottom)) }
+.tv-sheet-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px }
+.tv-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 14px }
+.tv-chip { font: inherit; font-weight: 600; font-size: 14px; padding: 10px 14px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--panel); color: var(--ink); cursor: pointer }
+.tv-chip.on { background: var(--up-bg); border-color: var(--up); color: var(--up) }
+.tv-all { width: 100% }
