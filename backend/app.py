@@ -481,6 +481,185 @@ def fii_dii_api():
     return fiidii.snapshot(_fii.get().get("data"))
 
 
+_mom = {"lock": threading.Lock(), "data": {}}
+MOMENTUM = {"m30": "NIFTY200MOMENTM30", "m50": "NIFTY500MOMENTM50"}  # NSE market-watch names
+
+
+@app.get("/api/momentum")
+def momentum_api(idx: str = "m30"):
+    """Intraday Scanner > Momentum: members of Nifty200 Momentum 30 / Nifty500 Momentum 50 with today's move
+    (as on NSE's heatmap), cached for 60 s."""
+    if idx not in MOMENTUM:
+        raise HTTPException(404, "unknown index")
+    with _mom["lock"]:
+        hit = _mom["data"].get(idx)
+        if hit and time.time() - hit["at"] < 60:
+            return hit
+        try:
+            index_row, stocks = sources.constituents(MOMENTUM[idx])
+        except sources.SourceError as e:
+            if hit:
+                return hit
+            raise HTTPException(503, str(e))
+        total = sum(q.get("ffmc") or 0 for q in stocks.values()) or 1
+        rows = []
+        for q in stocks.values():
+            ltp, prev = q.get("ltp"), q.get("prev")
+            chg = ltp - prev if ltp is not None and prev else None
+            rows.append({**q, "chg": round(chg, 2) if chg is not None else None,
+                         "pct": round(100 * chg / prev, 2) if chg is not None else None,
+                         "weight": round(100 * (q.get("ffmc") or 0) / total, 2)})
+        ir = index_row or {}
+        out = {"at": time.time(), "idx": idx, "name": ir.get("symbol") or MOMENTUM[idx], "last": ir.get("lastPrice"),
+               "chg": ir.get("change"), "pct": ir.get("pChange"), "rows": rows}
+        _mom["data"][idx] = out
+        return out
+
+
+_oisp = {"lock": threading.Lock(), "at": 0, "data": None}
+
+
+@app.get("/api/oi-change")
+def oi_change_api():
+    """Intraday Scanner > NSE > Change in OI: NSE's OI spurts for every F&O underlying (latest vs previous OI,
+    volume, futures / options value), cached for 60 s."""
+    with _oisp["lock"]:
+        if _oisp["data"] and time.time() - _oisp["at"] < 60:
+            return _oisp["data"]
+        try:
+            r = sources.nse.get(sources.NSE_API + "live-analysis-oi-spurts-underlyings")
+        except sources.SourceError as e:
+            if _oisp["data"]:
+                return _oisp["data"]
+            raise HTTPException(503, str(e))
+        rows = [{"symbol": x.get("symbol"), "oi": x.get("latestOI"), "prev_oi": x.get("prevOI"), "chg_oi": x.get("changeInOI"),
+                 "pct_oi": x.get("avgInOI"), "volume": x.get("volume"), "fut_val": x.get("futValue"), "opt_val": x.get("optValue"),
+                 "total": x.get("total"), "prem_val": x.get("premValue"), "spot": x.get("underlyingValue")} for x in r.get("data") or [] if x.get("symbol")]
+        contracts = {}
+        try:  # NSE's contract lists (top 25 each): Rise / Slide in OI with Rise / Slide in price
+            for blk in sources.nse.get(sources.NSE_API + "live-analysis-oi-spurts-contracts").get("data") or []:
+                for key, items in blk.items():
+                    contracts[key] = [{"symbol": x.get("symbol"), "inst": x.get("instrumentType"), "expiry": x.get("expiryDate"),
+                                       "strike": x.get("strikePrice"), "opt": x.get("optionType"), "ltp": x.get("ltp"),
+                                       "prev": x.get("prevClose"), "pct": x.get("pChange"), "oi": x.get("latestOI"),
+                                       "prev_oi": x.get("prevOI"), "chg_oi": x.get("changeInOI"), "pct_oi": x.get("pChangeInOI"),
+                                       "volume": x.get("volume"), "spot": x.get("underlyingValue")} for x in items or []]
+        except sources.SourceError:
+            contracts = (_oisp["data"] or {}).get("contracts") or {}
+        _oisp.update(at=time.time(), data={"at": time.time(), "timestamp": r.get("timestamp"), "date": r.get("currTradingDate"),
+                                           "prev_date": r.get("prevTradingDate"), "rows": rows, "contracts": contracts})
+        return _oisp["data"]
+
+
+_volg = {"lock": threading.Lock(), "at": 0, "data": None}
+
+
+def _lakh_cr(v):
+    """'91.47 L' / '106.08 Cr' / plain number -> number."""
+    if isinstance(v, (int, float)):
+        return v
+    try:
+        t = str(v).replace(",", "").strip()
+        mult = 1e5 if t.endswith("L") else 1e7 if t.endswith("Cr") else 1
+        return float(t.rstrip("LCr ").strip()) * mult
+    except ValueError:
+        return None
+
+
+def _is_fund(name):
+    """ETFs / mutual-fund units in NSE lists (stocks only on the Volume Gainers tab)."""
+    n = f" {name or ''} ".upper()
+    return any(w in n for w in (" ETF ", " ETF-", "MUTUAL FUND", " MF ", " MF-", " BEES", " FUND "))
+
+
+@app.get("/api/volume-gainers")
+def volume_gainers_api():
+    """Intraday Scanner > NSE > Volume Gainers: NSE's volume gainers / spurts (today's volume vs the 1- and
+    2-week average), cached for 60 s."""
+    with _volg["lock"]:
+        if _volg["data"] and time.time() - _volg["at"] < 60:
+            return _volg["data"]
+        try:
+            r = sources.nse.get(sources.NSE_API + "live-analysis-volume-gainers")
+        except sources.SourceError as e:
+            if _volg["data"]:
+                return _volg["data"]
+            raise HTTPException(503, str(e))
+        rows = [{"symbol": x.get("symbol"), "company": x.get("companyName"), "volume": _lakh_cr(x.get("volume")),
+                 "avg1w": x.get("week1AvgVolume"), "x1w": x.get("week1volChange"), "avg2w": x.get("week2AvgVolume"),
+                 "x2w": x.get("week2volChange"), "ltp": x.get("ltp"), "pct": x.get("pChange"), "turnover": _lakh_cr(x.get("turnover"))}
+                for x in r.get("data") or [] if x.get("symbol") and not _is_fund(x.get("companyName"))]
+        _volg.update(at=time.time(), data={"at": time.time(), "timestamp": r.get("timestamp"), "rows": rows})
+        return _volg["data"]
+
+
+_gl = {"lock": threading.Lock(), "at": 0, "data": None}
+
+
+@app.get("/api/gainers-losers")
+def gainers_losers_api():
+    """Intraday Scanner > NSE > Gainers / Losers: NSE's top gainers and losers for each group (Nifty 50, Bank Nifty,
+    Nifty Next 50, securities above / below Rs 20, F&O, all), cached for 60 s."""
+    with _gl["lock"]:
+        if _gl["data"] and time.time() - _gl["at"] < 60:
+            return _gl["data"]
+        out = {"at": time.time(), "groups": [], "gainers": {}, "losers": {}, "timestamp": None}
+        try:
+            for side, idx in (("gainers", "gainers"), ("losers", "loosers")):
+                r = sources.nse.get(sources.NSE_API + "live-analysis-variations?index=" + idx)
+                out["groups"] = r.get("legends") or out["groups"]
+                for key, _ in out["groups"]:
+                    blk = r.get(key) or {}
+                    out["timestamp"] = out["timestamp"] or blk.get("timestamp")
+                    out[side][key] = [{"symbol": x.get("symbol"), "series": x.get("series"), "open": x.get("open_price"),
+                                       "high": x.get("high_price"), "low": x.get("low_price"), "prev": x.get("prev_price"),
+                                       "ltp": x.get("ltp"), "pct": x.get("perChange"), "volume": _lakh_cr(x.get("trade_quantity")),
+                                       "turnover": _lakh_cr(x.get("turnover")), "off_high": x.get("nearWKH"), "off_low": x.get("nearWKL")}
+                                      for x in blk.get("data") or [] if x.get("symbol")]
+        except sources.SourceError as e:
+            if _gl["data"]:
+                return _gl["data"]
+            raise HTTPException(503, str(e))
+        _gl.update(at=time.time(), data=out)
+        return out
+
+
+_ipot = {"lock": threading.Lock(), "at": 0, "data": None}
+
+
+@app.get("/api/ipo-tracker")
+def ipo_tracker_api():
+    """Intraday Scanner > NSE > IPO: NSE's IPO tracker (gain / loss vs issue price for IPOs listed this year,
+    mainboard and SME), cached for 5 minutes."""
+    def num(v):
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return None
+
+    with _ipot["lock"]:
+        if _ipot["data"] and time.time() - _ipot["at"] < 300:
+            return _ipot["data"]
+        try:
+            r = sources.nse.get(sources.NSE_API + "NextApi/apiClient?functionName=getIPOTrackerSummary")
+        except sources.SourceError as e:
+            if _ipot["data"]:
+                return _ipot["data"]
+            raise HTTPException(503, str(e))
+        rows = []
+        for x in (r.get("data") if isinstance(r, dict) else r) or []:
+            try:
+                listed = datetime.strptime(x.get("LISTED_ON") or "", "%d-%m-%Y").date().isoformat()
+            except ValueError:
+                listed = None
+            rows.append({"symbol": x.get("SYMBOL"), "company": x.get("COMPANYNAME"), "board": x.get("MARKETTYPE"),
+                         "listed": listed, "issue": num(x.get("ISSUE_PRICE")), "ltp": num(x.get("LTP")),
+                         "gain": num(x.get("GAIN_LOSS")), "gain_pct": num(x.get("GAIN_LOSS_PER")),
+                         "list_close": num(x.get("LISTED_DAY_CLOSE")) or None, "list_pct": num(x.get("LISTED_DAY_GAIN_PER"))})
+        _ipot.update(at=time.time(), data={"at": time.time(), "rows": [x for x in rows if x["symbol"]]})
+        return _ipot["data"]
+
+
 @app.get("/api/fo-lots")
 def fo_lots():
     """F&O Stocks tab: this month's lot size for every F&O symbol (NSE fo_mktlots.csv, cached 6 h)."""

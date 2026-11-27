@@ -60,6 +60,13 @@ PAGES = {
         "How FIIs, DIIs, proprietary traders and retail clients are positioned in Nifty index futures and options after each session, the change from the day before, 30 sessions of history and the cash-market FII / DII net.",
         True,
     ),
+    "/unused-screeners": (
+        "Unused Screeners: Common Stocks, Candlestick, Live Chart, Volume Spike & BTST",
+        "Extra NSE screeners kept aside: Common Stocks across scans, daily candlestick patterns, live stock chart, volume spike and BTST stocks.",
+        "Unused screeners",
+        "Screeners moved out of the Intraday Scanner: Common Stocks, Candlestick patterns, the Live Chart, Volume Spike, BTST Stocks, EMA 9/21 + RSI, Index Option Selling and Index Options.",
+        False,
+    ),
     "/learning": (
         "Learn Options & Technical Analysis: PCR, ORB, VWAP, Supertrend",
         "Plain-language lessons on put-call ratio, opening range breakout, VWAP, EMA, Supertrend, RSI and ADX as used on this dashboard.",

@@ -237,7 +237,7 @@ function HowToRead({ live }) {
 
 // Same layout in Basic and Advanced (the PCR bar above the page is set in main.jsx): Global Cues | FII/DII
 // (with the breadth cards), Indian Markets (index cards), Market Bias beside Nifty OI Change, Market Outlook,
-// Top Movers (Option Selling Outlook moved to Intraday Scanner -> Index Option Selling),
+// Top Movers (Option Selling Outlook moved to Unused Screeners -> Index Option Selling),
 // then "How to read this page" with the live 3-step check and the disclaimer.
 export default function Overview({ live, ctx, openOptionSelling }) {
   if (!live) return <Empty>Loading live market data…</Empty>

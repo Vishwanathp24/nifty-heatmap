@@ -112,7 +112,7 @@ function NavMenu({ pages, page, go }) {
 const BASIC_PAGES = ['overview', 'heatmap', 'scanner', 'trend']  // Intraday Scanner in Basic shows 3 scans + Option Selling (Scans.jsx BASIC_TABS)
 
 // One real URL per page, so each can be linked, indexed and shared. The server serves the same app for these paths.
-const PATHS = { overview: '/', heatmap: '/heatmap', scanner: '/orb-scanner', trend: '/intraday-scanner', crypto: '/crypto', ipo: '/ipo', fiidii: '/fii-dii-data', learning: '/learning',  // /journal (removed) opens Market Overview
+const PATHS = { overview: '/', heatmap: '/heatmap', scanner: '/orb-scanner', trend: '/intraday-scanner', unused: '/unused-screeners', crypto: '/crypto', ipo: '/ipo', fiidii: '/fii-dii-data', learning: '/learning',  // /journal (removed) opens Market Overview
   ...Object.fromEntries(INFO_PAGES.map(p => [p.id, p.path])) }  // + About, Contact, Privacy Policy, Terms of Use, Disclaimer (footer links)
 const INFO_IDS = INFO_PAGES.map(p => p.id)
 const pageFromPath = path => Object.keys(PATHS).find(id => PATHS[id] === path.replace(/(.)\/$/, '$1')) || 'overview'
@@ -273,7 +273,7 @@ function App() {
   // larger screens; a switch lasts until the page is reloaded.
   const [mode, setMode] = useState(() => window.matchMedia('(max-width: 600px)').matches ? 'basic' : 'advanced')
   const basic = mode === 'basic'
-  useEffect(() => { if (basic && !BASIC_PAGES.includes(page) && !INFO_IDS.includes(page) && page !== 'crypto') setPage('overview') }, [basic, page])
+  useEffect(() => { if (basic && !BASIC_PAGES.includes(page) && !INFO_IDS.includes(page) && page !== 'crypto' && page !== 'unused') setPage('overview') }, [basic, page])
   // Crypto is the third choice of the Basic | Advanced | Crypto switch (it has its own tabs), not a menu page.
   const isCrypto = page === 'crypto'
   const navPages = isCrypto ? [] : (basic ? PAGES.filter(p => BASIC_PAGES.includes(p.id)) : PAGES).filter(p => p.id !== 'crypto')
@@ -304,7 +304,7 @@ function App() {
   const live = usePoll(() => api('/api/live'), auto ? REFRESH_MS : 3.6e6, [auto])
   // ORB scans refresh every 10 s only where they are shown (ORB Scanner; Intraday Scanner's Common Stocks);
   // elsewhere once a minute, just for the menu badge.
-  const orbMs = !auto ? 3.6e6 : page === 'scanner' || page === 'trend' ? REFRESH_MS : 60000
+  const orbMs = !auto ? 3.6e6 : page === 'scanner' || page === 'trend' || page === 'unused' ? REFRESH_MS : 60000
   const orb = usePoll(() => api(`/api/orb?tf=${tf}&confirm=${Number(confirm3)}&orm=60`), orbMs, [orbMs, tf, confirm3])
   const orb15 = usePoll(() => api(`/api/orb?tf=${tf15}&confirm=${Number(confirm15)}&orm=15`), orbMs, [orbMs, tf15, confirm15])
   const orb5 = usePoll(() => api(`/api/orb?tf=${tf5}&confirm=${Number(confirm5)}&orm=5`), orbMs, [orbMs, tf5, confirm5])
@@ -312,7 +312,8 @@ function App() {
   const ctx = usePoll(() => api('/api/context'), 60000, [])
   // Data for other pages is prefetched a few seconds after load, so it doesn't slow the page being opened.
   const later = (on, path) => on ? api(path) : new Promise(r => setTimeout(r, 8000)).then(() => api(path))
-  const trend = usePoll(() => later(page === 'trend', '/api/trend'), page === 'trend' ? 30000 : 3.6e6, [page === 'trend'])
+  const scanPage = page === 'trend' || page === 'unused'
+  const trend = usePoll(() => later(scanPage, '/api/trend'), scanPage ? 30000 : 3.6e6, [scanPage])
   const crypto = usePoll(() => later(page === 'crypto', '/api/crypto'), page === 'crypto' ? 10000 : 3.6e6, [page === 'crypto'])
   const ipo = usePoll(() => later(page === 'ipo', '/api/ipo'), page === 'ipo' ? 30000 : 300000, [page === 'ipo'])
 
@@ -335,11 +336,11 @@ function App() {
   const orbLists = { 15: orb15.data?.rows && filterRows(orb15.data.rows, orbFilters15, selected, orb15.data), 30: orb30.data?.rows && filterRows(orb30.data.rows, orbFilters30, selected, orb30.data), 60: orb.data?.rows && filterRows(orb.data.rows, orbFilters, selected, orb.data) }
   const orbNow = { 5: [orb5Count, '5 Min'], 15: [orb15Count, '15 Min'], 30: [orb30Count, '30 Min'], 60: [orbCount, '1 Hour'] }[orbView] || [orb15Count, '15 Min']
 
-  // Chart icon next to any stock symbol -> Intraday Scanner, Live Chart tab, that stock.
+  // Chart icon next to any stock symbol -> Unused Screeners, Live Chart tab, that stock.
   const [chartReq, setChartReq] = useState(0)
   const openStockChart = useCallback(sym => {
-    setSessionValue('slive.sym', sym); setSessionValue('scans.tab', 'chart')
-    setChartReq(n => n + 1); setMode('advanced'); setPage('trend'); window.scrollTo({ top: 0 })  // the Live Chart is an Advanced page
+    setSessionValue('slive.sym', sym); setSessionValue('unused.tab', 'chart')
+    setChartReq(n => n + 1); setPage('unused'); window.scrollTo({ top: 0 })
   }, [])
 
   return <StockChartCtx.Provider value={openStockChart}><TopMoversCtx.Provider value={topMovers}><div className={'app tab-app' + (fullData ? ' full-data' : '')}>
@@ -372,6 +373,7 @@ function App() {
       {page === 'heatmap' && <Heatmap live={live.data} selected={selected} setSelected={setSelected} toggle={toggleSector} goto={setPage} basic={basic} />}
       <PageBoundary page={page}><Suspense fallback={<div className="empty">Loading… (updating to the latest version if the site was just updated)</div>}>
         {page === 'trend' && <Scans basic={basic} trend={trend} live={live.data} selected={selected} setSelected={setSelected} chartReq={chartReq} orbLists={orbLists} />}
+        {page === 'unused' && <Scans unused openOsell={() => { setSessionValue('scans.tab', 'osell'); setPage('trend'); window.scrollTo({ top: 0 }) }} trend={trend} live={live.data} selected={selected} setSelected={setSelected} chartReq={chartReq} orbLists={orbLists} />}
         {page === 'crypto' && <Crypto crypto={crypto} />}
         {INFO_IDS.includes(page) && <InfoPage id={page} />}
         {page === 'ipo' && <Ipo ipo={ipo} />}
@@ -399,6 +401,7 @@ function App() {
     {!isCrypto && <TabBar pages={navPages} page={page} setPage={setPage} badges={{ heatmap: selected.length || null, scanner: orbNow[0] }} />}
     <footer className="foot">
       <InfoLinks go={setPage} />
+      <nav className="info-links" aria-label="More screeners"><a href={PATHS.unused} onClick={e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button) return; e.preventDefault(); setPage('unused'); window.scrollTo({ top: 0 }) }}>Unused Screeners</a></nav>
       <InstallLink />
       Decision-support scanner — no buy/sell, target or stop-loss recommendations. Data: NSE (indices, quotes, per-minute prices, bhavcopy volumes, FII/DII, GIFT Nifty, market status), BSE (Sensex), Yahoo Finance (overseas indices, Scanner candles, opening-range fallback).
       {live.data?.source_ts && <> Latest NSE quote: {istDate(nseTs(live.data.source_ts))} {istTime(nseTs(live.data.source_ts))} IST.</>}

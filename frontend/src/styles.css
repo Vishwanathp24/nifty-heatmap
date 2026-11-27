@@ -1875,3 +1875,12 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
 .pcr-mini.orange { color: var(--orange); background: var(--orange-bg); border-color: #f7c9ad }
 .card-v.orange, .cm-v.orange, td.orange, .pcr-kid.orange, .mcard .pcr-t.orange { color: var(--orange) }
 .mcard.orange { border-left-color: var(--orange) } .mcard.orange .mv { color: var(--orange) }
+/* Intraday Scanner > Momentum heatmap */
+.mom-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 6px; margin: 8px 0 12px }
+.mom-tile { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 8px 10px; border: 1px solid transparent; border-radius: 10px; cursor: pointer; text-align: left; font: inherit; min-width: 0 }
+.mom-tile b { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100% }
+.mom-tile span { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums }
+.mom-tile small { font-size: 11px; opacity: .8; font-variant-numeric: tabular-nums }
+@media (max-width: 640px) { .mom-grid { grid-template-columns: repeat(3, 1fr) } }
+.nse-read { white-space: nowrap } .nse-read b { margin-right: 2px } .nse-read.up b { color: var(--up) } .nse-read.down b { color: var(--down) }
+.nse-read.amber b { color: var(--amber) }
