@@ -179,7 +179,7 @@ const UNUSED_TABS = [['common', 'Common Stocks'], ['candle', 'Candlestick'], ['c
 const HIDDEN_TABS = []
 const BASE_TABS = ALL_TABS.filter(([v]) => !HIDDEN_TABS.includes(v))
 // Basic mode: just these four scans
-const BASIC_TABS = [['bull', 'Bullish Intraday'], ['bear', 'Bearish Intraday'], ['vol5', 'Volume > 5 Days'], ['osell', 'Option Selling']]
+const BASIC_TABS = [['bull', 'Bullish Intraday'], ['bear', 'Bearish Intraday'], ['vol5', 'Volume > 5 Days'], ['osell', 'Option Selling'], ['nse', 'NSE']]
 
 // Live Chart: NSE stock candles (Yahoo) on 1m ... 1M with the indicator table; the stock list
 // follows the sector filter.

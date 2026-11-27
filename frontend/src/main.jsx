@@ -349,7 +349,7 @@ function App() {
         <span>NSE Sector Heatmap</span></button>
       <div className="seg mode-switch" role="group" aria-label="Site version">
         {[['basic', 'Basic'], ['advanced', 'Advanced'], ['crypto', 'Crypto']].map(([v, l]) => <button key={v} className={(isCrypto ? v === 'crypto' : mode === v) ? 'on' : ''} onClick={() => pickMode(v)}
-          title={v === 'basic' ? 'Simple view: Market Overview, Sector Heatmap, ORB Scanner, 3 intraday scans and Option Selling' : v === 'crypto' ? 'Crypto market: prices, heatmap, movers, ORB and options (trades 24x7)' : 'Full view: every scanner, chart and tool'}>{l}</button>)}
+          title={v === 'basic' ? 'Simple view: Market Overview, Sector Heatmap, ORB Scanner, 3 intraday scans, Option Selling and the NSE lists' : v === 'crypto' ? 'Crypto market: prices, heatmap, movers, ORB and options (trades 24x7)' : 'Full view: every scanner, chart and tool'}>{l}</button>)}
       </div>
       <button className={'full-toggle' + (fullData ? ' on' : '')} role="switch" aria-checked={fullData} onClick={() => setFullData(f => !f)}
         title="Phones and tablets: show the full data panels (as in the first version) instead of the small cards"><i />Full data</button>
