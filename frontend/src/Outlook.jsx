@@ -280,7 +280,7 @@ export function OutlookMini({ live, ctx }) {
       <div className="mv">{o.lean.label} <small>{o.up} good / {o.down} bad</small></div>
     </div>
     <Drawer open={open} onClose={() => setOpen(false)} title="Market Outlook" wide>
-      <MarketOutlook live={live} ctx={ctx} initialMore />
+      <div className="ol-drawer"><MarketOutlook live={live} ctx={ctx} initialMore /></div>
     </Drawer>
   </>
 }

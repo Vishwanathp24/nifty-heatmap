@@ -159,7 +159,8 @@ export function PcrInBias() {
 }
 
 // Top strip as small 2-line cards (name, then value), 2 per row: Market Bias, Nifty OI
-// Change, Nifty PCR (OI), Expected Move, Nifty 50 and F&O breadth, FII and DII net (last data date).
+// Change, Nifty PCR (OI), Expected Move + Market Outlook (children). Breadth and FII / DII are not repeated
+// here: they have their own panels on Market Overview.
 export function MiniCards({ bias, breadth, fiiDii, nifty, always = false, children }) {
   const res = usePoll(() => api('/api/index-options?symbol=NIFTY'), 30000, [])
   const { s } = useOiChange()
@@ -173,12 +174,6 @@ export function MiniCards({ bias, breadth, fiiDii, nifty, always = false, childr
   // calls / puts as "a/b" with one unit when both share it (3.68Cr/3.64Cr -> 3.68/3.64Cr)
   const pair = (a, b, sg) => { const f = v => (sg && v > 0 ? '+' : '') + shares(v), x = f(a), y = f(b), ua = x.replace(/[−+\d.,]/g, ''), ub = y.replace(/[−+\d.,]/g, '')
     return ua && ua === ub ? x.slice(0, -ua.length) + '/' + y : x + '/' + y }
-  const breadthCard = (label, x) => x && card(label, !isNum(x.ad_ratio) ? 'amber' : sign(x.ad_ratio - 1), label + ' Breadth',
-    <AdChips up={x.up} down={x.down} />,
-    `${label} breadth vs previous close: ${x.up} advancing, ${x.down} declining, ${x.unchanged} unchanged · A/D ratio ${isNum(x.ad_ratio) ? x.ad_ratio.toFixed(2) : 'N/A'}`)
-  const flowCard = (label, x) => x && isNum(x.net) && card(label, sign(x.net), `${label} · ${x.date.split('-').slice(0, 2).join(' ')}`,
-    <>{x.net > 0 ? '+' : x.net < 0 ? '−' : ''}{Math.abs(x.net).toLocaleString('en-IN', { maximumFractionDigits: 0 })} <small>Cr net</small></>,
-    `${label} cash market, provisional (NSE), data date ${x.date}: bought ₹${k(x.buy)} Cr, sold ₹${k(x.sell)} Cr`)
   return <div className={'mini-cards ' + (always === 'full' ? 'always f-only' : always ? 'always' : 'c-only')}>  {/* f-only: Full data view on phones / tablets */}
     {card('bias', b === 'BULLISH' ? 'up' : b === 'BEARISH' ? 'down' : 'amber', 'Market Bias',
       <>{b || 'N/A'} {isNum(bias?.score) && <small>{bias.score > 0 ? '+' : ''}{bias.score} / 5</small>}</>)}
@@ -189,10 +184,6 @@ export function MiniCards({ bias, breadth, fiiDii, nifty, always = false, childr
     {card('pcr', z?.tone, 'Nifty PCR (OI)', <>{z ? v.toFixed(2) : '—'} {z && <small>{z.label.split(' / ')[0]}</small>}</>, z ? `${z.label}: ${z.text} (${spanText(s)}; all strikes ${isNum(e.pcr_oi) ? e.pcr_oi.toFixed(2) : '—'})` : undefined)}
     {card('em', 'em', 'Expected Move', em ? <>±{k(e.move)} <small>{k(d.spot - e.move)}–{k(d.spot + e.move)}</small></> : '—',
       'From option prices (at-the-money implied volatility): about a 2-in-3 chance Nifty ends this expiry inside the range. Not a prediction.')}
-    {breadthCard('Nifty 50', breadth?.nifty50)}
-    {breadthCard('F&O', breadth?.fo)}
-    {flowCard('FII', fiiDii?.fii)}
-    {flowCard('DII', fiiDii?.dii)}
     {children}
   </div>
 }

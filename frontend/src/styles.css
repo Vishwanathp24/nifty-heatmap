@@ -1486,7 +1486,7 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
   .app:not(.full-data) .ov .cues .cards.six, .app:not(.full-data) .ov .idx-section > .cards { grid-template-columns: repeat(6, minmax(0, 1fr)) !important }
 }
 /* Small cards on every page and screen size: 8 in a row on wide screens, 4 on tablets, 2 on phones */
-.app .mini-cards { grid-template-columns: repeat(9, minmax(0, 1fr)) }
+.app .mini-cards { grid-template-columns: repeat(5, minmax(0, 1fr)) }
 @media (max-width: 1100px) { .app .mini-cards { grid-template-columns: repeat(3, minmax(0, 1fr)) } }
 @media (max-width: 600px) { .app .mini-cards { grid-template-columns: repeat(2, minmax(0, 1fr)) } }
 /* Small cards: never cut a value off: the grey detail moves under the value when the card is too narrow */
@@ -1848,3 +1848,15 @@ button.blog-card { cursor: pointer } button.blog-card:hover { border-color: var(
 .outlook-pair > .os-idx-row .os-idx { margin-bottom: 0 }
 .mcard.clickable { cursor: pointer } .mcard.clickable:hover { border-color: var(--border-strong); box-shadow: 0 1px 4px rgba(0,0,0,.08) }
 @media (max-width: 600px) { .app .mini-cards > .mcard.clickable:last-child { grid-column: 1 / -1 } }
+/* Market Outlook in the side panel (small card in the top strip): 2 columns so every block is readable */
+.drawer.wide:has(.ol-drawer) { width: min(880px, 100vw) }
+.ol-drawer .section { border: 0; padding: 0; margin: 0; box-shadow: none }
+.ol-drawer .ol-grid { grid-template-columns: 1fr 1fr; grid-template-areas: "lean lean" "sig lev" "scen scen"; align-items: stretch }
+.ol-drawer .ol-grid > .ol-lean { grid-area: lean; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; padding: 10px 14px }
+.ol-drawer .ol-grid > .ol-lean .ol-lean-v { font-size: 22px; margin: 0 }
+.ol-drawer .ol-grid > .ol-sig { grid-area: sig }
+.ol-drawer .ol-grid > .ol-levels { grid-area: lev }
+.ol-drawer .ol-grid > .ol-scen { grid-area: scen }
+.ol-drawer .ol-tbl td { white-space: nowrap }
+.ol-drawer .ol-tbl td.muted { white-space: normal }
+@media (max-width: 640px) { .ol-drawer .ol-grid { grid-template-columns: 1fr; grid-template-areas: "lean" "sig" "lev" "scen" } }
