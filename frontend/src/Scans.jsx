@@ -317,7 +317,7 @@ export default function Scans({ basic = false, unused = false, openOsell, trend:
   const clearAll = () => {
     setSelected([])
     setDirManual(false); base.setDir(biasLabel === 'BEARISH' ? 'bear' : 'bull'); settings.setTfs('both'); settings.setRsiMin(60); settings.setAdxMin(25); settings.setUniverse('fo')
-    setSessionValue('mom.sideManual', null); setSessionValue('oic.nselist', null); setSessionValue('vol5.dirManual', null); setOicTop(0); setVolgTop(0); setSessionValue('volg.sideManual', null); setSessionValue('gl.sideManual', null)
+    setSessionValue('mom.sideManual', null); setSessionValue('oic.nselist', null); setSessionValue('vol5.dirManual', null); setOicTop(0); setVolgTop(0); setSessionValue('gl.sideManual', null)
     topCtx.setTopN?.(10); topCtx.setTopOn(true)  // back to Top 10 gainers + losers
     setCondMin({}); setTrendMin({}); setSessionValue('trend.allOnly', true)
     setResetKey(k => k + 1)  // remount the tables so search / sort / checkboxes start fresh
@@ -1125,8 +1125,6 @@ function volReading(r) {
 function VolumeGainers({ topN, live, selected, bias, head, onPick, picked }) {
   // Own Top 10 / 20 switch (next to Clear filters), off at first: most volume gainers are not F&O stocks.
   const topPass = topRows(useContext(TopMoversCtx).map, topN)
-  const [manual, setManual] = useSessionState('volg.sideManual', null)
-  const side = manual || (bias === 'BULLISH' ? 'up' : bias === 'BEARISH' ? 'down' : 'all')
   const [sort, setSort] = useState({ key: 'x1w', dir: 'desc' })
   const [search, setSearch] = useState('')
   const res = usePoll(() => api('/api/volume-gainers'), 60000, [])
@@ -1134,17 +1132,13 @@ function VolumeGainers({ topN, live, selected, bias, head, onPick, picked }) {
   const px = useMemo(() => Object.fromEntries((live?.stocks || []).map(s => [s.symbol, s])), [live])
   const rows = topPass((d?.rows || []).filter(r => !selected?.length || (px[r.symbol]?.sectors || []).some(x => selected.includes(x))))
   const q = search.trim().toUpperCase()
-  const inSide = (r, k) => k === 'all' || (k === 'up' ? r.pct > 0 : r.pct < 0)
-  const shown = sortRows(rows.filter(r => inSide(r, side) && (!q || r.symbol.includes(q) || (r.company || '').toUpperCase().includes(q))), sort.key, sort.dir)
+  const shown = sortRows(rows.filter(r => (!q || r.symbol.includes(q) || (r.company || '').toUpperCase().includes(q))), sort.key, sort.dir)
   const sp = { sort, setSort }
   const sg = v => isNum(v) ? (v > 0 ? '+' : '') + v.toFixed(2) + '%' : '—'
   const xx = v => isNum(v) ? v.toFixed(2) + '×' : '—'
   return <>
     <div className="toolbar">
       {head}
-      <Seg value={side} onChange={setManual} options={[{ value: 'all', label: <>All <span className="count">{d ? rows.length : ''}</span></> },
-        { value: 'up', label: <>Price up <span className="count">{d ? rows.filter(r => r.pct > 0).length : ''}</span></>, tone: 'up' },
-        { value: 'down', label: <>Price down <span className="count">{d ? rows.filter(r => r.pct < 0).length : ''}</span></>, tone: 'down' }]} />
       <CopyTv symbols={shown.map(r => r.symbol)} />
       <input className="search" placeholder="Search symbol" value={search} onChange={e => setSearch(e.target.value)} />
     </div>
